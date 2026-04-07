@@ -1,15 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { useCompany } from "@/lib/company-context";
 import { clientsApi, itemsApi, invoicesApi } from "@/lib/api";
 import type { Client, Item } from "@/types";
-import { Plus, Trash2, Save, FileText } from "lucide-react";
+import { Plus, Trash2, GripVertical } from "lucide-react";
 
 interface LineItem {
   item_id: string | null;
@@ -24,7 +22,7 @@ const emptyLine: LineItem = {
   item_id: null,
   description: "",
   quantity: "1",
-  unit: "бр.",
+  unit: "\u0431\u0440.",
   unit_price: "0.00",
   vat_rate: "20.00",
 };
@@ -37,6 +35,7 @@ export default function NewInvoice() {
   const [items, setItems] = useState<Item[]>([]);
   const [clientSearch, setClientSearch] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
 
   const [documentType, setDocumentType] = useState<"invoice" | "proforma">("invoice");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -44,12 +43,25 @@ export default function NewInvoice() {
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [taxEventDate, setTaxEventDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("По банка");
+  const [paymentMethod, setPaymentMethod] = useState("\u041f\u043e \u0431\u0430\u043d\u043a\u0430");
   const [notes, setNotes] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
   const [noVat, setNoVat] = useState(false);
+  const [noVatReason, setNoVatReason] = useState("");
 
   const [lines, setLines] = useState<LineItem[]>([{ ...emptyLine }]);
   const [saving, setSaving] = useState(false);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Load clients and items
   useEffect(() => {
@@ -116,8 +128,7 @@ export default function NewInvoice() {
   };
 
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
-  const vatRate = noVat ? 0 : 20;
-  const vatAmount = noVat ? 0 : subtotal * (vatRate / 100);
+  const vatAmount = noVat ? 0 : subtotal * 0.2;
   const total = subtotal + vatAmount;
 
   // Save
@@ -136,8 +147,10 @@ export default function NewInvoice() {
         status: saveStatus,
         vat_rate: 20,
         no_vat: noVat,
+        no_vat_reason: noVat ? noVatReason || undefined : undefined,
         payment_method: paymentMethod || undefined,
         notes: notes || undefined,
+        internal_notes: internalNotes || undefined,
         currency: "EUR",
         lines: lines.map((line, i) => ({
           item_id: line.item_id || undefined,
@@ -154,7 +167,7 @@ export default function NewInvoice() {
       navigate(`/invoices/${invoice.id}`);
     } catch (err) {
       console.error("Failed to create invoice:", err);
-      alert("Грешка при създаване на фактурата");
+      alert("\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430");
     } finally {
       setSaving(false);
     }
@@ -163,76 +176,55 @@ export default function NewInvoice() {
   if (!company) {
     return (
       <div className="text-center py-12 text-slate-500">
-        Моля, настройте фирмата в Настройки.
+        {"\u041c\u043e\u043b\u044f, \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u0442\u0435 \u0444\u0438\u0440\u043c\u0430\u0442\u0430 \u0432 \u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438."}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Нова {documentType === "invoice" ? "Фактура" : "Проформа"}
-        </h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleSave("draft")}
-            disabled={saving || !selectedClient}
-            className="gap-2"
-          >
-            <Save className="h-4 w-4" />
-            Чернова
-          </Button>
-          <Button
-            onClick={() => handleSave("issued")}
-            disabled={saving || !selectedClient}
-            className="gap-2"
-          >
-            <FileText className="h-4 w-4" />
-            {saving ? "Създаване..." : "Създай"}
-          </Button>
-        </div>
+    <div className="space-y-4">
+      {/* Document Type Selection - like inv.bg top bar */}
+      <div className="bg-white border border-slate-200 rounded-lg px-5 py-3 flex items-center gap-6">
+        <span className="text-sm font-medium text-slate-500 mr-2">{"\u0422\u0438\u043f \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442:"}</span>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name="docType"
+            checked={documentType === "proforma"}
+            onChange={() => setDocumentType("proforma")}
+            className="w-4 h-4 accent-blue-600"
+          />
+          <span className={`text-sm ${documentType === "proforma" ? "font-semibold text-blue-700" : "text-slate-600"}`}>
+            {"\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"}
+          </span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name="docType"
+            checked={documentType === "invoice"}
+            onChange={() => setDocumentType("invoice")}
+            className="w-4 h-4 accent-blue-600"
+          />
+          <span className={`text-sm ${documentType === "invoice" ? "font-semibold text-blue-700" : "text-slate-600"}`}>
+            {"\u0424\u0430\u043a\u0442\u0443\u0440\u0430"}
+          </span>
+        </label>
       </div>
 
-      {/* Document Type */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="docType"
-                checked={documentType === "invoice"}
-                onChange={() => setDocumentType("invoice")}
-                className="accent-blue-600"
-              />
-              <span className="font-medium">Фактура</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="docType"
-                checked={documentType === "proforma"}
-                onChange={() => setDocumentType("proforma")}
-                className="accent-blue-600"
-              />
-              <span className="font-medium">Проформа</span>
-            </label>
+      {/* Main two-column layout: Client (left) + Invoice Details (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Client Section - Left side (8 cols) */}
+        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-lg">
+          <div className="border-b border-slate-200 px-5 py-3">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">{"\u041a\u043b\u0438\u0435\u043d\u0442"}</h2>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Client Selection */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg">Клиент</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative">
+          <div className="p-5 space-y-4">
+            {/* Client search */}
+            <div className="relative" ref={clientDropdownRef}>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u041a\u043b\u0438\u0435\u043d\u0442"}</Label>
               <Input
-                placeholder="Търсене на клиент по име или ЕИК..."
+                placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0438\u043c\u0435 \u0438\u043b\u0438 \u0415\u0418\u041a..."}
                 value={clientSearch}
                 onChange={(e) => {
                   setClientSearch(e.target.value);
@@ -240,9 +232,10 @@ export default function NewInvoice() {
                   if (!e.target.value) setSelectedClient(null);
                 }}
                 onFocus={() => setShowClientDropdown(true)}
+                className="h-9"
               />
               {showClientDropdown && clientSearch && filteredClients.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
                   {filteredClients.map((client) => (
                     <button
                       key={client.id}
@@ -251,133 +244,169 @@ export default function NewInvoice() {
                     >
                       <div className="font-medium">{client.name}</div>
                       <div className="text-xs text-slate-500">
-                        {client.eik && `ЕИК: ${client.eik}`}
-                        {client.city && ` • ${client.city}`}
+                        {client.eik && `\u0415\u0418\u041a: ${client.eik}`}
+                        {client.city && ` \u2022 ${client.city}`}
                       </div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            {selectedClient && (
-              <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm">
-                <p className="font-medium">{selectedClient.name}</p>
-                {selectedClient.eik && (
-                  <p className="text-slate-600">ЕИК: {selectedClient.eik}</p>
-                )}
-                {selectedClient.city && (
-                  <p className="text-slate-600">
-                    {selectedClient.city}
-                    {selectedClient.address && `, ${selectedClient.address}`}
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Invoice Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Данни за документа</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            {/* Client details grid - like inv.bg */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u0415\u0418\u041a / \u0411\u0443\u043b\u0441\u0442\u0430\u0442"}</Label>
+                <Input
+                  value={selectedClient?.eik || ""}
+                  readOnly
+                  className="h-9 bg-slate-50"
+                  placeholder={"\u2014"}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u0414\u0414\u0421 \u043d\u043e\u043c\u0435\u0440"}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={selectedClient?.vat_number || ""}
+                    readOnly
+                    className="h-9 bg-slate-50"
+                    placeholder={"\u2014"}
+                  />
+                  {selectedClient?.is_vat_registered && (
+                    <span className="text-xs text-green-600 font-medium whitespace-nowrap">{"\u0420\u0435\u0433. \u043f\u043e \u0417\u0414\u0414\u0421"}</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u041c\u041e\u041b"}</Label>
+                <Input
+                  value={selectedClient?.mol || ""}
+                  readOnly
+                  className="h-9 bg-slate-50"
+                  placeholder={"\u2014"}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u0413\u0440\u0430\u0434"}</Label>
+                <Input
+                  value={selectedClient?.city || ""}
+                  readOnly
+                  className="h-9 bg-slate-50"
+                  placeholder={"\u2014"}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u0410\u0434\u0440\u0435\u0441"}</Label>
+                <Input
+                  value={selectedClient?.address || ""}
+                  readOnly
+                  className="h-9 bg-slate-50"
+                  placeholder={"\u2014"}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Invoice Details - Right side (4 cols) */}
+        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-lg">
+          <div className="border-b border-slate-200 px-5 py-3">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              {documentType === "invoice" ? "\u0424\u0430\u043a\u0442\u0443\u0440\u0430" : "\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"} {"\u2116"}
+            </h2>
+          </div>
+          <div className="p-5 space-y-3">
             <div>
-              <Label>Номер</Label>
+              <Label className="text-xs text-slate-500 mb-1 block">
+                {documentType === "invoice" ? "\u0424\u0430\u043a\u0442\u0443\u0440\u0430" : "\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"} {"\u2116"}
+              </Label>
               <Input
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="h-9 text-lg font-bold text-center"
               />
             </div>
             <div>
-              <Label>Дата на издаване</Label>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0438\u0437\u0434\u0430\u0432\u0430\u043d\u0435"}</Label>
               <Input
                 type="date"
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
+                className="h-9"
               />
             </div>
             <div>
-              <Label>Дата на дан. събитие</Label>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0434\u0430\u043d. \u0441\u044a\u0431\u0438\u0442\u0438\u0435"}</Label>
               <Input
                 type="date"
                 value={taxEventDate}
                 onChange={(e) => setTaxEventDate(e.target.value)}
+                className="h-9"
               />
             </div>
             <div>
-              <Label>Дата на падеж</Label>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u043f\u0430\u0434\u0435\u0436"}</Label>
               <Input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                className="h-9"
               />
             </div>
-            <div>
-              <Label>Начин на плащане</Label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
-              >
-                <option>По банка</option>
-                <option>В брой</option>
-                <option>С карта</option>
-                <option>PayPal</option>
-                <option>Наложен платеж</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Line Items */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Артикули</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {/* Header */}
-            <div className="grid grid-cols-12 gap-2 text-xs font-medium text-slate-500 uppercase tracking-wider px-1">
-              <div className="col-span-4">Описание</div>
-              <div className="col-span-1">Мярка</div>
-              <div className="col-span-2">Кол-во</div>
-              <div className="col-span-2">Ед. цена</div>
-              <div className="col-span-2 text-right">Стойност</div>
-              <div className="col-span-1"></div>
-            </div>
-
-            <Separator />
-
+      {/* Line Items Table - full width like inv.bg */}
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-100 border-b border-slate-200">
+              <th className="w-8 px-2 py-2.5"></th>
+              <th className="text-left text-xs font-semibold text-slate-600 uppercase tracking-wider px-3 py-2.5" style={{ minWidth: 280 }}>
+                {"\u0410\u0440\u0442\u0438\u043a\u0443\u043b"}
+              </th>
+              <th className="text-center text-xs font-semibold text-slate-600 uppercase tracking-wider px-2 py-2.5 w-20">
+                {"\u041a\u043e\u043b-\u0432\u043e"}
+              </th>
+              <th className="text-center text-xs font-semibold text-slate-600 uppercase tracking-wider px-2 py-2.5 w-20">
+                {"\u041c\u044f\u0440\u043a\u0430"}
+              </th>
+              <th className="text-right text-xs font-semibold text-slate-600 uppercase tracking-wider px-2 py-2.5 w-28">
+                {"\u0415\u0434. \u0446\u0435\u043d\u0430"}
+              </th>
+              <th className="text-center text-xs font-semibold text-slate-600 uppercase tracking-wider px-2 py-2.5 w-16">
+                {"\u0412\u0430\u043b\u0443\u0442\u0430"}
+              </th>
+              <th className="text-right text-xs font-semibold text-slate-600 uppercase tracking-wider px-3 py-2.5 w-28">
+                {"\u0421\u0442\u043e\u0439\u043d\u043e\u0441\u0442"}
+              </th>
+              <th className="w-10 px-2 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
             {lines.map((line, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                <div className="col-span-4 relative">
+              <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 group">
+                <td className="px-2 py-1.5 text-center">
+                  <GripVertical className="h-4 w-4 text-slate-300 group-hover:text-slate-400 cursor-grab mx-auto" />
+                </td>
+                <td className="px-3 py-1.5 relative">
                   <Input
-                    placeholder="Описание / артикул"
+                    placeholder={"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 / \u0430\u0440\u0442\u0438\u043a\u0443\u043b..."}
                     value={line.description}
                     onChange={(e) => updateLine(i, "description", e.target.value)}
-                    list={`items-list-${i}`}
+                    className="h-8 text-sm border-slate-200"
                   />
-                  <datalist id={`items-list-${i}`}>
-                    {items.map((item) => (
-                      <option key={item.id} value={item.name} />
-                    ))}
-                  </datalist>
-                  {/* Quick select from items catalog */}
                   {line.description &&
                     !line.item_id &&
                     items.some((item) =>
-                      item.name
-                        .toLowerCase()
-                        .startsWith(line.description.toLowerCase())
+                      item.name.toLowerCase().startsWith(line.description.toLowerCase())
                     ) && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-auto">
+                      <div className="absolute z-20 left-3 right-3 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-32 overflow-auto">
                         {items
                           .filter((item) =>
-                            item.name
-                              .toLowerCase()
-                              .startsWith(line.description.toLowerCase())
+                            item.name.toLowerCase().startsWith(line.description.toLowerCase())
                           )
                           .slice(0, 5)
                           .map((item) => (
@@ -386,121 +415,210 @@ export default function NewInvoice() {
                               onClick={() => selectItem(i, item)}
                               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
                             >
-                              {item.name} — {Number(item.default_price).toFixed(2)} EUR
+                              {item.name} {"\u2014"} {Number(item.default_price).toFixed(2)} EUR
                             </button>
                           ))}
                       </div>
                     )}
-                </div>
-                <div className="col-span-1">
-                  <Input
-                    value={line.unit}
-                    onChange={(e) => updateLine(i, "unit", e.target.value)}
-                    className="text-center"
-                  />
-                </div>
-                <div className="col-span-2">
+                </td>
+                <td className="px-2 py-1.5">
                   <Input
                     type="number"
                     step="0.001"
                     min="0"
                     value={line.quantity}
                     onChange={(e) => updateLine(i, "quantity", e.target.value)}
-                    className="text-right"
+                    className="h-8 text-sm text-center border-slate-200"
                   />
-                </div>
-                <div className="col-span-2">
+                </td>
+                <td className="px-2 py-1.5">
+                  <select
+                    value={line.unit}
+                    onChange={(e) => updateLine(i, "unit", e.target.value)}
+                    className="h-8 w-full border border-slate-200 rounded-md px-2 text-sm text-center bg-white"
+                  >
+                    <option>{"\u0431\u0440."}</option>
+                    <option>{"\u043a\u0433"}</option>
+                    <option>{"\u043c"}</option>
+                    <option>{"\u043b"}</option>
+                    <option>{"\u043c\u00b2"}</option>
+                    <option>{"\u043c\u00b3"}</option>
+                    <option>{"\u0447\u0430\u0441"}</option>
+                    <option>{"\u0434\u0435\u043d"}</option>
+                    <option>{"\u043c\u0435\u0441."}</option>
+                    <option>{"\u0443\u0441\u043b\u0443\u0433\u0430"}</option>
+                  </select>
+                </td>
+                <td className="px-2 py-1.5">
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={line.unit_price}
                     onChange={(e) => updateLine(i, "unit_price", e.target.value)}
-                    className="text-right"
+                    className="h-8 text-sm text-right border-slate-200"
                   />
-                </div>
-                <div className="col-span-2 text-right font-semibold text-sm pr-2">
-                  {calcLineTotal(line).toFixed(2)} EUR
-                </div>
-                <div className="col-span-1 text-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                </td>
+                <td className="px-2 py-1.5 text-center text-sm text-slate-500">
+                  EUR
+                </td>
+                <td className="px-3 py-1.5 text-right font-semibold text-sm">
+                  {calcLineTotal(line).toFixed(2)}
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <button
                     onClick={() => removeLine(i)}
                     disabled={lines.length <= 1}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-slate-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+                  </button>
+                </td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+        <div className="px-4 py-2 border-t border-slate-100">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addLine}
+            className="gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          >
+            <Plus className="h-4 w-4" />
+            {"\u0414\u043e\u0431\u0430\u0432\u0438 \u0440\u0435\u0434"}
+          </Button>
+        </div>
+      </div>
 
-            <Button variant="outline" onClick={addLine} className="gap-2 mt-2">
-              <Plus className="h-4 w-4" />
-              Добави ред
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Totals & Notes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Допълнителни</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
+      {/* Bottom section: VAT/Notes (left) + Totals (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left: VAT settings + Notes + Payment */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* VAT Settings */}
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+            <div className="flex items-center gap-3">
               <input
                 type="checkbox"
                 id="no_vat"
                 checked={noVat}
                 onChange={(e) => setNoVat(e.target.checked)}
-                className="rounded border-slate-300"
+                className="rounded border-slate-300 w-4 h-4"
               />
-              <Label htmlFor="no_vat">
-                Не начислявай ДДС по тази фактура
+              <Label htmlFor="no_vat" className="text-sm cursor-pointer">
+                {"\u041d\u0435 \u043d\u0430\u0447\u0438\u0441\u043b\u044f\u0432\u0430\u0439 \u0414\u0414\u0421 \u043f\u043e \u0442\u0430\u0437\u0438 \u0444\u0430\u043a\u0442\u0443\u0440\u0430"}
               </Label>
             </div>
+            {noVat && (
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">{"\u041e\u0441\u043d\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430 \u043d\u0435\u043d\u0430\u0447\u0438\u0441\u043b\u044f\u0432\u0430\u043d\u0435 \u043d\u0430 \u0414\u0414\u0421"}</Label>
+                <select
+                  value={noVatReason}
+                  onChange={(e) => setNoVatReason(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white h-9"
+                >
+                  <option value="">{"\u0418\u0437\u0431\u0435\u0440\u0435\u0442\u0435 \u043e\u0441\u043d\u043e\u0432\u0430\u043d\u0438\u0435..."}</option>
+                  <option value="\u0447\u043b. 113, \u0430\u043b. 9 \u043e\u0442 \u0417\u0414\u0414\u0421">{"\u0447\u043b. 113, \u0430\u043b. 9 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
+                  <option value="\u0447\u043b. 21, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421">{"\u0447\u043b. 21, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
+                  <option value="\u0447\u043b. 28 \u043e\u0442 \u0417\u0414\u0414\u0421">{"\u0447\u043b. 28 \u043e\u0442 \u0417\u0414\u0414\u0421 (\u0438\u0437\u043d\u043e\u0441)"}</option>
+                  <option value="\u0447\u043b. 7 \u043e\u0442 \u0417\u0414\u0414\u0421">{"\u0447\u043b. 7 \u043e\u0442 \u0417\u0414\u0414\u0421 (\u0412\u041e\u0414)"}</option>
+                  <option value="\u0447\u043b. 69, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421">{"\u0447\u043b. 69, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
+                  <option value="\u043d\u0435\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0430\u043d\u043e \u043f\u043e \u0417\u0414\u0414\u0421 \u043b\u0438\u0446\u0435">{"\u041d\u0435\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0430\u043d\u043e \u043f\u043e \u0417\u0414\u0414\u0421 \u043b\u0438\u0446\u0435"}</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Payment + Notes */}
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
             <div>
-              <Label>Забележки (видими за клиента)</Label>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u041d\u0430\u0447\u0438\u043d \u043d\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</Label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white h-9"
+              >
+                <option>{"\u041f\u043e \u0431\u0430\u043d\u043a\u0430"}</option>
+                <option>{"\u0412 \u0431\u0440\u043e\u0439"}</option>
+                <option>{"\u0421 \u043a\u0430\u0440\u0442\u0430"}</option>
+                <option>PayPal</option>
+                <option>{"\u041d\u0430\u043b\u043e\u0436\u0435\u043d \u043f\u043b\u0430\u0442\u0435\u0436"}</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u0417\u0430\u0431\u0435\u043b\u0435\u0436\u043a\u0438 (\u0432\u0438\u0434\u0438\u043c\u0438 \u0437\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u0430)"}</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Опционални забележки..."
-                rows={3}
+                placeholder={"\u0417\u0430\u0431\u0435\u043b\u0435\u0436\u043a\u0438 \u043a\u044a\u043c \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430..."}
+                rows={2}
+                className="text-sm"
               />
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <Label className="text-xs text-slate-500 mb-1 block">{"\u041a\u043e\u043c\u0435\u043d\u0442\u0430\u0440\u0438 (\u0432\u044a\u0442\u0440\u0435\u0448\u043d\u0438, \u043d\u0435 \u0441\u0435 \u0432\u0438\u0436\u0434\u0430\u0442 \u043e\u0442 \u043a\u043b\u0438\u0435\u043d\u0442\u0430)"}</Label>
+              <Textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder={"\u0412\u044a\u0442\u0440\u0435\u0448\u043d\u0438 \u0431\u0435\u043b\u0435\u0436\u043a\u0438..."}
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+          </div>
+        </div>
 
-        <Card className="bg-slate-50">
-          <CardHeader>
-            <CardTitle className="text-lg">Суми</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Данъчна основа:</span>
-              <span className="font-semibold">{subtotal.toFixed(2)} EUR</span>
+        {/* Right: Totals */}
+        <div className="lg:col-span-5">
+          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="border-b border-slate-200 px-5 py-3">
+              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">{"\u0421\u0443\u043c\u0438"}</h2>
             </div>
-            {!noVat && (
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">ДДС (20%):</span>
-                <span className="font-semibold">
-                  {vatAmount.toFixed(2)} EUR
-                </span>
+            <div className="p-5 space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500">{"\u0414\u0430\u043d\u044a\u0447\u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0430:"}</span>
+                <span className="font-medium text-slate-800">{subtotal.toFixed(2)} EUR</span>
               </div>
-            )}
-            <Separator />
-            <div className="flex justify-between text-lg">
-              <span className="font-bold text-slate-900">Сума за плащане:</span>
-              <span className="font-bold text-blue-600">
-                {total.toFixed(2)} EUR
-              </span>
+              {!noVat && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">{"\u0414\u0414\u0421 (20%):"}</span>
+                  <span className="font-medium text-slate-800">{vatAmount.toFixed(2)} EUR</span>
+                </div>
+              )}
+              {noVat && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500">{"\u0414\u0414\u0421:"}</span>
+                  <span className="font-medium text-slate-400">0.00 EUR</span>
+                </div>
+              )}
+              <div className="border-t border-slate-200 pt-3 mt-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-bold text-slate-900">{"\u0421\u0443\u043c\u0430 \u0437\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435:"}</span>
+                  <span className="text-xl font-bold text-blue-600">{total.toFixed(2)} EUR</span>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Action Buttons - at bottom of totals like inv.bg */}
+            <div className="border-t border-slate-200 px-5 py-4 bg-slate-50 space-y-2">
+              <Button
+                onClick={() => handleSave("issued")}
+                disabled={saving || !selectedClient}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium h-10"
+              >
+                {saving ? "\u0421\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435..." : `\u0421\u044a\u0437\u0434\u0430\u0439 ${documentType === "invoice" ? "\u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430" : "\u043f\u0440\u043e\u0444\u043e\u0440\u043c\u0430\u0442\u0430"}`}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleSave("draft")}
+                disabled={saving || !selectedClient}
+                className="w-full h-9 text-sm"
+              >
+                {"\u0421\u044a\u0437\u0434\u0430\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0430"}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
