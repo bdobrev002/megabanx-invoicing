@@ -28,6 +28,22 @@ def _parse_address_from_field(html: str) -> str:
     return text
 
 
+def _extract_city_from_address(text: str) -> str:
+    """Extract city/town name from 'Населено място:' field in TR address.
+
+    Examples:
+        'Населено място: гр. София, п.к. 1404' -> 'гр. София'
+        'Населено място: с. Равно поле, п.к. 2129' -> 'с. Равно поле'
+    """
+    match = re.search(r'Населено\s+място:\s*([^,]+)', text)
+    if match:
+        city = match.group(1).strip()
+        # Remove postal code if attached
+        city = re.sub(r'\s*п\.к\.\s*\d+', '', city).strip()
+        return city
+    return ""
+
+
 def _extract_email_from_text(text: str) -> str:
     """Extract email address from text using regex."""
     match = re.search(r'[\w.-]+@[\w.-]+\.\w+', text)
@@ -64,6 +80,7 @@ def _parse_trade_registry_response(data: dict) -> dict:
             legal_form = parts[1].strip()
 
     address = ""
+    city = ""
     mol = ""
     tr_email = ""
     managers: list[str] = []
@@ -78,6 +95,8 @@ def _parse_trade_registry_response(data: dict) -> dict:
                         full_addr_text = _extract_text_from_html(html)
                         if not tr_email:
                             tr_email = _extract_email_from_text(full_addr_text)
+                        if not city:
+                            city = _extract_city_from_address(full_addr_text)
                         address = _parse_address_from_field(html)
                     elif code == "CR_F_10_L" and not mol:
                         mol = _extract_text_from_html(html)
@@ -99,7 +118,7 @@ def _parse_trade_registry_response(data: dict) -> dict:
         "vat_number": f"BG{uic}" if uic else "",
         "is_vat_registered": False,
         "mol": mol,
-        "city": "",
+        "city": city,
         "address": address,
         "phone": "",
         "email": tr_email,
