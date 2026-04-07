@@ -26,8 +26,17 @@ def get_logo_base64(logo_path: str | None) -> str | None:
     return f"data:{mime};base64,{base64.b64encode(data).decode()}"
 
 
-def num_to_bg_words(number: float) -> str:
+CURRENCY_WORDS = {
+    "EUR": ("евро", "цент."),
+    "BGN": ("лев", "стотинки"),
+    "USD": ("долар", "цент."),
+    "GBP": ("паунд", "пени"),
+}
+
+
+def num_to_bg_words(number: float, currency: str = "EUR") -> str:
     """Convert number to Bulgarian words for invoice total."""
+    main_unit, sub_unit = CURRENCY_WORDS.get(currency, CURRENCY_WORDS["EUR"])
     int_part = int(number)
     dec_part = round((number - int_part) * 100)
 
@@ -71,9 +80,9 @@ def num_to_bg_words(number: float) -> str:
 
     result = convert_chunk(int_part)
     if dec_part > 0:
-        result += f" евро и {dec_part:02d} цент."
+        result += f" {main_unit} и {dec_part:02d} {sub_unit}"
     else:
-        result += " евро."
+        result += f" {main_unit}."
     return result
 
 
@@ -95,7 +104,7 @@ def _generate_invoice_pdf_sync(invoice) -> str:
         doc_type_label=doc_type_label,
         doc_type_label_lower=doc_type_label_lower,
         logo_b64=logo_b64,
-        total_words=num_to_bg_words(float(invoice.total)),
+        total_words=num_to_bg_words(float(invoice.total), invoice.currency),
     )
 
     os.makedirs(PDF_DIR, exist_ok=True)

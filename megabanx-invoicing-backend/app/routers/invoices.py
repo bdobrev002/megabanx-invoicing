@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models.invoice import Invoice, DocumentType, InvoiceStatus
@@ -65,76 +66,88 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # Auto-generate invoice number if not provided
+    # Auto-generate invoice number if not provided, with retry on conflict
     invoice_number = data.invoice_number
-    if invoice_number is None:
-        result = await db.execute(
-            select(func.coalesce(func.max(Invoice.invoice_number), 0))
-            .where(
-                and_(
-                    Invoice.company_id == data.company_id,
-                    Invoice.document_type == data.document_type,
-                    Invoice.is_deleted == False,
+    max_retries = 3
+    for attempt in range(max_retries):
+        if invoice_number is None or attempt > 0:
+            result = await db.execute(
+                select(func.coalesce(func.max(Invoice.invoice_number), 0))
+                .where(
+                    and_(
+                        Invoice.company_id == data.company_id,
+                        Invoice.document_type == data.document_type,
+                        Invoice.is_deleted == False,
+                    )
                 )
+                .with_for_update()
             )
-        )
-        invoice_number = result.scalar() + 1
+            invoice_number = result.scalar() + 1
 
-    # Create invoice
-    invoice = Invoice(
-        company_id=data.company_id,
-        client_id=data.client_id,
-        document_type=data.document_type,
-        invoice_number=invoice_number,
-        issue_date=data.issue_date or date.today(),
-        tax_event_date=data.tax_event_date or date.today(),
-        due_date=data.due_date,
-        status=data.status,
-        vat_rate=data.vat_rate,
-        no_vat=data.no_vat,
-        no_vat_reason=data.no_vat_reason,
-        payment_method=data.payment_method,
-        notes=data.notes,
-        internal_notes=data.internal_notes,
-        currency=data.currency,
-    )
-    db.add(invoice)
-    await db.flush()
+        try:
+            # Create invoice
+            invoice = Invoice(
+                company_id=data.company_id,
+                client_id=data.client_id,
+                document_type=data.document_type,
+                invoice_number=invoice_number,
+                issue_date=data.issue_date or date.today(),
+                tax_event_date=data.tax_event_date or date.today(),
+                due_date=data.due_date,
+                status=data.status,
+                vat_rate=data.vat_rate,
+                no_vat=data.no_vat,
+                no_vat_reason=data.no_vat_reason,
+                payment_method=data.payment_method,
+                notes=data.notes,
+                internal_notes=data.internal_notes,
+                currency=data.currency,
+            )
+            db.add(invoice)
+            await db.flush()
 
-    # Create line items
-    for i, line_data in enumerate(data.lines):
-        line_total = calculate_line_total(line_data.quantity, line_data.unit_price)
-        line = InvoiceLine(
-            invoice_id=invoice.id,
-            item_id=line_data.item_id,
-            position=line_data.position if line_data.position is not None else i,
-            description=line_data.description,
-            quantity=line_data.quantity,
-            unit=line_data.unit,
-            unit_price=line_data.unit_price,
-            vat_rate=line_data.vat_rate,
-            line_total=line_total,
-        )
-        db.add(line)
+            # Create line items
+            for i, line_data in enumerate(data.lines):
+                line_total = calculate_line_total(line_data.quantity, line_data.unit_price)
+                line = InvoiceLine(
+                    invoice_id=invoice.id,
+                    item_id=line_data.item_id,
+                    position=line_data.position if line_data.position is not None else i,
+                    description=line_data.description,
+                    quantity=line_data.quantity,
+                    unit=line_data.unit,
+                    unit_price=line_data.unit_price,
+                    vat_rate=line_data.vat_rate,
+                    line_total=line_total,
+                )
+                db.add(line)
 
-    await db.flush()
-    await db.refresh(invoice)
+            await db.flush()
+            await db.refresh(invoice)
 
-    # Calculate totals
-    subtotal, vat_amount, total = calculate_invoice_totals(
-        invoice.lines, data.vat_rate, data.no_vat
-    )
-    invoice.subtotal = subtotal
-    invoice.vat_amount = vat_amount
-    invoice.total = total
+            # Calculate totals
+            subtotal, vat_amount, total = calculate_invoice_totals(
+                invoice.lines, data.vat_rate, data.no_vat
+            )
+            invoice.subtotal = subtotal
+            invoice.vat_amount = vat_amount
+            invoice.total = total
 
-    await db.commit()
-    await db.refresh(invoice)
+            await db.commit()
+            await db.refresh(invoice)
 
-    response = InvoiceResponse.model_validate(invoice)
-    response.client_name = client.name
-    response.company_name = company.name
-    return response
+            response = InvoiceResponse.model_validate(invoice)
+            response.client_name = client.name
+            response.company_name = company.name
+            return response
+        except IntegrityError:
+            await db.rollback()
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Could not generate unique invoice number. Please try again.",
+                )
+            invoice_number = None  # Force re-read on next attempt
 
 
 @router.get("/stats")

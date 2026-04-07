@@ -3,7 +3,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, Boolean, Text, DateTime, Date, ForeignKey, Numeric, Enum, Integer
+from sqlalchemy import String, Boolean, Text, DateTime, Date, ForeignKey, Numeric, Enum, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,9 @@ class InvoiceStatus(str, PyEnum):
 
 class Invoice(Base):
     __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint("company_id", "document_type", "invoice_number", name="uq_invoice_number"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
