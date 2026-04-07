@@ -1,3 +1,4 @@
+import asyncio
 import os
 import base64
 from pathlib import Path
@@ -76,9 +77,9 @@ def num_to_bg_words(number: float) -> str:
     return result
 
 
-async def generate_invoice_pdf(invoice) -> str:
-    """Generate PDF for an invoice and return the file path."""
-    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
+def _generate_invoice_pdf_sync(invoice) -> str:
+    """Synchronous PDF generation (CPU-bound, run in thread pool)."""
+    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     template = env.get_template("invoice_pdf.html")
 
     doc_type_label = "ФАКТУРА" if invoice.document_type == "invoice" else "ПРОФОРМА"
@@ -103,3 +104,8 @@ async def generate_invoice_pdf(invoice) -> str:
 
     HTML(string=html_content).write_pdf(pdf_path)
     return pdf_path
+
+
+async def generate_invoice_pdf(invoice) -> str:
+    """Generate PDF for an invoice without blocking the event loop."""
+    return await asyncio.to_thread(_generate_invoice_pdf_sync, invoice)

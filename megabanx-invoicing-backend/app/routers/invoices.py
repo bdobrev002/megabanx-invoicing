@@ -67,7 +67,7 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
 
     # Auto-generate invoice number if not provided
     invoice_number = data.invoice_number
-    if not invoice_number:
+    if invoice_number is None:
         result = await db.execute(
             select(func.coalesce(func.max(Invoice.invoice_number), 0))
             .where(
