@@ -89,6 +89,10 @@ def _parse_trade_registry_response(data: dict) -> dict:
 
     display_name = full_name if full_name else company_name
 
+    # Use first manager/representative as MOL fallback when CR_F_10_L is empty
+    if not mol and managers:
+        mol = managers[0]
+
     return {
         "name": display_name,
         "eik": uic,
