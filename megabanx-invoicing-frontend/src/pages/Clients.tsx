@@ -19,9 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCompany } from "@/lib/company-context";
-import { clientsApi } from "@/lib/api";
+import { clientsApi, registryApi } from "@/lib/api";
 import type { Client } from "@/types";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Loader2 } from "lucide-react";
 
 const emptyClient = {
   name: "",
@@ -43,6 +43,8 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyClient);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState("");
 
   const loadClients = async () => {
     if (!company) return;
@@ -95,6 +97,36 @@ export default function Clients() {
     if (!confirm("Сигурни ли сте, че искате да изтриете този клиент?")) return;
     await clientsApi.delete(id);
     loadClients();
+  };
+
+  const handleEikLookup = async () => {
+    const eik = form.eik.trim();
+    if (!eik || eik.length < 9) {
+      setLookupError("Въведете валиден ЕИК (поне 9 цифри)");
+      return;
+    }
+    setLookingUp(true);
+    setLookupError("");
+    try {
+      const data = await registryApi.lookupEik(eik);
+      setForm((prev) => ({
+        ...prev,
+        name: data.name || prev.name,
+        eik: data.eik || prev.eik,
+        vat_number: data.vat_number || prev.vat_number,
+        is_vat_registered: data.is_vat_registered,
+        mol: data.mol || prev.mol,
+        city: data.city || prev.city,
+        address: data.address || prev.address,
+        phone: data.phone || prev.phone,
+        email: data.email || prev.email,
+      }));
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setLookupError(error.response?.data?.detail || "Грешка при търсене в Търговски регистър");
+    } finally {
+      setLookingUp(false);
+    }
   };
 
   const updateField = (field: string, value: string | boolean) => {
@@ -224,11 +256,26 @@ export default function Clients() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>ЕИК</Label>
-                <Input
-                  value={form.eik}
-                  onChange={(e) => updateField("eik", e.target.value)}
-                  placeholder="123456789"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={form.eik}
+                    onChange={(e) => { updateField("eik", e.target.value); setLookupError(""); }}
+                    placeholder="123456789"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEikLookup}
+                    disabled={lookingUp || !form.eik.trim()}
+                    className="shrink-0 gap-1 px-3"
+                    title="Попълни от Търговски регистър"
+                  >
+                    {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    ТР
+                  </Button>
+                </div>
+                {lookupError && <p className="text-xs text-red-500 mt-1">{lookupError}</p>}
               </div>
               <div>
                 <Label>ДДС номер</Label>

@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables
 from app.config import UPLOAD_DIR
-from app.routers import companies, clients, items, invoices
+from app.routers import companies, clients, items, invoices, registry
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.include_router(companies.router)
 app.include_router(clients.router)
 app.include_router(items.router)
 app.include_router(invoices.router)
+app.include_router(registry.router)
 
 # Serve uploaded files
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

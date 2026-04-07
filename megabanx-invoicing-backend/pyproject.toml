@@ -19,6 +19,7 @@ aiosmtplib = "^5.1.0"
 python-multipart = "^0.0.24"
 pillow = "^12.2.0"
 aiofiles = "^25.1.0"
+httpx = "^0.28.1"
 
 
 [build-system]

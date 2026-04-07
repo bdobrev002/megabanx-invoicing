@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
-import { companiesApi } from "@/lib/api";
-import { Save, Upload, Building2 } from "lucide-react";
+import { companiesApi, registryApi } from "@/lib/api";
+import { Save, Upload, Building2, Search, Loader2 } from "lucide-react";
 
 export default function Settings() {
   const { company, refreshCompanies } = useCompany();
   const [saving, setSaving] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState("");
   const [form, setForm] = useState({
     name: "",
     eik: "",
@@ -72,6 +74,36 @@ export default function Settings() {
     }
   };
 
+  const handleEikLookup = async () => {
+    const eik = form.eik.trim();
+    if (!eik || eik.length < 9) {
+      setLookupError("Въведете валиден ЕИК (поне 9 цифри)");
+      return;
+    }
+    setLookingUp(true);
+    setLookupError("");
+    try {
+      const data = await registryApi.lookupEik(eik);
+      setForm((prev) => ({
+        ...prev,
+        name: data.name || prev.name,
+        eik: data.eik || prev.eik,
+        vat_number: data.vat_number || prev.vat_number,
+        is_vat_registered: data.is_vat_registered,
+        mol: data.mol || prev.mol,
+        city: data.city || prev.city,
+        address: data.address || prev.address,
+        phone: data.phone || prev.phone,
+        email: data.email || prev.email,
+      }));
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setLookupError(error.response?.data?.detail || "Грешка при търсене в Търговски регистър");
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const updateField = (field: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -110,11 +142,26 @@ export default function Settings() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>ЕИК *</Label>
-                <Input
-                  value={form.eik}
-                  onChange={(e) => updateField("eik", e.target.value)}
-                  placeholder="123456789"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={form.eik}
+                    onChange={(e) => { updateField("eik", e.target.value); setLookupError(""); }}
+                    placeholder="123456789"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEikLookup}
+                    disabled={lookingUp || !form.eik.trim()}
+                    className="shrink-0 gap-1 px-3"
+                    title="Попълни от Търговски регистър"
+                  >
+                    {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    ТР
+                  </Button>
+                </div>
+                {lookupError && <p className="text-xs text-red-500 mt-1">{lookupError}</p>}
               </div>
               <div>
                 <Label>ИН по ЗДДС</Label>
@@ -224,7 +271,7 @@ export default function Settings() {
                 {company?.logo_path ? (
                   <div className="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border">
                     <img
-                      src={`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/uploads/logos/${company.id}.png`}
+                      src={`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/companies/${company.id}/logo`}
                       alt="Logo"
                       className="max-w-full max-h-full object-contain"
                     />

@@ -92,4 +92,23 @@ export const invoicesApi = {
     api.post(`/api/invoices/${id}/send-email`, data).then((r) => r.data),
 };
 
+// Registry (Trade Registry lookup)
+export const registryApi = {
+  lookupEik: (eik: string) =>
+    api.get<{
+      name: string;
+      eik: string;
+      vat_number: string;
+      is_vat_registered: boolean;
+      mol: string;
+      city: string;
+      address: string;
+      phone: string;
+      email: string;
+      legal_form: string;
+      transliteration: string;
+      status: string;
+    }>(`/api/registry/lookup/${eik}`).then((r) => r.data),
+};
+
 export default api;

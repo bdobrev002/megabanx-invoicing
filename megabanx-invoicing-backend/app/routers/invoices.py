@@ -107,7 +107,7 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
         line = InvoiceLine(
             invoice_id=invoice.id,
             item_id=line_data.item_id,
-            position=line_data.position or i,
+            position=line_data.position if line_data.position is not None else i,
             description=line_data.description,
             quantity=line_data.quantity,
             unit=line_data.unit,
@@ -237,7 +237,7 @@ async def update_invoice(
             line = InvoiceLine(
                 invoice_id=invoice.id,
                 item_id=line_data.item_id,
-                position=line_data.position or i,
+                position=line_data.position if line_data.position is not None else i,
                 description=line_data.description,
                 quantity=line_data.quantity,
                 unit=line_data.unit,
@@ -250,7 +250,9 @@ async def update_invoice(
         await db.flush()
         await db.refresh(invoice)
 
-        # Recalculate totals
+    # Recalculate totals when lines, vat_rate, or no_vat changed
+    should_recalculate = data.lines is not None or data.vat_rate is not None or data.no_vat is not None
+    if should_recalculate:
         vat_rate = data.vat_rate if data.vat_rate is not None else invoice.vat_rate
         no_vat = data.no_vat if data.no_vat is not None else invoice.no_vat
         subtotal, vat_amount, total = calculate_invoice_totals(
@@ -337,7 +339,7 @@ async def send_email(
     return {"detail": "Email sent successfully"}
 
 
-@router.get("/{invoice_id}/stats")
+@router.get("/stats")
 async def get_dashboard_stats(
     company_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

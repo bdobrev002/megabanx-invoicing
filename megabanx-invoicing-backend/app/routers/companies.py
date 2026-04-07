@@ -1,7 +1,9 @@
 import uuid
 import os
 import shutil
+import glob as globmod
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -68,3 +70,22 @@ async def upload_logo(company_id: uuid.UUID, file: UploadFile = File(...), db: A
     await db.commit()
     await db.refresh(company)
     return company
+
+
+@router.get("/{company_id}/logo")
+async def get_logo(company_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Serve company logo regardless of file extension."""
+    company = await db.get(Company, company_id)
+    if not company or not company.logo_path:
+        raise HTTPException(status_code=404, detail="Logo not found")
+
+    if os.path.isfile(company.logo_path):
+        return FileResponse(company.logo_path)
+
+    # Fallback: search for any file matching the company_id in logos dir
+    logo_dir = os.path.join(UPLOAD_DIR, "logos")
+    matches = globmod.glob(os.path.join(logo_dir, f"{company_id}.*"))
+    if matches:
+        return FileResponse(matches[0])
+
+    raise HTTPException(status_code=404, detail="Logo file not found")
