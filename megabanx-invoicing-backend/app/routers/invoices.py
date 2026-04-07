@@ -48,7 +48,6 @@ async def get_next_number(
             and_(
                 Invoice.company_id == company_id,
                 Invoice.document_type == document_type,
-                Invoice.is_deleted == False,
             )
         )
     )
@@ -77,10 +76,8 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
                     and_(
                         Invoice.company_id == data.company_id,
                         Invoice.document_type == data.document_type,
-                        Invoice.is_deleted == False,
                     )
                 )
-                .with_for_update()
             )
             invoice_number = result.scalar() + 1
 

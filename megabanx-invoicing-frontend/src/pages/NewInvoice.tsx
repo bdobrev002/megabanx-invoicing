@@ -134,7 +134,7 @@ export default function NewInvoice() {
         tax_event_date: taxEventDate,
         due_date: dueDate || undefined,
         status: saveStatus,
-        vat_rate: vatRate,
+        vat_rate: 20,
         no_vat: noVat,
         payment_method: paymentMethod || undefined,
         notes: notes || undefined,
