@@ -26,13 +26,16 @@ def calculate_line_total(quantity: Decimal, unit_price: Decimal) -> Decimal:
     return (quantity * unit_price).quantize(Decimal("0.01"))
 
 
-def calculate_invoice_totals(lines: list, vat_rate: Decimal, no_vat: bool):
+def calculate_invoice_totals(lines: list, vat_rate: Decimal, no_vat: bool, discount: Decimal = Decimal("0.00")):
     subtotal = sum(line.line_total for line in lines)
+    tax_base = subtotal - discount
+    if tax_base < Decimal("0.00"):
+        tax_base = Decimal("0.00")
     if no_vat:
         vat_amount = Decimal("0.00")
     else:
-        vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
-    total = subtotal + vat_amount
+        vat_amount = (tax_base * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+    total = tax_base + vat_amount
     return subtotal, vat_amount, total
 
 
@@ -95,6 +98,7 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
                 vat_rate=data.vat_rate,
                 no_vat=data.no_vat,
                 no_vat_reason=data.no_vat_reason,
+                discount=data.discount,
                 payment_method=data.payment_method,
                 notes=data.notes,
                 internal_notes=data.internal_notes,
@@ -124,7 +128,7 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
 
             # Calculate totals
             subtotal, vat_amount, total = calculate_invoice_totals(
-                invoice.lines, data.vat_rate, data.no_vat
+                invoice.lines, data.vat_rate, data.no_vat, data.discount
             )
             invoice.subtotal = subtotal
             invoice.vat_amount = vat_amount
@@ -321,13 +325,14 @@ async def update_invoice(
         await db.flush()
         await db.refresh(invoice)
 
-    # Recalculate totals when lines, vat_rate, or no_vat changed
-    should_recalculate = data.lines is not None or data.vat_rate is not None or data.no_vat is not None
+    # Recalculate totals when lines, vat_rate, no_vat, or discount changed
+    should_recalculate = data.lines is not None or data.vat_rate is not None or data.no_vat is not None or data.discount is not None
     if should_recalculate:
         vat_rate = data.vat_rate if data.vat_rate is not None else invoice.vat_rate
         no_vat = data.no_vat if data.no_vat is not None else invoice.no_vat
+        disc = data.discount if data.discount is not None else invoice.discount
         subtotal, vat_amount, total = calculate_invoice_totals(
-            invoice.lines, vat_rate, no_vat
+            invoice.lines, vat_rate, no_vat, disc
         )
         invoice.subtotal = subtotal
         invoice.vat_amount = vat_amount

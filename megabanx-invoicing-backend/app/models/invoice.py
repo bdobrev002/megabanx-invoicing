@@ -45,6 +45,7 @@ class Invoice(Base):
         default=InvoiceStatus.DRAFT
     )
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    discount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     vat_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("20.00"))

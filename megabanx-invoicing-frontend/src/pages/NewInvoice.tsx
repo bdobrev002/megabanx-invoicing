@@ -51,6 +51,7 @@ export default function NewInvoice() {
   const [noVatReason, setNoVatReason] = useState("");
   const [notesLang, setNotesLang] = useState<"bg" | "en">("bg");
   const [discount, setDiscount] = useState("0.00");
+  const [vatRate, setVatRate] = useState("20");
 
   const [lines, setLines] = useState<LineItem[]>([
     { ...emptyLine },
@@ -139,7 +140,7 @@ export default function NewInvoice() {
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
   const discountAmount = parseFloat(discount) || 0;
   const taxBase = subtotal - discountAmount;
-  const vatAmount = noVat ? 0 : taxBase * 0.2;
+  const vatAmount = noVat ? 0 : taxBase * (parseFloat(vatRate) / 100);
   const total = taxBase + vatAmount;
 
   const handleSave = async (saveStatus: "issued" | "draft") => {
@@ -155,7 +156,8 @@ export default function NewInvoice() {
         tax_event_date: taxEventDate,
         due_date: dueDate || undefined,
         status: saveStatus,
-        vat_rate: 20,
+        vat_rate: parseFloat(vatRate) || 20,
+        discount: discountAmount,
         no_vat: noVat,
         no_vat_reason: noVat ? noVatReason || undefined : undefined,
         payment_method: paymentMethod || undefined,
@@ -416,7 +418,7 @@ export default function NewInvoice() {
         <div className="text-right">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm text-slate-600">{"\u0414\u0414\u0421"}</span>
-            <select className="h-[26px] border border-slate-300 rounded-sm px-1 text-sm bg-white" defaultValue="20" disabled={noVat}>
+            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[26px] border border-slate-300 rounded-sm px-1 text-sm bg-white" disabled={noVat}>
               <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
             </select>
           </div>

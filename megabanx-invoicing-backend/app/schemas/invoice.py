@@ -43,6 +43,7 @@ class InvoiceCreate(BaseModel):
     vat_rate: Decimal = Decimal("20.00")
     no_vat: bool = False
     no_vat_reason: str | None = None
+    discount: Decimal = Decimal("0.00")
     payment_method: str | None = None
     notes: str | None = None
     internal_notes: str | None = None
@@ -61,6 +62,7 @@ class InvoiceUpdate(BaseModel):
     vat_rate: Decimal | None = None
     no_vat: bool | None = None
     no_vat_reason: str | None = None
+    discount: Decimal | None = None
     payment_method: str | None = None
     notes: str | None = None
     internal_notes: str | None = None
@@ -79,6 +81,7 @@ class InvoiceResponse(BaseModel):
     due_date: date | None = None
     status: str
     subtotal: Decimal
+    discount: Decimal = Decimal("0.00")
     vat_amount: Decimal
     total: Decimal
     vat_rate: Decimal
