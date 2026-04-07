@@ -92,7 +92,7 @@ export const invoicesApi = {
     api.post(`/api/invoices/${id}/send-email`, data).then((r) => r.data),
 };
 
-// Registry (Trade Registry lookup)
+// Registry (Trade Registry lookup — official portal.registryagency.bg)
 export const registryApi = {
   lookupEik: (eik: string) =>
     api.get<{
@@ -106,8 +106,7 @@ export const registryApi = {
       phone: string;
       email: string;
       legal_form: string;
-      transliteration: string;
-      status: string;
+      source: string;
     }>(`/api/registry/lookup/${eik}`).then((r) => r.data),
 };
 
