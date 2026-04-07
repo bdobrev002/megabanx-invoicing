@@ -253,7 +253,7 @@
 <div class="header">
     <div class="header-left">
         {% if logo_b64 %}
-        <img src="{{ logo_b64 }}" class="logo" alt="Лого">
+        <img src="{{ logo_b64 | safe }}" class="logo" alt="Лого">
         {% endif %}
         <div class="doc-title">{{ doc_type_label }}</div>
         <div class="doc-number">№ {{ "%010d" % invoice.invoice_number }}</div>
