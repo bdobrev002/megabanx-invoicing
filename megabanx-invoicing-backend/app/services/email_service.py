@@ -24,14 +24,15 @@ async def send_invoice_email(
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
     # PDF attachment
-    if os.path.exists(pdf_path):
-        with open(pdf_path, "rb") as f:
-            pdf_data = f.read()
-        attachment = MIMEApplication(pdf_data, _subtype="pdf")
-        attachment.add_header(
-            "Content-Disposition", "attachment", filename=pdf_filename
-        )
-        msg.attach(attachment)
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+    with open(pdf_path, "rb") as f:
+        pdf_data = f.read()
+    attachment = MIMEApplication(pdf_data, _subtype="pdf")
+    attachment.add_header(
+        "Content-Disposition", "attachment", filename=pdf_filename
+    )
+    msg.attach(attachment)
 
     # Send
     kwargs = {

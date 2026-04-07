@@ -254,11 +254,27 @@ export default function InvoiceView() {
             <div className="flex justify-end">
               <div className="w-72 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Данъчна основа:</span>
+                  <span className="text-slate-600">Междинна сума:</span>
                   <span className="font-semibold">
                     {Number(invoice.subtotal).toFixed(2)} {invoice.currency}
                   </span>
                 </div>
+                {Number(invoice.discount) > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Отстъпка:</span>
+                      <span className="font-semibold">
+                        -{Number(invoice.discount).toFixed(2)} {invoice.currency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Данъчна основа:</span>
+                      <span className="font-semibold">
+                        {(Number(invoice.subtotal) - Number(invoice.discount)).toFixed(2)} {invoice.currency}
+                      </span>
+                    </div>
+                  </>
+                )}
                 {!invoice.no_vat && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">

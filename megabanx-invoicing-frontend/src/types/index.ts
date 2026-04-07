@@ -70,6 +70,7 @@ export interface Invoice {
   due_date: string | null;
   status: "draft" | "issued" | "paid" | "overdue" | "cancelled";
   subtotal: number;
+  discount: number;
   vat_amount: number;
   total: number;
   vat_rate: number;

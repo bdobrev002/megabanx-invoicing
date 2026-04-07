@@ -362,9 +362,19 @@
 <div class="totals">
     <div class="totals-box">
         <div class="totals-row">
-            <span class="label">Данъчна основа:</span>
+            <span class="label">Междинна сума:</span>
             <span class="value">{{ "%.2f" % invoice.subtotal }} {{ invoice.currency }}</span>
         </div>
+        {% if invoice.discount and invoice.discount > 0 %}
+        <div class="totals-row">
+            <span class="label">Отстъпка:</span>
+            <span class="value">-{{ "%.2f" % invoice.discount }} {{ invoice.currency }}</span>
+        </div>
+        <div class="totals-row">
+            <span class="label">Данъчна основа:</span>
+            <span class="value">{{ "%.2f" % (invoice.subtotal - invoice.discount) }} {{ invoice.currency }}</span>
+        </div>
+        {% endif %}
         {% if not invoice.no_vat %}
         <div class="totals-row">
             <span class="label">ДДС ({{ "%.0f" % invoice.vat_rate }}%):</span>

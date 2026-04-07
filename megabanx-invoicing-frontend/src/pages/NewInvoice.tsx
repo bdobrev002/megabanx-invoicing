@@ -318,7 +318,7 @@ export default function NewInvoice() {
               <th className="w-[100px] px-1 py-2 border-r border-slate-200" />
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 border-r border-slate-200" style={{ minWidth: 220 }}>{"\u0410\u0440\u0442\u0438\u043a\u0443\u043b"}</th>
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[130px] border-r border-slate-200">{"\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e"}</th>
-              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[150px] border-r border-slate-200">{"\u0426\u0435\u043d\u0430 \u0441 \u0414\u0414\u0421"}</th>
+              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[150px] border-r border-slate-200">{"\u0415\u0434. \u0446\u0435\u043d\u0430"}</th>
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[100px]">{"\u0421\u0442\u043e\u0439\u043d\u043e\u0441\u0442"}</th>
             </tr>
           </thead>
