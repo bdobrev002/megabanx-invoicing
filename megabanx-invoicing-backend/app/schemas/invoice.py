@@ -8,7 +8,7 @@ from app.models.invoice import DocumentType, InvoiceStatus
 
 class InvoiceLineCreate(BaseModel):
     item_id: uuid.UUID | None = None
-    position: int = 0
+    position: int | None = None
     description: str
     quantity: Decimal = Decimal("1.000")
     unit: str = "бр."

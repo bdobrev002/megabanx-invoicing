@@ -137,6 +137,67 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
     return response
 
 
+@router.get("/stats")
+async def get_dashboard_stats(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get dashboard statistics for a company."""
+    today = date.today()
+    first_of_month = today.replace(day=1)
+
+    # Count invoices
+    total_result = await db.execute(
+        select(func.count())
+        .select_from(Invoice)
+        .where(
+            and_(
+                Invoice.company_id == company_id,
+                Invoice.is_deleted == False,
+                Invoice.document_type == "invoice",
+            )
+        )
+    )
+    total_invoices = total_result.scalar()
+
+    # Monthly total
+    monthly_result = await db.execute(
+        select(func.coalesce(func.sum(Invoice.total), 0))
+        .where(
+            and_(
+                Invoice.company_id == company_id,
+                Invoice.is_deleted == False,
+                Invoice.document_type == "invoice",
+                Invoice.issue_date >= first_of_month,
+            )
+        )
+    )
+    monthly_total = monthly_result.scalar()
+
+    # Unpaid invoices
+    unpaid_result = await db.execute(
+        select(func.count(), func.coalesce(func.sum(Invoice.total), 0))
+        .where(
+            and_(
+                Invoice.company_id == company_id,
+                Invoice.is_deleted == False,
+                Invoice.document_type == "invoice",
+                Invoice.status.in_(["issued", "overdue"]),
+            )
+        )
+    )
+    unpaid_row = unpaid_result.one()
+    unpaid_count = unpaid_row[0]
+    unpaid_total = unpaid_row[1]
+
+    return {
+        "total_invoices": total_invoices,
+        "monthly_total": float(monthly_total),
+        "unpaid_count": unpaid_count,
+        "unpaid_total": float(unpaid_total),
+    }
+
+
 @router.get("", response_model=InvoiceListResponse)
 async def list_invoices(
     company_id: uuid.UUID | None = None,
@@ -337,65 +398,3 @@ async def send_email(
     )
 
     return {"detail": "Email sent successfully"}
-
-
-@router.get("/stats")
-async def get_dashboard_stats(
-    company_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    """Get dashboard statistics for a company."""
-    # Total invoices this month
-    today = date.today()
-    first_of_month = today.replace(day=1)
-
-    # Count invoices
-    total_result = await db.execute(
-        select(func.count())
-        .select_from(Invoice)
-        .where(
-            and_(
-                Invoice.company_id == company_id,
-                Invoice.is_deleted == False,
-                Invoice.document_type == "invoice",
-            )
-        )
-    )
-    total_invoices = total_result.scalar()
-
-    # Monthly total
-    monthly_result = await db.execute(
-        select(func.coalesce(func.sum(Invoice.total), 0))
-        .where(
-            and_(
-                Invoice.company_id == company_id,
-                Invoice.is_deleted == False,
-                Invoice.document_type == "invoice",
-                Invoice.issue_date >= first_of_month,
-            )
-        )
-    )
-    monthly_total = monthly_result.scalar()
-
-    # Unpaid invoices
-    unpaid_result = await db.execute(
-        select(func.count(), func.coalesce(func.sum(Invoice.total), 0))
-        .where(
-            and_(
-                Invoice.company_id == company_id,
-                Invoice.is_deleted == False,
-                Invoice.document_type == "invoice",
-                Invoice.status.in_(["issued", "overdue"]),
-            )
-        )
-    )
-    unpaid_row = unpaid_result.one()
-    unpaid_count = unpaid_row[0]
-    unpaid_total = unpaid_row[1]
-
-    return {
-        "total_invoices": total_invoices,
-        "monthly_total": float(monthly_total),
-        "unpaid_count": unpaid_count,
-        "unpaid_total": float(unpaid_total),
-    }
