@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
 import { clientsApi, itemsApi, invoicesApi } from "@/lib/api";
 import type { Client, Item } from "@/types";
-import { Plus, X, GripVertical, Search } from "lucide-react";
+import { Plus, X, GripVertical, List, CloudCog, Pencil } from "lucide-react";
+import { registryApi } from "@/lib/api";
 
 interface LineItem {
   item_id: string | null;
@@ -59,11 +60,25 @@ export default function NewInvoice() {
     { ...emptyLine },
   ]);
   const [saving, setSaving] = useState(false);
+  const [showClientList, setShowClientList] = useState(false);
+  const [trEik, setTrEik] = useState("");
+  const [trLoading, setTrLoading] = useState(false);
+  const [showTrDialog, setShowTrDialog] = useState(false);
+  const [showItemPicker, setShowItemPicker] = useState<number | null>(null);
+  const [itemSearch, setItemSearch] = useState("");
+  const itemPickerRef = useRef<HTMLDivElement>(null);
+  const trDialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {
         setShowClientDropdown(false);
+      }
+      if (itemPickerRef.current && !itemPickerRef.current.contains(e.target as Node)) {
+        setShowItemPicker(null);
+      }
+      if (trDialogRef.current && !trDialogRef.current.contains(e.target as Node)) {
+        setShowTrDialog(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -90,8 +105,47 @@ export default function NewInvoice() {
     setSelectedClient(client);
     setClientSearch(client.name);
     setShowClientDropdown(false);
+    setShowClientList(false);
     if (client.is_vat_registered) setIsVatRegistered(true);
   };
+
+  const handleTrLookup = async () => {
+    if (!trEik || trEik.length < 9 || !company) return;
+    setTrLoading(true);
+    try {
+      const data = await registryApi.lookupEik(trEik);
+      // Create or find client from TR data
+      const existingClient = clients.find((c) => c.eik === data.eik);
+      if (existingClient) {
+        selectClient(existingClient);
+      } else {
+        const newClient = await clientsApi.create({
+          company_id: company.id,
+          name: data.name,
+          eik: data.eik,
+          vat_number: data.vat_number || null,
+          is_vat_registered: data.is_vat_registered,
+          mol: data.mol || null,
+          city: data.city || null,
+          address: data.address || null,
+        } as Partial<Client>);
+        setClients((prev) => [...prev, newClient]);
+        selectClient(newClient);
+      }
+      setShowTrDialog(false);
+      setTrEik("");
+    } catch {
+      alert("\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0442\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u0422\u044a\u0440\u0433\u043e\u0432\u0441\u043a\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u044a\u0440");
+    } finally {
+      setTrLoading(false);
+    }
+  };
+
+  const filteredItems = items.filter(
+    (item) =>
+      item.name.toLowerCase().includes(itemSearch.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(itemSearch.toLowerCase()))
+  );
 
   const updateLine = (index: number, field: keyof LineItem, value: string) => {
     setLines((prev) => {
@@ -222,17 +276,46 @@ export default function NewInvoice() {
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041a\u043b\u0438\u0435\u043d\u0442:"}</label>
             <div className="flex-1 relative">
               <div className="flex gap-1">
-                <Input placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0438\u043c\u0435 \u0438\u043b\u0438 \u0415\u0418\u041a..."} value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-sm border-slate-300" />
-                <button className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-slate-50" title="Search"><Search className="h-3.5 w-3.5 text-blue-600" /></button>
+                <Input placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0438\u043c\u0435 \u0438\u043b\u0438 \u0415\u0418\u041a..."} value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-amber-50 focus:bg-white" />
+                <button onClick={() => setShowClientList(!showClientList)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043e\u0442 \u0441\u043f\u0438\u0441\u044a\u043a\u0430"}><List className="h-3.5 w-3.5 text-blue-600" /></button>
+                <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u0422\u044a\u0440\u0433\u043e\u0432\u0441\u043a\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u044a\u0440"}><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
               </div>
               {showClientDropdown && clientSearch && filteredClients.length > 0 && (
-                <div className="absolute z-20 w-full mt-0.5 bg-white border border-slate-300 shadow-md max-h-48 overflow-auto">
+                <div className="absolute z-20 w-full mt-0.5 bg-white border border-slate-300 shadow-md max-h-48 overflow-auto rounded-sm">
                   {filteredClients.map((client) => (
                     <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
                       <div className="font-medium text-sm">{client.name}</div>
                       <div className="text-xs text-slate-500">{client.eik && `\u0415\u0418\u041a: ${client.eik}`}{client.city && ` \u2022 ${client.city}`}</div>
                     </button>
                   ))}
+                </div>
+              )}
+              {/* Client list picker (from DB) */}
+              {showClientList && (
+                <div className="absolute z-30 w-full mt-0.5 bg-white border border-blue-300 shadow-lg max-h-64 overflow-auto rounded-sm">
+                  <div className="sticky top-0 bg-blue-50 px-3 py-1.5 border-b border-blue-200 text-xs font-semibold text-blue-700">{"\u0418\u0437\u0431\u0435\u0440\u0435\u0442\u0435 \u043a\u043b\u0438\u0435\u043d\u0442 \u043e\u0442 \u0431\u0430\u0437\u0430\u0442\u0430"}</div>
+                  {clients.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-500">{"\u041d\u044f\u043c\u0430 \u0434\u043e\u0431\u0430\u0432\u0435\u043d\u0438 \u043a\u043b\u0438\u0435\u043d\u0442\u0438"}</div>
+                  ) : (
+                    clients.map((client) => (
+                      <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
+                        <div className="font-medium">{client.name}</div>
+                        <div className="text-xs text-slate-500">{client.eik && `\u0415\u0418\u041a: ${client.eik}`}{client.city && ` \u2022 ${client.city}`}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {/* TR Dialog (search by EIK in Trade Registry) */}
+              {showTrDialog && (
+                <div ref={trDialogRef} className="absolute z-30 w-full mt-0.5 bg-white border border-amber-300 shadow-lg rounded-sm p-3">
+                  <div className="text-xs font-semibold text-amber-700 mb-2">{"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0415\u0418\u041a \u0432 \u0422\u044a\u0440\u0433\u043e\u0432\u0441\u043a\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u044a\u0440"}</div>
+                  <div className="flex gap-1">
+                    <Input placeholder={"\u0412\u044a\u0432\u0435\u0434\u0435\u0442\u0435 \u0415\u0418\u041a..."} value={trEik} onChange={(e) => setTrEik(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleTrLookup(); }} className="h-[30px] text-sm flex-1 rounded-sm border-amber-300 bg-amber-50" />
+                    <button onClick={handleTrLookup} disabled={trLoading || trEik.length < 9} className="h-[30px] px-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      {trLoading ? "\u0422\u044a\u0440\u0441\u0438..." : "\u0422\u0420"}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -249,8 +332,8 @@ export default function NewInvoice() {
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0415\u0418\u041a/\u0411\u0443\u043b\u0441\u0442\u0430\u0442:"}</label>
             <div className="flex-1 flex gap-1">
-              <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-white" />
-              <button className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-slate-50" title="TR"><Search className="h-3.5 w-3.5 text-amber-600" /></button>
+              <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
+              <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u0422\u0420"}><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
             </div>
           </div>
 
@@ -264,22 +347,25 @@ export default function NewInvoice() {
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041c\u041e\u041b:"}</label>
-            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-white" />
+            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0413\u0440\u0430\u0434:"}</label>
-            <Input value={selectedClient?.city || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-white" />
+            <Input value={selectedClient?.city || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
           </div>
 
           <div className="flex items-start gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right pt-1">{"\u0410\u0434\u0440\u0435\u0441:"}<br /><span className="text-xs font-normal text-slate-500">{"\u043d\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f"}</span></label>
-            <Textarea value={selectedClient?.address || ""} readOnly rows={2} className="text-sm flex-1 rounded-sm border-slate-300 bg-white resize-none" />
+            <Textarea value={selectedClient?.address || ""} readOnly rows={2} className="text-sm flex-1 rounded-sm border-slate-300 bg-slate-50 resize-none" />
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b:"}</label>
-            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-white" />
+            <div className="flex-1 flex gap-1">
+              <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
+              <button className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b"}><List className="h-3.5 w-3.5 text-blue-600" /></button>
+            </div>
           </div>
         </div>
 
@@ -287,7 +373,10 @@ export default function NewInvoice() {
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{documentType === "invoice" ? "\u0424\u0430\u043a\u0442\u0443\u0440\u0430" : "\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"} {"\u2116:"}<br /><span className="text-xs font-normal text-slate-500">{"\u0441\u043b\u0435\u0434\u0432\u0430\u0449\u0438\u044f\u0442 \u0441\u0432\u043e\u0431\u043e\u0434\u0435\u043d \u2116"}</span></label>
-            <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 max-w-[180px]" />
+            <div className="flex gap-1 items-center">
+              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm rounded-sm border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" />
+              <button className="h-[30px] w-[30px] border border-blue-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u0439 \u2116"}><Pencil className="h-3.5 w-3.5 text-blue-500" /></button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -333,12 +422,34 @@ export default function NewInvoice() {
                   </div>
                 </td>
                 <td className="px-1 py-1 border-r border-slate-200 relative">
-                  <Input value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} className="h-[26px] text-sm border-slate-300 rounded-sm" />
+                  <div className="flex gap-0.5 items-center">
+                    <Input value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} className="h-[26px] text-sm border-slate-300 rounded-sm flex-1" />
+                    <button onClick={() => { setShowItemPicker(showItemPicker === i ? null : i); setItemSearch(""); }} className="h-[26px] w-[26px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors shrink-0" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043e\u0442 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0430"}><List className="h-3 w-3 text-blue-600" /></button>
+                  </div>
                   {line.description && !line.item_id && items.some((item) => item.name.toLowerCase().startsWith(line.description.toLowerCase())) && (
-                    <div className="absolute z-20 left-1 right-1 mt-0.5 bg-white border border-slate-300 shadow-md max-h-32 overflow-auto">
+                    <div className="absolute z-20 left-1 right-1 mt-0.5 bg-white border border-slate-300 shadow-md max-h-32 overflow-auto rounded-sm">
                       {items.filter((item) => item.name.toLowerCase().startsWith(line.description.toLowerCase())).slice(0, 5).map((item) => (
-                        <button key={item.id} onClick={() => selectItem(i, item)} className="w-full text-left px-2 py-1 hover:bg-blue-100 text-sm">{item.name} \u2014 {Number(item.default_price).toFixed(2)} EUR</button>
+                        <button key={item.id} onClick={() => selectItem(i, item)} className="w-full text-left px-2 py-1 hover:bg-blue-100 text-sm">{item.name} {"\u2014"} {Number(item.default_price).toFixed(2)} EUR</button>
                       ))}
+                    </div>
+                  )}
+                  {/* Item picker from catalog */}
+                  {showItemPicker === i && (
+                    <div ref={itemPickerRef} className="absolute z-30 left-1 right-1 mt-0.5 bg-white border border-blue-300 shadow-lg max-h-52 overflow-auto rounded-sm">
+                      <div className="sticky top-0 bg-blue-50 px-2 py-1 border-b border-blue-200">
+                        <Input placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0430..."} value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="h-[24px] text-xs border-blue-200 rounded-sm" autoFocus />
+                      </div>
+                      {filteredItems.length === 0 ? (
+                        <div className="px-2 py-1.5 text-xs text-slate-500">{"\u041d\u044f\u043c\u0430 \u0430\u0440\u0442\u0438\u043a\u0443\u043b\u0438"}</div>
+                      ) : (
+                        filteredItems.slice(0, 10).map((item) => (
+                          <button key={item.id} onClick={() => { selectItem(i, item); setShowItemPicker(null); }} className="w-full text-left px-2 py-1 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
+                            <span className="font-medium">{item.name}</span>
+                            <span className="text-slate-500 ml-2">{Number(item.default_price).toFixed(2)} EUR</span>
+                            <span className="text-slate-400 ml-1 text-xs">/ {item.unit}</span>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </td>
