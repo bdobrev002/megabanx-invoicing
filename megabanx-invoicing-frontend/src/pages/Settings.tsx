@@ -277,7 +277,7 @@ export default function Settings() {
                 {company?.logo_path ? (
                   <div className="w-24 h-24 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border">
                     <img
-                      src={`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/companies/${company.id}/logo`}
+                      src={`${import.meta.env.VITE_API_URL || "http://localhost:8006"}/api/companies/${company.id}/logo`}
                       alt="Logo"
                       className="max-w-full max-h-full object-contain"
                     />

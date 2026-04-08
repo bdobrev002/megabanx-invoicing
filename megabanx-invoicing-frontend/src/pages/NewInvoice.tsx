@@ -355,7 +355,7 @@ export default function NewInvoice({ editMode = false }: { editMode?: boolean } 
         company_id: company.id,
         client_id: selectedClient.id,
         document_type: documentType,
-        invoice_number: parseInt(invoiceNumber) || undefined,
+        invoice_number: invoiceNumber ? parseInt(invoiceNumber) : undefined,
         issue_date: issueDate,
         tax_event_date: taxEventDate,
         due_date: showDueDate ? (dueDate || null) : null,

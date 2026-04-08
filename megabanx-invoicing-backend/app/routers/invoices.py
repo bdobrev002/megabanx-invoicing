@@ -351,6 +351,9 @@ async def update_invoice(
     # Recalculate totals when lines, vat_rate, no_vat, or discount changed
     should_recalculate = data.lines is not None or data.vat_rate is not None or data.no_vat is not None or data.discount is not None
     if should_recalculate:
+        # Ensure lines are fresh in session before recalculating
+        if data.lines is None:
+            await db.refresh(invoice)
         vat_rate = data.vat_rate if data.vat_rate is not None else invoice.vat_rate
         no_vat = data.no_vat if data.no_vat is not None else invoice.no_vat
         disc = data.discount if data.discount is not None else invoice.discount
