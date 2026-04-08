@@ -153,8 +153,9 @@ export default function NewInvoice() {
 
   const filteredClients = clients.filter(
     (c) =>
-      c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-      (isPhysicalPerson ? (c.egn && c.egn.includes(clientSearch)) : (c.eik && c.eik.includes(clientSearch)))
+      (company?.eik ? c.eik !== company.eik : true) &&
+      (c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+      (isPhysicalPerson ? (c.egn && c.egn.includes(clientSearch)) : (c.eik && c.eik.includes(clientSearch))))
   );
 
   const selectClient = (client: Client) => {
@@ -401,10 +402,10 @@ export default function NewInvoice() {
               {showClientList && (
                 <div className="absolute z-30 w-full mt-0.5 bg-white border border-blue-300 shadow-lg max-h-64 overflow-auto rounded-md">
                   <div className="sticky top-0 bg-blue-50 px-3 py-1.5 border-b border-blue-200 text-xs font-semibold text-blue-700">{"\u0418\u0437\u0431\u0435\u0440\u0435\u0442\u0435 \u043a\u043b\u0438\u0435\u043d\u0442 \u043e\u0442 \u0431\u0430\u0437\u0430\u0442\u0430"}</div>
-                  {clients.length === 0 ? (
+                  {clients.filter((c) => company?.eik ? c.eik !== company.eik : true).length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-500">{"\u041d\u044f\u043c\u0430 \u0434\u043e\u0431\u0430\u0432\u0435\u043d\u0438 \u043a\u043b\u0438\u0435\u043d\u0442\u0438"}</div>
                   ) : (
-                    clients.map((client) => (
+                    clients.filter((c) => company?.eik ? c.eik !== company.eik : true).map((client) => (
                       <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
                         <div className="font-medium">{client.name}</div>
                         <div className="text-xs text-slate-500">{isPhysicalPerson ? (client.egn && `ЕГН: ${client.egn}`) : (client.eik && `ЕИК: ${client.eik}`)}{client.city && ` \u2022 ${client.city}`}</div>
