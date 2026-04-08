@@ -59,6 +59,13 @@ async def upload_logo(company_id: uuid.UUID, file: UploadFile = File(...), db: A
     logo_dir = os.path.join(UPLOAD_DIR, "logos")
     os.makedirs(logo_dir, exist_ok=True)
 
+    # Remove old logo files (handles extension changes)
+    for old_file in globmod.glob(os.path.join(logo_dir, f"{company_id}.*")):
+        try:
+            os.remove(old_file)
+        except OSError:
+            pass
+
     ext = os.path.splitext(file.filename or "logo.png")[1]
     filename = f"{company_id}{ext}"
     filepath = os.path.join(logo_dir, filename)

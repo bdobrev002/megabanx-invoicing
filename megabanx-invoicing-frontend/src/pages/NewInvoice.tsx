@@ -358,15 +358,15 @@ export default function NewInvoice({ editMode = false }: { editMode?: boolean } 
         invoice_number: parseInt(invoiceNumber) || undefined,
         issue_date: issueDate,
         tax_event_date: taxEventDate,
-        due_date: dueDate || undefined,
+        due_date: showDueDate ? (dueDate || null) : null,
         status: saveStatus,
         vat_rate: (() => { const r = parseFloat(vatRate); return isNaN(r) ? 20 : r; })(),
         discount: discountAmount,
         no_vat: noVat,
-        no_vat_reason: noVat ? noVatReason || undefined : undefined,
-        payment_method: paymentMethod || undefined,
-        notes: notes || undefined,
-        internal_notes: internalNotes || undefined,
+        no_vat_reason: noVat ? (noVatReason || null) : null,
+        payment_method: paymentMethod || null,
+        notes: notes || null,
+        internal_notes: internalNotes || null,
         currency: "EUR",
         lines: lines
           .filter((line) => line.description.trim() !== "")
@@ -588,7 +588,7 @@ export default function NewInvoice({ editMode = false }: { editMode?: boolean } 
 
           <div className="flex items-center gap-3">
             <div className="w-[185px] shrink-0 flex items-center justify-end gap-2">
-              <input type="checkbox" checked={showDueDate} onChange={(e) => { setShowDueDate(e.target.checked); if (e.target.checked && !dueDate) setDueDate(issueDate); }} className="w-3.5 h-3.5" />
+              <input type="checkbox" checked={showDueDate} onChange={(e) => { setShowDueDate(e.target.checked); if (e.target.checked && !dueDate) setDueDate(issueDate); if (!e.target.checked) setDueDate(""); }} className="w-3.5 h-3.5" />
               <label className="text-sm font-semibold text-slate-700">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u043f\u0430\u0434\u0435\u0436:"}</label>
             </div>
             {showDueDate && <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />}

@@ -34,28 +34,31 @@
     }
     .party-card {
         border: 1px solid #000;
-        padding: 8px 10px;
+        padding: 0;
     }
-    .party-card .company-name {
+    .party-info {
+        padding: 6px 8px 4px 8px;
+    }
+    .party-info .company-name {
         font-size: 10pt;
         font-weight: bold;
-        margin-bottom: 2px;
+        margin-bottom: 1px;
     }
-    .party-card .address {
+    .party-info .detail-line {
         font-size: 9pt;
-        margin-bottom: 4px;
     }
-    .party-card table {
+    .party-card table.party-fields {
         width: 100%;
         border-collapse: collapse;
     }
-    .party-card table td {
+    .party-card table.party-fields td {
         font-size: 9pt;
-        padding: 1px 0;
+        padding: 2px 8px;
         vertical-align: top;
+        border-top: 1px solid #000;
     }
-    .party-card table td:first-child {
-        width: 85px;
+    .party-card table.party-fields td:first-child {
+        width: 90px;
         white-space: nowrap;
     }
 
@@ -132,12 +135,13 @@
     .bank-box {
         flex: 1;
         border: 1px solid #000;
-        padding: 8px 10px;
+        padding: 0;
     }
     .bank-box .bank-title {
         font-size: 9pt;
         font-weight: bold;
-        margin-bottom: 4px;
+        padding: 4px 8px;
+        border-bottom: 1px solid #000;
     }
     .bank-box table {
         width: 100%;
@@ -145,15 +149,19 @@
     }
     .bank-box table td {
         font-size: 9pt;
-        padding: 1px 0;
+        padding: 2px 8px;
         vertical-align: top;
+        border-top: 1px solid #000;
     }
     .bank-box table td:first-child {
         width: 80px;
         white-space: nowrap;
     }
+    .bank-box table tr:first-child td {
+        border-top: none;
+    }
     .totals-box {
-        width: 260px;
+        width: 280px;
         flex-shrink: 0;
     }
     .totals-box table {
@@ -161,9 +169,8 @@
         border-collapse: collapse;
     }
     .totals-box table td {
-        padding: 3px 8px;
+        padding: 2px 4px;
         font-size: 9pt;
-        border: 1px solid #000;
     }
     .totals-box table td:first-child {
         text-align: right;
@@ -172,22 +179,26 @@
     .totals-box table td:last-child {
         text-align: right;
         font-weight: bold;
-        width: 100px;
+        width: 110px;
     }
     .totals-box table tr.total-final td {
         font-size: 12pt;
         font-weight: bold;
-        padding: 5px 8px;
+        padding: 4px 4px;
     }
 
     /* Words + payment */
     .words-section {
-        margin-bottom: 6px;
+        margin-bottom: 4px;
         font-size: 9pt;
+        border-top: 1px solid #000;
+        padding-top: 4px;
     }
     .payment-section {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         font-size: 9pt;
+        border-top: 1px solid #000;
+        padding-top: 4px;
     }
 
     /* Signatures */
@@ -195,6 +206,7 @@
         display: flex;
         justify-content: space-between;
         margin-bottom: 16px;
+        margin-top: 16px;
     }
     .signature-box {
         font-size: 9pt;
@@ -224,15 +236,16 @@
     <div class="party-box">
         <div class="party-label">ПОЛУЧАТЕЛ</div>
         <div class="party-card">
-            <div class="company-name">{{ client.name }}</div>
-            {% if client.address or client.city %}
-            <div class="address">
-                {%- if client.address %}{{ client.address }}{% endif %}
-                {%- if client.city %}{% if client.address %}<br>{% endif %}{{ client.city }}{% endif %}
-                {%- if client.city %}<br>България{% endif %}
+            <div class="party-info">
+                <div class="company-name">{{ client.name }}</div>
+                {% if client.address %}
+                <div class="detail-line">{{ client.address }}</div>
+                {% endif %}
+                {% if client.city %}
+                <div class="detail-line">{{ client.city }}</div>
+                {% endif %}
             </div>
-            {% endif %}
-            <table>
+            <table class="party-fields">
                 {% if client.eik %}
                 <tr><td>ЕИК/Булстат:</td><td>{{ client.eik }}</td></tr>
                 {% endif %}
@@ -251,13 +264,17 @@
     <div class="party-box">
         <div class="party-label">ДОСТАВЧИК</div>
         <div class="party-card">
-            <div class="company-name">{{ company.name }}</div>
-            <div class="address">
-                {%- if company.address %}{{ company.address }}{% endif %}
-                {%- if company.city %}{% if company.address %}<br>{% endif %}{{ company.city }}{% endif %}
-                {%- if company.city %}<br>България{% endif %}
+            <div class="party-info">
+                <div class="company-name">{{ company.name }}</div>
+                {% if company.address %}
+                <div class="detail-line">{{ company.address }}</div>
+                {% endif %}
+                {% if company.city %}
+                <div class="detail-line">{{ company.city }}</div>
+                {% endif %}
+                <div class="detail-line">България</div>
             </div>
-            <table>
+            <table class="party-fields">
                 <tr><td>ЕИК/Булстат:</td><td>{{ company.eik }}</td></tr>
                 {% if company.is_vat_registered and company.vat_number %}
                 <tr><td>ДДС №:</td><td>{{ company.vat_number }}</td></tr>
@@ -313,15 +330,9 @@
     <div class="bank-box">
         <div class="bank-title">Банкови детайли на доставчика</div>
         <table>
-            {% if company.bank_name %}
-            <tr><td>Банка:</td><td>{{ company.bank_name }}</td></tr>
-            {% endif %}
-            {% if company.iban %}
-            <tr><td>IBAN:</td><td>{{ company.iban }}</td></tr>
-            {% endif %}
-            {% if company.bic %}
-            <tr><td>BIC/SWIFT:</td><td>{{ company.bic }}</td></tr>
-            {% endif %}
+            <tr><td>Банка:</td><td>{{ company.bank_name or "" }}</td></tr>
+            <tr><td>IBAN:</td><td>{{ company.iban or "" }}</td></tr>
+            <tr><td>BIC/SWIFT:</td><td>{{ company.bic or "" }}</td></tr>
         </table>
     </div>
     <div class="totals-box">
@@ -370,7 +381,7 @@
 
 {% if invoice.payment_method %}
 <div class="payment-section">
-    Начин на плащане: <strong>{{ invoice.payment_method | lower }}</strong>
+    Начин на плащане: <strong>по {{ invoice.payment_method | lower }}</strong>
 </div>
 {% endif %}
 

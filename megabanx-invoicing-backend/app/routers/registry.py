@@ -19,27 +19,63 @@ def _extract_text_from_html(html: str) -> str:
 
 
 def _parse_address_from_field(html: str) -> str:
-    """Extract address, stripping phone/fax/web suffixes."""
+    """Extract only the street/neighborhood part of the address.
+
+    From TR text like:
+        'Държава: БЪЛГАРИЯ Област: София (столица), Община: Столична
+         Населено място: гр. София, п.к. 1408 р-н Триадица
+         ж.к. СТРЕЛБИЩЕ, бл. 8, вх. В, ет. 2, ап. 4'
+    Returns: 'ж.к. СТРЕЛБИЩЕ, бл. 8, вх. В, ет. 2, ап. 4'
+
+    From:
+        '... п.к. 2700 бул./ул. ВАСИЛ ЛЕВСКИ № 61'
+    Returns: 'Васил Левски 61'
+    """
     text = _extract_text_from_html(html)
-    for sep in ["Телефон:", "Тел.:", "Phone:", "Факс:", "Fax:", "Интернет стр"]:
+    # Strip phone/fax/email suffixes
+    for sep in ["Телефон:", "Тел.:", "Phone:", "Факс:", "Fax:", "Интернет стр", "Адрес на електронна поща:"]:
         idx = text.find(sep)
         if idx > 0:
             text = text[:idx].strip().rstrip(",").strip()
+
+    # Try to extract just the street part after район (р-н) or after п.к. XXXX
+    # Pattern 1: after 'р-н <district>' — take everything after the district name
+    rn_match = re.search(r'р-н\s+[\wа-яА-ЯёЁ]+\s+(.*)', text, re.IGNORECASE)
+    if rn_match:
+        return rn_match.group(1).strip().rstrip(",").strip()
+
+    # Pattern 2: after 'п.к. XXXX' — take everything after postal code
+    pk_match = re.search(r'п\.к\.\s*\d+\s+(.*)', text, re.IGNORECASE)
+    if pk_match:
+        addr = pk_match.group(1).strip().rstrip(",").strip()
+        # Clean up 'бул./ул.' or 'ул.' prefix and '№' sign
+        addr = re.sub(r'^бул\./ул\.\s*', '', addr)
+        addr = re.sub(r'^ул\.\s*', '', addr)
+        addr = re.sub(r'^бул\.\s*', '', addr)
+        addr = addr.replace(' №', '').replace('№ ', '').replace('№', '')
+        # Title case if all uppercase
+        if addr == addr.upper():
+            addr = addr.title()
+        return addr.strip()
+
     return text
 
 
 def _extract_city_from_address(text: str) -> str:
-    """Extract city/town name from 'Населено място:' field in TR address.
+    """Extract only city name from 'Населено място:' field in TR address.
 
     Examples:
-        'Населено място: гр. София, п.к. 1404' -> 'гр. София'
-        'Населено място: с. Равно поле, п.к. 2129' -> 'с. Равно поле'
+        'Населено място: гр. София, п.к. 1408' -> 'София'
+        'Населено място: гр. Благоевград, п.к. 2700' -> 'Благоевград'
+        'Населено място: с. Равно поле, п.к. 2129' -> 'Равно поле'
     """
     match = re.search(r'Населено\s+място:\s*([^,]+)', text)
     if match:
         city = match.group(1).strip()
         # Remove postal code if attached
         city = re.sub(r'\s*п\.к\.\s*\d+', '', city).strip()
+        # Remove prefixes like 'гр.', 'с.', 'гр ', 'с '
+        city = re.sub(r'^(?:гр\.|с\.|гр |с )\s*', '', city).strip()
         return city
     return ""
 

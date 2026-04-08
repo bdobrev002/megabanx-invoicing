@@ -270,7 +270,7 @@ export default function InvoiceView() {
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-600">Данъчна основа:</span>
                       <span className="font-semibold">
-                        {(Number(invoice.subtotal) - Number(invoice.discount)).toFixed(2)} {invoice.currency}
+                        {Math.max(0, Number(invoice.subtotal) - Number(invoice.discount)).toFixed(2)} {invoice.currency}
                       </span>
                     </div>
                   </>
