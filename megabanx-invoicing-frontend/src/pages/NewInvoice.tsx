@@ -64,6 +64,7 @@ export default function NewInvoice() {
   const noVatReasonRef = useRef<HTMLDivElement>(null);
   const [notesLang, setNotesLang] = useState<"bg" | "en">("bg");
   const [discount, setDiscount] = useState("0.00");
+  const [discountType, setDiscountType] = useState<"EUR" | "%">("EUR");
   const [vatRate, setVatRate] = useState("20");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -277,7 +278,8 @@ export default function NewInvoice() {
   };
 
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
-  const discountAmount = parseFloat(discount) || 0;
+  const discountRaw = parseFloat(discount) || 0;
+  const discountAmount = discountType === "%" ? subtotal * (discountRaw / 100) : discountRaw;
   const taxBase = Math.max(0, subtotal - discountAmount);
   const vatAmount = noVat ? 0 : vatPerLine
     ? (() => {
@@ -636,12 +638,14 @@ export default function NewInvoice() {
             ))}
           </tbody>
         </table>
-        <div className="px-2 py-1.5 border-t border-slate-200 flex items-center justify-between">
-          <button onClick={addLine} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"><Plus className="h-3.5 w-3.5" /><span>{"Добави ред"}</span></button>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{"Сума (без отстъпка)"}</span>
-            <span className="text-sm font-semibold w-[120px] text-right">{subtotal.toFixed(2)} EUR</span>
-          </div>
+      </div>
+
+      {/* Add row + Subtotal - outside table border */}
+      <div className="flex items-center justify-between px-2 py-1.5">
+        <button onClick={addLine} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"><Plus className="h-3.5 w-3.5" /><span>{"Добави ред"}</span></button>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-600">{"Сума (без отстъпка)"}</span>
+          <span className="text-sm font-semibold w-[120px] text-right">{subtotal.toFixed(2)} EUR</span>
         </div>
       </div>
 
@@ -654,7 +658,10 @@ export default function NewInvoice() {
               <td className="text-right py-0.5">
                 <div className="flex items-center justify-end gap-1">
                   <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[24px] text-sm text-right border-slate-300 rounded-md w-[70px]" />
-                  <span className="text-xs text-slate-500">EUR</span>
+                  <select value={discountType} onChange={(e) => setDiscountType(e.target.value as "EUR" | "%")} className="h-[24px] border border-slate-300 rounded-md px-1 text-xs bg-white w-[52px]">
+                    <option value="EUR">EUR</option>
+                    <option value="%">%</option>
+                  </select>
                 </div>
               </td>
             </tr>
