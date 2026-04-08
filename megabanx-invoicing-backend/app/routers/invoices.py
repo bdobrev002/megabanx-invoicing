@@ -141,8 +141,10 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
             response.client_name = client.name
             response.company_name = company.name
             return response
-        except IntegrityError:
+        except IntegrityError as e:
             await db.rollback()
+            if "uq_invoice_number" not in str(e.orig).lower() and "invoice_number" not in str(e.orig).lower():
+                raise HTTPException(status_code=400, detail=str(e.orig))
             if attempt == max_retries - 1:
                 raise HTTPException(
                     status_code=409,

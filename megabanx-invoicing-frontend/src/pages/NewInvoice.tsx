@@ -248,11 +248,14 @@ export default function NewInvoice() {
   const discountAmount = parseFloat(discount) || 0;
   const taxBase = Math.max(0, subtotal - discountAmount);
   const vatAmount = noVat ? 0 : vatPerLine
-    ? lines.reduce((sum, line) => {
-        const base = calcLineTotal(line);
-        const rate = parseFloat(line.vat_rate);
-        return sum + base * ((isNaN(rate) ? 20 : rate) / 100);
-      }, 0) - discountAmount * ((() => { const r = parseFloat(vatRate); return isNaN(r) ? 20 : r; })() / 100)
+    ? (() => {
+        const lineVatSum = lines.reduce((sum, line) => {
+          const base = calcLineTotal(line);
+          const rate = parseFloat(line.vat_rate);
+          return sum + base * ((isNaN(rate) ? 20 : rate) / 100);
+        }, 0);
+        return subtotal > 0 ? lineVatSum * (taxBase / subtotal) : 0;
+      })()
     : taxBase * (parseFloat(vatRate) / 100);
   const total = taxBase + vatAmount;
 
