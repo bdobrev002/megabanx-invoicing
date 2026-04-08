@@ -15,7 +15,7 @@ export default function Settings() {
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [numberSets, setNumberSets] = useState<NumberSet[]>([]);
-  const [newNs, setNewNs] = useState({ name: "", range_from: "1", range_to: "1000000000" });
+  const [newNs, setNewNs] = useState({ name: "", range_from: "0000000001", range_to: "1000000000" });
   const [showNsForm, setShowNsForm] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -344,11 +344,11 @@ export default function Settings() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>От номер</Label>
-                  <Input value={newNs.range_from} onChange={(e) => setNewNs((p) => ({ ...p, range_from: e.target.value }))} placeholder="1" />
+                  <Input value={newNs.range_from} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setNewNs((p) => ({ ...p, range_from: v })); }} onBlur={() => setNewNs((p) => ({ ...p, range_from: p.range_from ? p.range_from.padStart(10, "0") : p.range_from }))} placeholder="0000000001" className="font-mono" maxLength={10} />
                 </div>
                 <div>
                   <Label>До номер</Label>
-                  <Input value={newNs.range_to} onChange={(e) => setNewNs((p) => ({ ...p, range_to: e.target.value }))} placeholder="1000000000" />
+                  <Input value={newNs.range_to} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setNewNs((p) => ({ ...p, range_to: v })); }} onBlur={() => setNewNs((p) => ({ ...p, range_to: p.range_to ? p.range_to.padStart(10, "0") : p.range_to }))} placeholder="1000000000" className="font-mono" maxLength={10} />
                 </div>
                 <div>
                   <Label>Име (по избор)</Label>
@@ -363,11 +363,11 @@ export default function Settings() {
                     const created = await numberSetsApi.create({
                       company_id: company.id,
                       name: newNs.name || undefined,
-                      range_from: parseInt(newNs.range_from) || 1,
-                      range_to: parseInt(newNs.range_to) || 1000000000,
+                      range_from: parseInt(newNs.range_from.replace(/^0+/, "") || "0") || 1,
+                      range_to: parseInt(newNs.range_to.replace(/^0+/, "") || "0") || 1000000000,
                     });
                     setNumberSets((prev) => [...prev, created]);
-                    setNewNs({ name: "", range_from: "1", range_to: "1000000000" });
+                    setNewNs({ name: "", range_from: "0000000001", range_to: "1000000000" });
                     setShowNsForm(false);
                   }}
                 >

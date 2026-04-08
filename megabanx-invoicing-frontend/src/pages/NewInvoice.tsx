@@ -134,8 +134,8 @@ export default function NewInvoice() {
     try {
       await numberSetsApi.create({
         company_id: company.id,
-        range_from: parseInt(newKochanFrom),
-        range_to: parseInt(newKochanTo),
+        range_from: parseInt(newKochanFrom.replace(/^0+/, "") || "0"),
+        range_to: parseInt(newKochanTo.replace(/^0+/, "") || "0"),
         name: newKochanName || undefined,
       });
       const updated = await numberSetsApi.list(company.id);
@@ -507,8 +507,8 @@ export default function NewInvoice() {
               <div className="absolute z-30 mt-1 bg-white border border-blue-300 shadow-lg rounded-md p-3 w-[340px]" style={{ top: "100%", right: 0 }}>
                 <p className="text-xs text-slate-500 mb-2">Тук може да създадете и изберете кочани с диапазон на номерата за издаване на фактури</p>
                 <div className="flex gap-1 mb-1.5">
-                  <Input placeholder="От №" value={newKochanFrom} onChange={(e) => setNewKochanFrom(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 flex-1" />
-                  <Input placeholder="До №" value={newKochanTo} onChange={(e) => setNewKochanTo(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 flex-1" />
+                  <Input placeholder="От №" value={newKochanFrom} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setNewKochanFrom(v); }} onBlur={() => { if (newKochanFrom) setNewKochanFrom(newKochanFrom.padStart(10, "0")); }} className="h-[28px] text-sm rounded-md border-slate-300 flex-1 font-mono" maxLength={10} />
+                  <Input placeholder="До №" value={newKochanTo} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setNewKochanTo(v); }} onBlur={() => { if (newKochanTo) setNewKochanTo(newKochanTo.padStart(10, "0")); }} className="h-[28px] text-sm rounded-md border-slate-300 flex-1 font-mono" maxLength={10} />
                 </div>
                 <Input placeholder="Име (по избор)" value={newKochanName} onChange={(e) => setNewKochanName(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 mb-2 w-full" />
                 <button onClick={handleCreateKochan} disabled={creatingKochan || !newKochanFrom || !newKochanTo} className="w-full h-[28px] bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
@@ -520,7 +520,7 @@ export default function NewInvoice() {
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{{invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно изв.", credit_note: "Кредитно изв."}[documentType]} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
             <div className="flex gap-1 items-center">
-              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm rounded-md border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" />
+              <Input value={invoiceNumber} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); setInvoiceNumber(v); }} onBlur={() => { if (invoiceNumber) setInvoiceNumber(invoiceNumber.padStart(10, "0")); }} className="h-[30px] text-sm rounded-md border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" maxLength={10} />
               <button className="h-[30px] w-[30px] border border-blue-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Редактирай №"><Pencil className="h-3.5 w-3.5 text-blue-500" /></button>
             </div>
           </div>
