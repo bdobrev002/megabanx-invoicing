@@ -247,7 +247,7 @@ export default function NewInvoice() {
         const base = calcLineTotal(line);
         const rate = parseFloat(line.vat_rate);
         return sum + base * ((isNaN(rate) ? 20 : rate) / 100);
-      }, 0) - discountAmount * ((parseFloat(vatRate) || 20) / 100)
+      }, 0) - discountAmount * ((() => { const r = parseFloat(vatRate); return isNaN(r) ? 20 : r; })() / 100)
     : taxBase * (parseFloat(vatRate) / 100);
   const total = taxBase + vatAmount;
 
