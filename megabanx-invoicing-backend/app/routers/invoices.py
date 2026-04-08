@@ -34,7 +34,20 @@ def calculate_invoice_totals(lines: list, vat_rate: Decimal, no_vat: bool, disco
     if no_vat:
         vat_amount = Decimal("0.00")
     else:
-        vat_amount = (tax_base * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+        # Check if lines have different VAT rates (per-line VAT mode)
+        rates = set(line.vat_rate for line in lines if line.vat_rate is not None)
+        if len(rates) > 1 or (len(rates) == 1 and rates != {vat_rate}):
+            # Per-line VAT: calculate VAT for each line using its own rate, then apply discount proportionally
+            line_vat_sum = sum(
+                (line.line_total * line.vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+                for line in lines if line.vat_rate is not None
+            )
+            if subtotal > Decimal("0.00"):
+                vat_amount = (line_vat_sum * tax_base / subtotal).quantize(Decimal("0.01"))
+            else:
+                vat_amount = Decimal("0.00")
+        else:
+            vat_amount = (tax_base * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
     total = tax_base + vat_amount
     return subtotal, vat_amount, total
 

@@ -18,7 +18,6 @@ export default function Dashboard() {
       .list({ company_id: company.id, page_size: 5 })
       .then((data) => {
         setRecentInvoices(data.invoices);
-        setStats((s) => ({ ...s, total: data.total }));
       })
       .catch(() => {});
 
