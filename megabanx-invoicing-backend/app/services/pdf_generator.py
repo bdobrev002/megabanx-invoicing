@@ -91,8 +91,15 @@ def _generate_invoice_pdf_sync(invoice) -> str:
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
     template = env.get_template("invoice_pdf.html")
 
-    doc_type_label = "ФАКТУРА" if invoice.document_type == "invoice" else "ПРОФОРМА"
-    doc_type_label_lower = "Фактура" if invoice.document_type == "invoice" else "Проформа"
+    doc_type_labels = {
+        "invoice": ("ФАКТУРА", "Фактура"),
+        "proforma": ("ПРОФОРМА", "Проформа"),
+        "debit_note": ("ДЕБИТНО ИЗВЕСТИЕ", "Дебитно известие"),
+        "credit_note": ("КРЕДИТНО ИЗВЕСТИЕ", "Кредитно известие"),
+    }
+    doc_type_label, doc_type_label_lower = doc_type_labels.get(
+        invoice.document_type, ("ФАКТУРА", "Фактура")
+    )
 
     logo_b64 = get_logo_base64(invoice.company.logo_path if invoice.company else None)
 

@@ -264,7 +264,7 @@ export default function NewInvoice() {
         tax_event_date: taxEventDate,
         due_date: dueDate || undefined,
         status: saveStatus,
-        vat_rate: parseFloat(vatRate) || 20,
+        vat_rate: (() => { const r = parseFloat(vatRate); return isNaN(r) ? 20 : r; })(),
         discount: discountAmount,
         no_vat: noVat,
         no_vat_reason: noVat ? noVatReason || undefined : undefined,
@@ -281,7 +281,7 @@ export default function NewInvoice() {
             quantity: parseFloat(line.quantity) || 1,
             unit: line.unit,
             unit_price: parseFloat(line.unit_price) || 0,
-            vat_rate: parseFloat(line.vat_rate) || 20,
+            vat_rate: (() => { const r = parseFloat(line.vat_rate); return isNaN(r) ? 20 : r; })(),
           })),
       };
       const invoice = await invoicesApi.create(payload);

@@ -13,6 +13,8 @@ from app.database import Base
 class DocumentType(str, PyEnum):
     INVOICE = "invoice"
     PROFORMA = "proforma"
+    DEBIT_NOTE = "debit_note"
+    CREDIT_NOTE = "credit_note"
 
 
 class InvoiceStatus(str, PyEnum):

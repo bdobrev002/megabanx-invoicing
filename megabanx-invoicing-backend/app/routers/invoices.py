@@ -369,7 +369,10 @@ async def get_invoice_pdf(invoice_id: uuid.UUID, db: AsyncSession = Depends(get_
     invoice.pdf_path = pdf_path
     await db.commit()
 
-    doc_type = "Фактура" if invoice.document_type == "invoice" else "Проформа"
+    doc_type = {
+        "invoice": "Фактура", "proforma": "Проформа",
+        "debit_note": "Дебитно_известие", "credit_note": "Кредитно_известие",
+    }.get(invoice.document_type, "Фактура")
     filename = f"{doc_type}_{invoice.invoice_number}.pdf"
     return FileResponse(
         pdf_path,
@@ -394,7 +397,10 @@ async def send_email(
     await db.commit()
 
     # Send email
-    doc_type = "Фактура" if invoice.document_type == "invoice" else "Проформа"
+    doc_type = {
+        "invoice": "Фактура", "proforma": "Проформа",
+        "debit_note": "Дебитно известие", "credit_note": "Кредитно известие",
+    }.get(invoice.document_type, "Фактура")
     default_subject = f"{doc_type} №{invoice.invoice_number} от {invoice.company.name}"
     default_message = (
         f"Здравейте,\n\n"
