@@ -5,8 +5,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
 import { clientsApi, itemsApi, invoicesApi } from "@/lib/api";
 import type { Client, Item } from "@/types";
-import { Plus, X, GripVertical, List, CloudCog, Pencil } from "lucide-react";
+import { Plus, X, GripVertical, List, CloudCog, Pencil, ChevronDown } from "lucide-react";
 import { registryApi } from "@/lib/api";
+
+const NO_VAT_REASONS = [
+  "чл. 113, ал. 9 от ЗДДС",
+  "чл. 21, ал. 2 от ЗДДС",
+  "чл. 28 от ЗДДС (износ)",
+  "чл. 7 от ЗДДС (ВОД)",
+  "чл. 69, ал. 2 от ЗДДС",
+  "Нерегистрирано по ЗДДС лице",
+];
 
 interface LineItem {
   item_id: string | null;
@@ -50,6 +59,9 @@ export default function NewInvoice() {
   const [internalNotes, setInternalNotes] = useState("");
   const [noVat, setNoVat] = useState(false);
   const [noVatReason, setNoVatReason] = useState("");
+  const [showNoVatReasonDropdown, setShowNoVatReasonDropdown] = useState(false);
+  const [vatPerLine, setVatPerLine] = useState(false);
+  const noVatReasonRef = useRef<HTMLDivElement>(null);
   const [notesLang, setNotesLang] = useState<"bg" | "en">("bg");
   const [discount, setDiscount] = useState("0.00");
   const [vatRate, setVatRate] = useState("20");
@@ -79,6 +91,9 @@ export default function NewInvoice() {
       }
       if (trDialogRef.current && !trDialogRef.current.contains(e.target as Node)) {
         setShowTrDialog(false);
+      }
+      if (noVatReasonRef.current && !noVatReasonRef.current.contains(e.target as Node)) {
+        setShowNoVatReasonDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -194,7 +209,12 @@ export default function NewInvoice() {
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
   const discountAmount = parseFloat(discount) || 0;
   const taxBase = subtotal - discountAmount;
-  const vatAmount = noVat ? 0 : taxBase * (parseFloat(vatRate) / 100);
+  const vatAmount = noVat ? 0 : vatPerLine
+    ? lines.reduce((sum, line) => {
+        const base = calcLineTotal(line);
+        return sum + base * ((parseFloat(line.vat_rate) || 20) / 100);
+      }, 0) - discountAmount * ((parseFloat(vatRate) || 20) / 100)
+    : taxBase * (parseFloat(vatRate) / 100);
   const total = taxBase + vatAmount;
 
   const handleSave = async (saveStatus: "issued" | "draft") => {
@@ -252,19 +272,19 @@ export default function NewInvoice() {
     <div className="max-w-[1100px] mx-auto">
       {/* Title */}
       <h1 className="text-2xl font-bold text-slate-800 mb-4 border-b-2 border-slate-300 pb-2">
-        {"\u041d\u043e\u0432\u0430 \u0444\u0430\u043a\u0442\u0443\u0440\u0430"}
+        Нова фактура
       </h1>
 
       {/* Document Type */}
       <div className="flex items-center gap-1 mb-5">
-        <span className="text-sm font-semibold text-slate-700 mr-3">{"\u0422\u0438\u043f:"}</span>
+        <span className="text-sm font-semibold text-slate-700 mr-3">Тип:</span>
         <label className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <input type="radio" name="docType" checked={documentType === "proforma"} onChange={() => setDocumentType("proforma")} className="w-3.5 h-3.5" />
-          <span className={`text-sm ${documentType === "proforma" ? "font-bold" : ""}`}>{"\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"}</span>
+          <input type="radio" name="docType" checked={documentType === "proforma"} onChange={() => setDocumentType("proforma")} className="w-3.5 h-3.5 accent-blue-600" />
+          <span className={`text-sm ${documentType === "proforma" ? "font-bold" : ""}`}>Проформа</span>
         </label>
         <label className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <input type="radio" name="docType" checked={documentType === "invoice"} onChange={() => setDocumentType("invoice")} className="w-3.5 h-3.5" />
-          <span className={`text-sm ${documentType === "invoice" ? "font-bold" : ""}`}>{"\u0424\u0430\u043a\u0442\u0443\u0440\u0430"}</span>
+          <input type="radio" name="docType" checked={documentType === "invoice"} onChange={() => setDocumentType("invoice")} className="w-3.5 h-3.5 accent-blue-600" />
+          <span className={`text-sm ${documentType === "invoice" ? "font-bold" : ""}`}>Фактура</span>
         </label>
       </div>
 
@@ -276,12 +296,12 @@ export default function NewInvoice() {
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041a\u043b\u0438\u0435\u043d\u0442:"}</label>
             <div className="flex-1 relative">
               <div className="flex gap-1">
-                <Input placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0438\u043c\u0435 \u0438\u043b\u0438 \u0415\u0418\u041a..."} value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-amber-50 focus:bg-white" />
-                <button onClick={() => setShowClientList(!showClientList)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043e\u0442 \u0441\u043f\u0438\u0441\u044a\u043a\u0430"}><List className="h-3.5 w-3.5 text-blue-600" /></button>
-                <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u0422\u044a\u0440\u0433\u043e\u0432\u0441\u043a\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u044a\u0440"}><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
+                <Input placeholder="Търсене по име или ЕИК..." value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-amber-50 focus:bg-white" />
+                <button onClick={() => setShowClientList(!showClientList)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Избери от списъка"><List className="h-3.5 w-3.5 text-blue-600" /></button>
+                <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в Търговски регистър"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
               </div>
               {showClientDropdown && clientSearch && filteredClients.length > 0 && (
-                <div className="absolute z-20 w-full mt-0.5 bg-white border border-slate-300 shadow-md max-h-48 overflow-auto rounded-sm">
+                <div className="absolute z-20 w-full mt-0.5 bg-white border border-slate-300 shadow-lg max-h-48 overflow-auto rounded-md">
                   {filteredClients.map((client) => (
                     <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
                       <div className="font-medium text-sm">{client.name}</div>
@@ -292,7 +312,7 @@ export default function NewInvoice() {
               )}
               {/* Client list picker (from DB) */}
               {showClientList && (
-                <div className="absolute z-30 w-full mt-0.5 bg-white border border-blue-300 shadow-lg max-h-64 overflow-auto rounded-sm">
+                <div className="absolute z-30 w-full mt-0.5 bg-white border border-blue-300 shadow-lg max-h-64 overflow-auto rounded-md">
                   <div className="sticky top-0 bg-blue-50 px-3 py-1.5 border-b border-blue-200 text-xs font-semibold text-blue-700">{"\u0418\u0437\u0431\u0435\u0440\u0435\u0442\u0435 \u043a\u043b\u0438\u0435\u043d\u0442 \u043e\u0442 \u0431\u0430\u0437\u0430\u0442\u0430"}</div>
                   {clients.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-slate-500">{"\u041d\u044f\u043c\u0430 \u0434\u043e\u0431\u0430\u0432\u0435\u043d\u0438 \u043a\u043b\u0438\u0435\u043d\u0442\u0438"}</div>
@@ -308,11 +328,11 @@ export default function NewInvoice() {
               )}
               {/* TR Dialog (search by EIK in Trade Registry) */}
               {showTrDialog && (
-                <div ref={trDialogRef} className="absolute z-30 w-full mt-0.5 bg-white border border-amber-300 shadow-lg rounded-sm p-3">
-                  <div className="text-xs font-semibold text-amber-700 mb-2">{"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u043f\u043e \u0415\u0418\u041a \u0432 \u0422\u044a\u0440\u0433\u043e\u0432\u0441\u043a\u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u044a\u0440"}</div>
+                <div ref={trDialogRef} className="absolute z-30 w-full mt-0.5 bg-white border border-amber-300 shadow-lg rounded-md p-3">
+                  <div className="text-xs font-semibold text-amber-700 mb-2">Търсене по ЕИК в Търговски регистър</div>
                   <div className="flex gap-1">
-                    <Input placeholder={"\u0412\u044a\u0432\u0435\u0434\u0435\u0442\u0435 \u0415\u0418\u041a..."} value={trEik} onChange={(e) => setTrEik(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleTrLookup(); }} className="h-[30px] text-sm flex-1 rounded-sm border-amber-300 bg-amber-50" />
-                    <button onClick={handleTrLookup} disabled={trLoading || trEik.length < 9} className="h-[30px] px-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <Input placeholder="Въведете ЕИК..." value={trEik} onChange={(e) => setTrEik(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleTrLookup(); }} className="h-[30px] text-sm flex-1 rounded-md border-amber-300 bg-amber-50" />
+                    <button onClick={handleTrLookup} disabled={trLoading || trEik.length < 9} className="h-[30px] px-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                       {trLoading ? "\u0422\u044a\u0440\u0441\u0438..." : "\u0422\u0420"}
                     </button>
                   </div>
@@ -332,8 +352,8 @@ export default function NewInvoice() {
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0415\u0418\u041a/\u0411\u0443\u043b\u0441\u0442\u0430\u0442:"}</label>
             <div className="flex-1 flex gap-1">
-              <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
-              <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u0422\u0420"}><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
+              <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
+              <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в ТР"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
             </div>
           </div>
 
@@ -347,24 +367,24 @@ export default function NewInvoice() {
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041c\u041e\u041b:"}</label>
-            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
+            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0413\u0440\u0430\u0434:"}</label>
-            <Input value={selectedClient?.city || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
+            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">Град:</label>
+            <Input value={selectedClient?.city || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
           </div>
 
           <div className="flex items-start gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right pt-1">{"\u0410\u0434\u0440\u0435\u0441:"}<br /><span className="text-xs font-normal text-slate-500">{"\u043d\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f"}</span></label>
-            <Textarea value={selectedClient?.address || ""} readOnly rows={2} className="text-sm flex-1 rounded-sm border-slate-300 bg-slate-50 resize-none" />
+            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right pt-1">Адрес:<br /><span className="text-xs font-normal text-slate-500">на регистрация</span></label>
+            <Textarea value={selectedClient?.address || ""} readOnly rows={2} className="text-sm flex-1 rounded-md border-slate-300 bg-slate-50 resize-none" />
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b:"}</label>
             <div className="flex-1 flex gap-1">
-              <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-sm border-slate-300 bg-slate-50" />
-              <button className="h-[30px] w-[30px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b"}><List className="h-3.5 w-3.5 text-blue-600" /></button>
+              <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
+              <button className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Избери получател"><List className="h-3.5 w-3.5 text-blue-600" /></button>
             </div>
           </div>
         </div>
@@ -372,21 +392,21 @@ export default function NewInvoice() {
         {/* RIGHT: Invoice details */}
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{documentType === "invoice" ? "\u0424\u0430\u043a\u0442\u0443\u0440\u0430" : "\u041f\u0440\u043e\u0444\u043e\u0440\u043c\u0430"} {"\u2116:"}<br /><span className="text-xs font-normal text-slate-500">{"\u0441\u043b\u0435\u0434\u0432\u0430\u0449\u0438\u044f\u0442 \u0441\u0432\u043e\u0431\u043e\u0434\u0435\u043d \u2116"}</span></label>
+            <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{documentType === "invoice" ? "Фактура" : "Проформа"} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
             <div className="flex gap-1 items-center">
-              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm rounded-sm border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" />
-              <button className="h-[30px] w-[30px] border border-blue-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title={"\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u0430\u0439 \u2116"}><Pencil className="h-3.5 w-3.5 text-blue-500" /></button>
+              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm rounded-md border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" />
+              <button className="h-[30px] w-[30px] border border-blue-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Редактирай №"><Pencil className="h-3.5 w-3.5 text-blue-500" /></button>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0438\u0437\u0434\u0430\u0432\u0430\u043d\u0435:"}</label>
-            <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="h-[30px] text-sm rounded-sm border-slate-300 w-[160px]" />
+            <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0434\u0430\u043d\u044a\u0447\u043d\u043e \u0441\u044a\u0431\u0438\u0442\u0438\u0435:"}</label>
-            <Input type="date" value={taxEventDate} onChange={(e) => setTaxEventDate(e.target.value)} className="h-[30px] text-sm rounded-sm border-slate-300 w-[160px]" />
+            <Input type="date" value={taxEventDate} onChange={(e) => setTaxEventDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
           </div>
 
           <div className="flex items-center gap-3">
@@ -394,13 +414,13 @@ export default function NewInvoice() {
               <input type="checkbox" checked={showDueDate} onChange={(e) => setShowDueDate(e.target.checked)} className="w-3.5 h-3.5" />
               <label className="text-sm font-semibold text-slate-700">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u043f\u0430\u0434\u0435\u0436:"}</label>
             </div>
-            {showDueDate && <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-[30px] text-sm rounded-sm border-slate-300 w-[160px]" />}
+            {showDueDate && <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />}
           </div>
         </div>
       </div>
 
       {/* Line Items Table */}
-      <div className="border border-slate-300 mb-1 bg-white">
+      <div className="border border-slate-300 rounded-md mb-1 bg-white overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-300">
@@ -408,7 +428,8 @@ export default function NewInvoice() {
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 border-r border-slate-200" style={{ minWidth: 220 }}>{"\u0410\u0440\u0442\u0438\u043a\u0443\u043b"}</th>
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[130px] border-r border-slate-200">{"\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e"}</th>
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[150px] border-r border-slate-200">{"\u0415\u0434. \u0446\u0435\u043d\u0430"}</th>
-              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[100px]">{"\u0421\u0442\u043e\u0439\u043d\u043e\u0441\u0442"}</th>
+              {vatPerLine && <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[80px] border-r border-slate-200">ДДС %</th>}
+              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[100px]">Стойност</th>
             </tr>
           </thead>
           <tbody>
@@ -423,11 +444,11 @@ export default function NewInvoice() {
                 </td>
                 <td className="px-1 py-1 border-r border-slate-200 relative">
                   <div className="flex gap-0.5 items-center">
-                    <Input value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} className="h-[26px] text-sm border-slate-300 rounded-sm flex-1" />
-                    <button onClick={() => { setShowItemPicker(showItemPicker === i ? null : i); setItemSearch(""); }} className="h-[26px] w-[26px] border border-slate-300 rounded-sm bg-white flex items-center justify-center hover:bg-blue-50 transition-colors shrink-0" title={"\u0418\u0437\u0431\u0435\u0440\u0438 \u043e\u0442 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0430"}><List className="h-3 w-3 text-blue-600" /></button>
+                    <Input value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} className="h-[26px] text-sm border-slate-300 rounded-md flex-1" />
+                    <button onClick={() => { setShowItemPicker(showItemPicker === i ? null : i); setItemSearch(""); }} className="h-[26px] w-[26px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors shrink-0" title="Избери от каталога"><List className="h-3 w-3 text-blue-600" /></button>
                   </div>
                   {line.description && !line.item_id && items.some((item) => item.name.toLowerCase().startsWith(line.description.toLowerCase())) && (
-                    <div className="absolute z-20 left-1 right-1 mt-0.5 bg-white border border-slate-300 shadow-md max-h-32 overflow-auto rounded-sm">
+                    <div className="absolute z-20 left-1 right-1 mt-0.5 bg-white border border-slate-300 shadow-lg max-h-32 overflow-auto rounded-md">
                       {items.filter((item) => item.name.toLowerCase().startsWith(line.description.toLowerCase())).slice(0, 5).map((item) => (
                         <button key={item.id} onClick={() => selectItem(i, item)} className="w-full text-left px-2 py-1 hover:bg-blue-100 text-sm">{item.name} {"\u2014"} {Number(item.default_price).toFixed(2)} EUR</button>
                       ))}
@@ -435,9 +456,9 @@ export default function NewInvoice() {
                   )}
                   {/* Item picker from catalog */}
                   {showItemPicker === i && (
-                    <div ref={itemPickerRef} className="absolute z-30 left-1 right-1 mt-0.5 bg-white border border-blue-300 shadow-lg max-h-52 overflow-auto rounded-sm">
+                    <div ref={itemPickerRef} className="absolute z-30 left-1 right-1 mt-0.5 bg-white border border-blue-300 shadow-lg max-h-52 overflow-auto rounded-md">
                       <div className="sticky top-0 bg-blue-50 px-2 py-1 border-b border-blue-200">
-                        <Input placeholder={"\u0422\u044a\u0440\u0441\u0435\u043d\u0435 \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0430..."} value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="h-[24px] text-xs border-blue-200 rounded-sm" autoFocus />
+                        <Input placeholder="Търсене в каталога..." value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="h-[24px] text-xs border-blue-200 rounded-md" autoFocus />
                       </div>
                       {filteredItems.length === 0 ? (
                         <div className="px-2 py-1.5 text-xs text-slate-500">{"\u041d\u044f\u043c\u0430 \u0430\u0440\u0442\u0438\u043a\u0443\u043b\u0438"}</div>
@@ -455,8 +476,8 @@ export default function NewInvoice() {
                 </td>
                 <td className="px-1 py-1 border-r border-slate-200">
                   <div className="flex gap-0.5 items-center">
-                    <Input type="number" step="0.01" min="0" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} className="h-[26px] text-sm text-center border-slate-300 rounded-sm w-[55px]" />
-                    <select value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} className="h-[26px] border border-slate-300 rounded-sm px-1 text-sm bg-white">
+                    <Input type="number" step="0.01" min="0" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} className="h-[26px] text-sm text-center border-slate-300 rounded-md w-[55px]" />
+                    <select value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} className="h-[26px] border border-slate-300 rounded-md px-1 text-sm bg-white">
                       <option>{"\u0431\u0440."}</option><option>{"\u043a\u0433"}</option><option>{"\u043c"}</option><option>{"\u043b"}</option><option>{"\u043c\u00b2"}</option><option>{"\u043c\u00b3"}</option><option>{"\u0447\u0430\u0441"}</option><option>{"\u0434\u0435\u043d"}</option><option>{"\u043c\u0435\u0441."}</option><option>{"\u0443\u0441\u043b\u0443\u0433\u0430"}</option>
                     </select>
                   </div>
@@ -464,10 +485,17 @@ export default function NewInvoice() {
                 <td className="px-1 py-1 border-r border-slate-200">
                   <div className="flex gap-0.5 items-center">
                     <button onClick={() => updateLine(i, "unit_price", "")} className="text-slate-300 hover:text-red-400 p-0.5"><X className="h-3 w-3" /></button>
-                    <Input type="number" step="0.01" min="0" value={line.unit_price} onChange={(e) => updateLine(i, "unit_price", e.target.value)} className="h-[26px] text-sm text-right border-slate-300 rounded-sm flex-1" />
+                    <Input type="number" step="0.01" min="0" value={line.unit_price} onChange={(e) => updateLine(i, "unit_price", e.target.value)} className="h-[26px] text-sm text-right border-slate-300 rounded-md flex-1" />
                     <span className="text-xs text-slate-500 ml-1 shrink-0">EUR</span>
                   </div>
                 </td>
+                {vatPerLine && (
+                  <td className="px-1 py-1 border-r border-slate-200">
+                    <select value={line.vat_rate} onChange={(e) => updateLine(i, "vat_rate", e.target.value)} className="h-[26px] border border-slate-300 rounded-md px-1 text-sm bg-white w-full">
+                      <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
+                    </select>
+                  </td>
+                )}
                 <td className="px-2 py-1 text-right text-sm font-medium">{calcLineTotal(line).toFixed(2)} EUR</td>
               </tr>
             ))}
@@ -490,7 +518,7 @@ export default function NewInvoice() {
               <td className="text-right text-sm text-slate-600 pr-4 py-1">{"\u041e\u0442\u0441\u0442\u044a\u043f\u043a\u0430"}</td>
               <td className="text-right py-1">
                 <div className="flex items-center justify-end gap-1">
-                  <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[26px] text-sm text-right border-slate-300 rounded-sm w-[70px]" />
+                  <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[26px] text-sm text-right border-slate-300 rounded-md w-[70px]" />
                   <span className="text-xs text-slate-500">EUR</span>
                 </div>
               </td>
@@ -511,25 +539,50 @@ export default function NewInvoice() {
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-semibold text-slate-700">{"\u0414\u0414\u0421 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438:"}</span>
           <label className="flex items-center gap-1.5 cursor-pointer text-sm">
-            <input type="checkbox" checked={noVat} onChange={(e) => setNoVat(e.target.checked)} className="w-3.5 h-3.5" />
-            {"\u041d\u0435 \u043d\u0430\u0447\u0438\u0441\u043b\u044f\u0432\u0430\u0439 \u0414\u0414\u0421 \u043f\u043e \u0442\u0430\u0437\u0438 \u0444\u0430\u043a\u0442\u0443\u0440\u0430"}
+            <input type="checkbox" checked={noVat} onChange={(e) => setNoVat(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
+            Не начислявай ДДС по тази фактура
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+            <input type="checkbox" checked={vatPerLine} onChange={(e) => setVatPerLine(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
+            ДДС на всеки ред
           </label>
           {noVat && (
-            <select value={noVatReason} onChange={(e) => setNoVatReason(e.target.value)} className="h-[28px] border border-slate-300 rounded-sm px-2 text-sm bg-white">
-              <option value="">{"\u0418\u0437\u0431\u0435\u0440\u0435\u0442\u0435 \u043e\u0441\u043d\u043e\u0432\u0430\u043d\u0438\u0435..."}</option>
-              <option value={"\u0447\u043b. 113, \u0430\u043b. 9 \u043e\u0442 \u0417\u0414\u0414\u0421"}>{"\u0447\u043b. 113, \u0430\u043b. 9 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
-              <option value={"\u0447\u043b. 21, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}>{"\u0447\u043b. 21, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
-              <option value={"\u0447\u043b. 28 \u043e\u0442 \u0417\u0414\u0414\u0421"}>{"\u0447\u043b. 28 \u043e\u0442 \u0417\u0414\u0414\u0421 (\u0438\u0437\u043d\u043e\u0441)"}</option>
-              <option value={"\u0447\u043b. 7 \u043e\u0442 \u0417\u0414\u0414\u0421"}>{"\u0447\u043b. 7 \u043e\u0442 \u0417\u0414\u0414\u0421 (\u0412\u041e\u0414)"}</option>
-              <option value={"\u0447\u043b. 69, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}>{"\u0447\u043b. 69, \u0430\u043b. 2 \u043e\u0442 \u0417\u0414\u0414\u0421"}</option>
-              <option value={"\u043d\u0435\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0430\u043d\u043e \u043f\u043e \u0417\u0414\u0414\u0421 \u043b\u0438\u0446\u0435"}>{"\u041d\u0435\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0430\u043d\u043e \u043f\u043e \u0417\u0414\u0414\u0421 \u043b\u0438\u0446\u0435"}</option>
-            </select>
+            <div className="relative" ref={noVatReasonRef}>
+              <div className="flex items-center">
+                <Input
+                  value={noVatReason}
+                  onChange={(e) => setNoVatReason(e.target.value)}
+                  onFocus={() => setShowNoVatReasonDropdown(true)}
+                  placeholder="Основание за неначисляване..."
+                  className="h-[28px] text-sm rounded-md border-slate-300 bg-white pr-7 min-w-[280px]"
+                />
+                <button
+                  onClick={() => setShowNoVatReasonDropdown(!showNoVatReasonDropdown)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {showNoVatReasonDropdown && (
+                <div className="absolute z-30 w-full mt-0.5 bg-white border border-slate-300 shadow-lg rounded-md max-h-48 overflow-auto">
+                  {NO_VAT_REASONS.filter((r) => !noVatReason || r.toLowerCase().includes(noVatReason.toLowerCase())).map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => { setNoVatReason(reason); setShowNoVatReasonDropdown(false); }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0"
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="text-right">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm text-slate-600">{"\u0414\u0414\u0421"}</span>
-            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[26px] border border-slate-300 rounded-sm px-1 text-sm bg-white" disabled={noVat}>
+            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[26px] border border-slate-300 rounded-md px-1 text-sm bg-white" disabled={noVat || vatPerLine}>
               <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
             </select>
           </div>
@@ -555,7 +608,7 @@ export default function NewInvoice() {
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1" />
         <label className="text-sm text-slate-600">{"\u0421\u044a\u0441\u0442\u0430\u0432\u0438\u043b"}</label>
-        <select className="h-[30px] border border-slate-300 rounded-sm px-2 text-sm bg-white min-w-[200px]">
+        <select className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white min-w-[200px]">
           <option>{company.mol || company.name}</option>
         </select>
       </div>
@@ -563,19 +616,19 @@ export default function NewInvoice() {
       {/* Language tabs + Notes */}
       <div className="border-t border-slate-200 pt-3 mb-4">
         <div className="flex gap-4 mb-3">
-          <button onClick={() => setNotesLang("bg")} className={`text-sm pb-1 ${notesLang === "bg" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>{"\u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438 \u0435\u0437\u0438\u043a"}</button>
-          <button onClick={() => setNotesLang("en")} className={`text-sm pb-1 ${notesLang === "en" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>{"\u0410\u043d\u0433\u043b\u0438\u0439\u0441\u043a\u0438 \u0435\u0437\u0438\u043a"}</button>
+          <button onClick={() => setNotesLang("bg")} className={`text-sm pb-1 ${notesLang === "bg" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>Български език</button>
+          <button onClick={() => setNotesLang("en")} className={`text-sm pb-1 ${notesLang === "en" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>Английски език</button>
         </div>
         <div className="flex items-start gap-3 mb-4">
           <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right pt-1">{"\u0417\u0430\u0431\u0435\u043b\u0435\u0436\u043a\u0438"}<br /><span className="text-xs font-normal text-slate-500">{"\u0432\u0438\u0434\u0438\u043c\u0438 \u0437\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u0430"}</span></label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-sm flex-1 rounded-sm border-slate-300 resize-none" />
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-sm flex-1 rounded-md border-slate-300 resize-none" />
         </div>
       </div>
 
       {/* Payment */}
       <div className="flex items-center gap-3 mb-4 border-t border-slate-200 pt-3">
         <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041d\u0430\u0447\u0438\u043d \u043d\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</label>
-        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="h-[30px] border border-slate-300 rounded-sm px-2 text-sm bg-white">
+        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white">
           <option>{"\u0411\u0430\u043d\u043a\u043e\u0432 \u043f\u044a\u0442"}</option><option>{"\u0412 \u0431\u0440\u043e\u0439"}</option><option>{"\u0421 \u043a\u0430\u0440\u0442\u0430"}</option><option>PayPal</option><option>{"\u041d\u0430\u043b\u043e\u0436\u0435\u043d \u043f\u043b\u0430\u0442\u0435\u0436"}</option>
         </select>
         {paymentMethod === "\u0411\u0430\u043d\u043a\u043e\u0432 \u043f\u044a\u0442" && company.iban && (
@@ -587,22 +640,22 @@ export default function NewInvoice() {
       </div>
 
       {/* Internal comments */}
-      <div className="border border-slate-300 rounded-sm mb-5">
+      <div className="border border-slate-300 rounded-md mb-5">
         <div className="bg-slate-50 px-3 py-1.5 border-b border-slate-300">
           <span className="text-sm font-semibold text-slate-700">{"\u041a\u043e\u043c\u0435\u043d\u0442\u0430\u0440\u0438"}</span>
         </div>
         <div className="p-3">
           <p className="text-sm text-red-500 font-semibold mb-2">{"\u041d\u0430\u043f\u0438\u0448\u0435\u0442\u0435 \u043a\u043e\u043c\u0435\u043d\u0442\u0430\u0440 (\u043d\u0435 \u0441\u0435 \u0432\u0438\u0436\u0434\u0430 \u043e\u0442 \u043a\u043b\u0438\u0435\u043d\u0442\u0430):"}</p>
-          <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={3} className="text-sm rounded-sm border-slate-300 resize-none" />
+          <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={3} className="text-sm rounded-md border-slate-300 resize-none" />
         </div>
       </div>
 
       {/* Action Buttons */}
       <div className="flex items-center justify-center gap-6 pb-8">
-        <button onClick={() => handleSave("issued")} disabled={saving || !selectedClient} className="bg-[#28a745] hover:bg-[#218838] text-white font-semibold text-base px-12 py-2.5 rounded-md disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
+        <button onClick={() => handleSave("issued")} disabled={saving || !selectedClient} className="bg-[#28a745] hover:bg-[#218838] text-white font-semibold text-base px-12 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
           {saving ? "\u0421\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435..." : "\u0421\u044a\u0437\u0434\u0430\u0439 \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430"}
         </button>
-        <button onClick={() => handleSave("draft")} disabled={saving || !selectedClient} className="bg-white hover:bg-slate-50 text-slate-700 font-semibold text-base px-12 py-2.5 rounded-md border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
+        <button onClick={() => handleSave("draft")} disabled={saving || !selectedClient} className="bg-white hover:bg-slate-50 text-slate-700 font-semibold text-base px-12 py-2.5 rounded-lg border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
           {"\u0421\u044a\u0437\u0434\u0430\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0430"}
         </button>
       </div>
