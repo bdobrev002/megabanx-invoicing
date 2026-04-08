@@ -64,7 +64,7 @@ export interface Invoice {
   id: string;
   company_id: string;
   client_id: string;
-  document_type: "invoice" | "proforma";
+  document_type: "invoice" | "proforma" | "debit_note" | "credit_note";
   invoice_number: number;
   issue_date: string;
   tax_event_date: string;
@@ -104,5 +104,5 @@ export interface DashboardStats {
   unpaid_total: number;
 }
 
-export type DocumentType = "invoice" | "proforma";
+export type DocumentType = "invoice" | "proforma" | "debit_note" | "credit_note";
 export type InvoiceStatus = "draft" | "issued" | "paid" | "overdue" | "cancelled";

@@ -50,6 +50,7 @@ def _parse_address_from_field(html: str) -> str:
         addr = pk_match.group(1).strip().rstrip(",").strip()
         # Clean up 'бул./ул.' or 'ул.' prefix and '№' sign
         addr = re.sub(r'^бул\./ул\.\s*', '', addr)
+        addr = re.sub(r'^ул\.\s*ул\.\s*', 'ул. ', addr)  # Fix double "ул. ул."
         addr = re.sub(r'^ул\.\s*', '', addr)
         addr = re.sub(r'^бул\.\s*', '', addr)
         addr = addr.replace(' №', '').replace('№ ', '').replace('№', '')
@@ -134,6 +135,13 @@ def _parse_trade_registry_response(data: dict) -> dict:
                         if not city:
                             city = _extract_city_from_address(full_addr_text)
                         address = _parse_address_from_field(html)
+                    elif code == "CR_F_7_L" and not mol:
+                        # CR_F_7_L = Управител (manager/representative)
+                        raw = _extract_text_from_html(html)
+                        # Extract only the person name (before comma/country)
+                        name_part = raw.split(",")[0].strip()
+                        if name_part:
+                            mol = name_part
                     elif code == "CR_F_10_L" and not mol:
                         mol = _extract_text_from_html(html)
                     elif code == "CR_F_23_L":

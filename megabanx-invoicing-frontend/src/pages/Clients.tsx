@@ -260,6 +260,7 @@ export default function Clients() {
                   <Input
                     value={form.eik}
                     onChange={(e) => { updateField("eik", e.target.value); setLookupError(""); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleEikLookup(); } }}
                     placeholder="123456789"
                   />
                   <Button
