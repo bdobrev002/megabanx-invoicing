@@ -302,7 +302,7 @@
             <td>{{ line.description }}</td>
             <td class="right">{{ "%.2f" % line.quantity }} {{ line.unit }}</td>
             <td class="right">{{ "%.2f" % line.unit_price }}</td>
-            <td class="right">{{ "%.2f" % line.line_total }} €</td>
+            <td class="right">{{ "%.2f" % line.line_total }} {{ invoice.currency }}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -329,16 +329,16 @@
             {% if invoice.discount and invoice.discount > 0 %}
             <tr>
                 <td>Междинна сума:</td>
-                <td>{{ "%.2f" % invoice.subtotal }} €</td>
+                <td>{{ "%.2f" % invoice.subtotal }} {{ invoice.currency }}</td>
             </tr>
             <tr>
                 <td>Отстъпка:</td>
-                <td>-{{ "%.2f" % invoice.discount }} €</td>
+                <td>-{{ "%.2f" % invoice.discount }} {{ invoice.currency }}</td>
             </tr>
             {% endif %}
             <tr>
                 <td>Данъчна основа:</td>
-                <td>{{ "%.2f" % tax_base }} €</td>
+                <td>{{ "%.2f" % tax_base }} {{ invoice.currency }}</td>
             </tr>
             {% if not invoice.no_vat %}
             <tr>
@@ -347,7 +347,7 @@
             </tr>
             <tr>
                 <td>Начислен ДДС:</td>
-                <td>{{ "%.2f" % invoice.vat_amount }} €</td>
+                <td>{{ "%.2f" % invoice.vat_amount }} {{ invoice.currency }}</td>
             </tr>
             {% else %}
             <tr>
@@ -357,7 +357,7 @@
             {% endif %}
             <tr class="total-final">
                 <td>Сума за плащане:</td>
-                <td>{{ "%.2f" % invoice.total }} €</td>
+                <td>{{ "%.2f" % invoice.total }} {{ invoice.currency }}</td>
             </tr>
         </table>
     </div>

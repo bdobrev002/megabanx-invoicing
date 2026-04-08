@@ -190,13 +190,23 @@ export default function InvoicesList() {
       </div>
 
       <Tabs value={docType} onValueChange={(v) => { setDocType(v); setSelectedIds(new Set()); }}>
-        <TabsList>
-          <TabsTrigger value="all">Всички</TabsTrigger>
-          <TabsTrigger value="invoice">Фактури</TabsTrigger>
-          <TabsTrigger value="proforma">Проформи</TabsTrigger>
-          <TabsTrigger value="debit_note">Дебитни известия</TabsTrigger>
-          <TabsTrigger value="credit_note">Кредитни известия</TabsTrigger>
-          <TabsTrigger value="draft">Чернови</TabsTrigger>
+        <TabsList className="bg-slate-100 p-1 gap-1">
+          {([
+            { value: "all", label: "Всички" },
+            { value: "invoice", label: "Фактури" },
+            { value: "proforma", label: "Проформи" },
+            { value: "debit_note", label: "Дебитни известия" },
+            { value: "credit_note", label: "Кредитни известия" },
+            { value: "draft", label: "Чернови" },
+          ] as const).map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className={docType === tab.value ? "bg-blue-600 text-white shadow-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white" : ""}
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value={docType} className="mt-4">
@@ -228,11 +238,10 @@ export default function InvoicesList() {
                   )}
                 </div>
 
-                {/* Bulk action buttons */}
-                {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-2 py-2 px-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <span className="text-sm font-medium text-blue-700">
-                      Избрани: {selectedIds.size}
+                {/* Bulk action buttons — always visible */}
+                <div className={`flex items-center gap-2 py-2 px-3 rounded-lg border ${selectedIds.size > 0 ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-200"}`}>
+                    <span className={`text-sm font-medium ${selectedIds.size > 0 ? "text-blue-700" : "text-slate-500"}`}>
+                      {selectedIds.size > 0 ? `Избрани: ${selectedIds.size}` : "Действия:"}
                     </span>
                     <div className="flex gap-1 ml-auto">
                       <Button
@@ -285,7 +294,6 @@ export default function InvoicesList() {
                       </Button>
                     </div>
                   </div>
-                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -334,7 +342,14 @@ export default function InvoicesList() {
                           />
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {inv.invoice_number.toString().padStart(10, "0")}
+                          <a
+                            href={invoicesApi.getPdfUrl(inv.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          >
+                            {inv.invoice_number.toString().padStart(10, "0")}
+                          </a>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
@@ -342,7 +357,14 @@ export default function InvoicesList() {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {inv.client_name || "—"}
+                          <a
+                            href={invoicesApi.getPdfUrl(inv.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          >
+                            {inv.client_name || "—"}
+                          </a>
                         </TableCell>
                         <TableCell>
                           {new Date(inv.issue_date).toLocaleDateString("bg-BG")}

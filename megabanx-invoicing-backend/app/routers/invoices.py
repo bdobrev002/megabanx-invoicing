@@ -356,7 +356,17 @@ async def update_invoice(
         invoice.vat_amount = vat_amount
         invoice.total = total
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        if "uq_invoice_number" in str(e.orig).lower() or "invoice_number" in str(e.orig).lower():
+            raise HTTPException(
+                status_code=409,
+                detail="Invoice number already exists for this document type.",
+            )
+        raise HTTPException(status_code=400, detail=str(e.orig))
+
     await db.refresh(invoice)
 
     resp = InvoiceResponse.model_validate(invoice)
