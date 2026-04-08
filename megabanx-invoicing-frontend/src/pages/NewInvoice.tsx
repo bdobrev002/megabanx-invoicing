@@ -573,8 +573,6 @@ export default function NewInvoice() {
             {lines.map((line, i) => (
               <tr
                 key={i}
-                draggable
-                onDragStart={() => handleDragStart(i)}
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={() => handleDrop(i)}
                 onDragEnd={handleDragEnd}
@@ -582,7 +580,7 @@ export default function NewInvoice() {
               >
                 <td className="px-1 py-1 text-center border-r border-slate-200">
                   <div className="flex items-center justify-center gap-0.5">
-                    <button className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5"><GripVertical className="h-4 w-4" /></button>
+                    <button draggable onDragStart={() => handleDragStart(i)} className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5"><GripVertical className="h-4 w-4" /></button>
                     <button onClick={() => addLineAt(i)} className="text-blue-500 hover:text-blue-700 p-0.5"><Plus className="h-4 w-4" /></button>
                     <button onClick={() => removeLine(i)} disabled={lines.length <= 1} className="text-red-400 hover:text-red-600 disabled:text-slate-200 disabled:cursor-not-allowed p-0.5"><X className="h-4 w-4" /></button>
                   </div>
