@@ -636,8 +636,12 @@ export default function NewInvoice() {
             ))}
           </tbody>
         </table>
-        <div className="px-2 py-1.5 border-t border-slate-200">
-          <button onClick={addLine} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"><Plus className="h-3.5 w-3.5" /><span>{"\u0414\u043e\u0431\u0430\u0432\u0438 \u0440\u0435\u0434"}</span></button>
+        <div className="px-2 py-1.5 border-t border-slate-200 flex items-center justify-between">
+          <button onClick={addLine} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"><Plus className="h-3.5 w-3.5" /><span>{"Добави ред"}</span></button>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-slate-600">{"Сума (без отстъпка)"}</span>
+            <span className="text-sm font-semibold w-[120px] text-right">{subtotal.toFixed(2)} EUR</span>
+          </div>
         </div>
       </div>
 
@@ -646,11 +650,7 @@ export default function NewInvoice() {
         <table className="border-collapse">
           <tbody>
             <tr>
-              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u0421\u0443\u043c\u0430 (\u0431\u0435\u0437 \u043e\u0442\u0441\u0442\u044a\u043f\u043a\u0430)"}</td>
-              <td className="text-right text-sm font-semibold py-0.5 w-[120px]">{subtotal.toFixed(2)} EUR</td>
-            </tr>
-            <tr>
-              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u041e\u0442\u0441\u0442\u044a\u043f\u043a\u0430"}</td>
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"Отстъпка"}</td>
               <td className="text-right py-0.5">
                 <div className="flex items-center justify-end gap-1">
                   <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[24px] text-sm text-right border-slate-300 rounded-md w-[70px]" />
@@ -659,10 +659,24 @@ export default function NewInvoice() {
               </td>
             </tr>
             <tr className="border-t border-slate-200">
-              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u0414\u0430\u043d\u044a\u0447\u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0430"}</td>
-              <td className="text-right text-sm font-semibold py-0.5">
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"Данъчна основа"}</td>
+              <td className="text-right text-sm font-semibold py-0.5 w-[120px]">
                 {taxBase.toFixed(2)} EUR
-                <div className="text-xs text-slate-500 font-normal">{(taxBase * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
+                <div className="text-xs text-slate-500 font-normal">{(taxBase * 1.9558).toFixed(2)} {"лв."}</div>
+              </td>
+            </tr>
+            <tr>
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">
+                <div className="flex items-center justify-end gap-2">
+                  <span>{"ДДС"}</span>
+                  <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[22px] border border-slate-300 rounded-md px-1 text-sm bg-white" disabled={noVat || vatPerLine}>
+                    <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
+                  </select>
+                </div>
+              </td>
+              <td className="text-right text-sm font-semibold py-0.5">
+                {vatAmount.toFixed(2)} EUR
+                <div className="text-xs text-slate-500 font-normal">{(vatAmount * 1.9558).toFixed(2)} {"лв."}</div>
               </td>
             </tr>
           </tbody>
@@ -670,9 +684,9 @@ export default function NewInvoice() {
       </div>
 
       {/* VAT settings row - compact */}
-      <div className="flex items-start justify-between mb-1 border-t border-b border-slate-200 py-1.5">
+      <div className="flex items-start mb-1 border-t border-b border-slate-200 py-1.5">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm font-semibold text-slate-700">{"\u0414\u0414\u0421 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438:"}</span>
+          <span className="text-sm font-semibold text-slate-700">{"ДДС настройки:"}</span>
           <label className="flex items-center gap-1.5 cursor-pointer text-sm">
             <input type="checkbox" checked={noVat} onChange={(e) => setNoVat(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
             Не начислявай ДДС по тази фактура
@@ -724,16 +738,6 @@ export default function NewInvoice() {
             </div>
             </div>
           )}
-        </div>
-        <div className="text-right">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm text-slate-600">{"\u0414\u0414\u0421"}</span>
-            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[24px] border border-slate-300 rounded-md px-1 text-sm bg-white" disabled={noVat || vatPerLine}>
-              <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
-            </select>
-          </div>
-          <div className="text-sm font-semibold">{vatAmount.toFixed(2)} EUR</div>
-          <div className="text-xs text-slate-500">{(vatAmount * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
         </div>
       </div>
 
