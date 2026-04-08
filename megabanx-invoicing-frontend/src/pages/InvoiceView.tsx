@@ -105,7 +105,7 @@ export default function InvoiceView() {
   }
 
   const docTypeLabel =
-    invoice.document_type === "invoice" ? "Фактура" : "Проформа";
+    { invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно известие", credit_note: "Кредитно известие" }[invoice.document_type] || "Фактура";
 
   return (
     <div className="space-y-6">

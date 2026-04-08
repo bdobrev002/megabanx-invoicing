@@ -162,9 +162,7 @@ export default function InvoicesList() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {inv.document_type === "invoice"
-                              ? "Фактура"
-                              : "Проформа"}
+                            {{ invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно известие", credit_note: "Кредитно известие" }[inv.document_type] || "Фактура"}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">

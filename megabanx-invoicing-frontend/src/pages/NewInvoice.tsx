@@ -246,7 +246,7 @@ export default function NewInvoice() {
 
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
   const discountAmount = parseFloat(discount) || 0;
-  const taxBase = subtotal - discountAmount;
+  const taxBase = Math.max(0, subtotal - discountAmount);
   const vatAmount = noVat ? 0 : vatPerLine
     ? lines.reduce((sum, line) => {
         const base = calcLineTotal(line);
