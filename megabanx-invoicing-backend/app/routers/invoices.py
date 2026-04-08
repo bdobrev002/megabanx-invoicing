@@ -164,6 +164,9 @@ async def create_invoice(data: InvoiceCreate, db: AsyncSession = Depends(get_db)
                     detail="Could not generate unique invoice number. Please try again.",
                 )
             invoice_number = None  # Force re-read on next attempt
+            # Re-fetch company and client after rollback to avoid expired ORM state
+            company = await db.get(Company, data.company_id)
+            client = await db.get(Client, data.client_id)
 
 
 @router.get("/stats")
