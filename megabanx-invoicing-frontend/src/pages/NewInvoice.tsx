@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
@@ -35,9 +35,12 @@ const emptyLine: LineItem = {
   vat_rate: "20.00",
 };
 
-export default function NewInvoice() {
+export default function NewInvoice({ editMode = false }: { editMode?: boolean } = {}) {
   const navigate = useNavigate();
   const { company } = useCompany();
+  const params = useParams<{ id: string }>();
+  const editId = editMode ? params.id : undefined;
+  const [editLoaded, setEditLoaded] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -122,11 +125,53 @@ export default function NewInvoice() {
     clientsApi.list({ company_id: company.id }).then(setClients).catch(() => {});
     itemsApi.list({ company_id: company.id }).then(setItems).catch(() => {});
     numberSetsApi.list(company.id).then(setNumberSets).catch(() => {});
-    invoicesApi
-      .getNextNumber(company.id, documentType)
-      .then((data) => setInvoiceNumber(String(data.next_number).padStart(10, "0")))
-      .catch(() => {});
-  }, [company, documentType]);
+    if (!editMode) {
+      invoicesApi
+        .getNextNumber(company.id, documentType)
+        .then((data) => setInvoiceNumber(String(data.next_number).padStart(10, "0")))
+        .catch(() => {});
+    }
+  }, [company, documentType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load invoice data in edit mode
+  useEffect(() => {
+    if (!editId || !company || editLoaded) return;
+    invoicesApi.get(editId).then((inv) => {
+      setDocumentType(inv.document_type as typeof documentType);
+      setInvoiceNumber(String(inv.invoice_number).padStart(10, "0"));
+      setIssueDate(inv.issue_date);
+      setTaxEventDate(inv.tax_event_date);
+      if (inv.due_date) { setShowDueDate(true); setDueDate(inv.due_date); }
+      if (inv.payment_method) setPaymentMethod(inv.payment_method);
+      if (inv.notes) setNotes(inv.notes);
+      if (inv.internal_notes) setInternalNotes(inv.internal_notes);
+      setNoVat(inv.no_vat || false);
+      if (inv.no_vat_reason) setNoVatReason(inv.no_vat_reason);
+      setVatRate(String(inv.vat_rate ?? 20));
+      setDiscount(String(inv.discount ?? 0));
+      // Load client
+      if (inv.client_id) {
+        clientsApi.get(inv.client_id).then((c) => {
+          setSelectedClient(c);
+          setClientSearch(c.name);
+          if (c.is_vat_registered) setIsVatRegistered(true);
+          if (c.egn) setIsPhysicalPerson(true);
+        }).catch(() => {});
+      }
+      // Load lines
+      if (inv.lines && inv.lines.length > 0) {
+        setLines(inv.lines.map((l: { item_id?: string | null; description: string; quantity: number; unit: string; unit_price: number; vat_rate?: number | null }) => ({
+          item_id: l.item_id || null,
+          description: l.description,
+          quantity: String(l.quantity),
+          unit: l.unit,
+          unit_price: String(l.unit_price),
+          vat_rate: String(l.vat_rate ?? 20),
+        })));
+      }
+      setEditLoaded(true);
+    }).catch(() => { alert("Грешка при зареждане на фактурата"); navigate("/invoices"); });
+  }, [editId, company]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateKochan = async () => {
     if (!company || !newKochanFrom || !newKochanTo) return;
@@ -335,11 +380,16 @@ export default function NewInvoice() {
             vat_rate: (() => { const r = parseFloat(line.vat_rate); return isNaN(r) ? 20 : r; })(),
           })),
       };
-      const invoice = await invoicesApi.create(payload);
+      let invoice;
+      if (editId) {
+        invoice = await invoicesApi.update(editId, payload);
+      } else {
+        invoice = await invoicesApi.create(payload);
+      }
       navigate(`/invoices/${invoice.id}`);
     } catch (err) {
-      console.error("Failed to create invoice:", err);
-      alert("\u0413\u0440\u0435\u0448\u043a\u0430 \u043f\u0440\u0438 \u0441\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435 \u043d\u0430 \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430");
+      console.error(editId ? "Failed to update invoice:" : "Failed to create invoice:", err);
+      alert(editId ? "Грешка при обновяване на фактурата" : "Грешка при създаване на фактурата");
     } finally {
       setSaving(false);
     }
@@ -357,7 +407,7 @@ export default function NewInvoice() {
     <div className="max-w-[1100px] mx-auto">
       {/* Title */}
       <h1 className="text-2xl font-bold text-slate-800 mb-4 border-b-2 border-slate-300 pb-2">
-        Нова фактура
+        {editMode ? "Редактиране на фактура" : "Нова фактура"}
       </h1>
 
       {/* Document Type */}
@@ -825,10 +875,10 @@ export default function NewInvoice() {
       {/* Action Buttons */}
       <div className="flex items-center justify-center gap-6 pb-6">
         <button onClick={() => handleSave("issued")} disabled={saving || !selectedClient} className="bg-[#28a745] hover:bg-[#218838] text-white font-semibold text-base px-12 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
-          {saving ? "\u0421\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435..." : "\u0421\u044a\u0437\u0434\u0430\u0439 \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430"}
+          {saving ? (editMode ? "Запазване..." : "Създаване...") : (editMode ? "Запази промените" : "Създай фактурата")}
         </button>
         <button onClick={() => handleSave("draft")} disabled={saving || !selectedClient} className="bg-white hover:bg-slate-50 text-slate-700 font-semibold text-base px-12 py-2.5 rounded-lg border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
-          {"\u0421\u044a\u0437\u0434\u0430\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0430"}
+          {editMode ? "Запази като чернова" : "Създай чернова"}
         </button>
       </div>
     </div>

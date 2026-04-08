@@ -19,6 +19,7 @@ function App() {
             <Route path="/invoices/new" element={<NewInvoice />} />
             <Route path="/invoices" element={<InvoicesList />} />
             <Route path="/invoices/:id" element={<InvoiceView />} />
+            <Route path="/invoices/:id/edit" element={<NewInvoice editMode />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/items" element={<Items />} />
             <Route path="/settings" element={<Settings />} />

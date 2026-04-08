@@ -103,6 +103,11 @@ def _generate_invoice_pdf_sync(invoice) -> str:
 
     logo_b64 = get_logo_base64(invoice.company.logo_path if invoice.company else None)
 
+    # Calculate tax base for template
+    subtotal = float(invoice.subtotal) if invoice.subtotal else 0.0
+    discount = float(invoice.discount) if invoice.discount else 0.0
+    tax_base = max(0.0, subtotal - discount)
+
     html_content = template.render(
         invoice=invoice,
         company=invoice.company,
@@ -112,6 +117,7 @@ def _generate_invoice_pdf_sync(invoice) -> str:
         doc_type_label_lower=doc_type_label_lower,
         logo_b64=logo_b64,
         total_words=num_to_bg_words(float(invoice.total), invoice.currency),
+        tax_base=tax_base,
     )
 
     os.makedirs(PDF_DIR, exist_ok=True)

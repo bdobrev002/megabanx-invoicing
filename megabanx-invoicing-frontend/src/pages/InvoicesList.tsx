@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCompany } from "@/lib/company-context";
-import { invoicesApi } from "@/lib/api";
+import { invoicesApi, clientsApi } from "@/lib/api";
 import type { Invoice } from "@/types";
 import {
   Search,
@@ -23,6 +23,11 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Pencil,
+  Mail,
+  Printer,
+  Trash2,
+  Ban,
 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
@@ -47,8 +52,10 @@ export default function InvoicesList() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [docType, setDocType] = useState("all");
+  const [docType, setDocType] = useState("invoice");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
   const pageSize = 20;
 
   const loadInvoices = async () => {
@@ -60,6 +67,8 @@ export default function InvoicesList() {
     };
     if (docType === "invoice") params.document_type = "invoice";
     if (docType === "proforma") params.document_type = "proforma";
+    if (docType === "debit_note") params.document_type = "debit_note";
+    if (docType === "credit_note") params.document_type = "credit_note";
     if (docType === "draft") params.status = "draft";
     if (statusFilter !== "all" && docType !== "draft")
       params.status = statusFilter;
@@ -76,9 +85,94 @@ export default function InvoicesList() {
 
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [search, docType, statusFilter]);
 
   const totalPages = Math.ceil(total / pageSize);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === invoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(invoices.map((i) => i.id)));
+    }
+  };
+
+  const selectedInvoices = invoices.filter((i) => selectedIds.has(i.id));
+
+  const handleBulkDownload = async () => {
+    for (const inv of selectedInvoices) {
+      window.open(invoicesApi.getPdfUrl(inv.id), "_blank");
+    }
+  };
+
+  const handleBulkPrint = async () => {
+    for (const inv of selectedInvoices) {
+      const w = window.open(invoicesApi.getPdfUrl(inv.id), "_blank");
+      if (w) {
+        w.addEventListener("load", () => {
+          setTimeout(() => w.print(), 500);
+        });
+      }
+    }
+  };
+
+  const handleBulkEmail = async () => {
+    setBulkLoading(true);
+    let sent = 0;
+    let skipped = 0;
+    for (const inv of selectedInvoices) {
+      try {
+        // Fetch client to get email
+        const client = await clientsApi.get(inv.client_id);
+        if (client.email) {
+          await invoicesApi.sendEmail(inv.id, { recipient_email: client.email });
+          sent++;
+        } else {
+          skipped++;
+        }
+      } catch {
+        skipped++;
+      }
+    }
+    setBulkLoading(false);
+    alert(`Изпратени: ${sent}, Пропуснати (без имейл): ${skipped}`);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Сигурни ли сте, че искате да изтриете ${selectedIds.size} фактури?`)) return;
+    setBulkLoading(true);
+    for (const id of selectedIds) {
+      try {
+        await invoicesApi.delete(id);
+      } catch { /* skip */ }
+    }
+    setBulkLoading(false);
+    setSelectedIds(new Set());
+    loadInvoices();
+  };
+
+  const handleBulkCancel = async () => {
+    if (!confirm(`Сигурни ли сте, че искате да анулирате ${selectedIds.size} фактури?`)) return;
+    setBulkLoading(true);
+    for (const id of selectedIds) {
+      try {
+        await invoicesApi.update(id, { status: "cancelled" });
+      } catch { /* skip */ }
+    }
+    setBulkLoading(false);
+    setSelectedIds(new Set());
+    loadInvoices();
+  };
 
   return (
     <div className="space-y-6">
@@ -95,39 +189,102 @@ export default function InvoicesList() {
         </Link>
       </div>
 
-      <Tabs value={docType} onValueChange={setDocType}>
+      <Tabs value={docType} onValueChange={(v) => { setDocType(v); setSelectedIds(new Set()); }}>
         <TabsList>
           <TabsTrigger value="all">Всички</TabsTrigger>
           <TabsTrigger value="invoice">Фактури</TabsTrigger>
           <TabsTrigger value="proforma">Проформи</TabsTrigger>
+          <TabsTrigger value="debit_note">Дебитни известия</TabsTrigger>
+          <TabsTrigger value="credit_note">Кредитни известия</TabsTrigger>
           <TabsTrigger value="draft">Чернови</TabsTrigger>
         </TabsList>
 
         <TabsContent value={docType} className="mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    placeholder="Търсене по клиент..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10"
-                  />
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Търсене по клиент..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {docType !== "draft" && (
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="all">Всички статуси</option>
+                      <option value="issued">Издадени</option>
+                      <option value="paid">Платени</option>
+                      <option value="overdue">Просрочени</option>
+                      <option value="cancelled">Анулирани</option>
+                    </select>
+                  )}
                 </div>
-                {docType !== "draft" && (
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
-                  >
-                    <option value="all">Всички статуси</option>
-                    <option value="issued">Издадени</option>
-                    <option value="paid">Платени</option>
-                    <option value="overdue">Просрочени</option>
-                    <option value="cancelled">Анулирани</option>
-                  </select>
+
+                {/* Bulk action buttons */}
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 py-2 px-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <span className="text-sm font-medium text-blue-700">
+                      Избрани: {selectedIds.size}
+                    </span>
+                    <div className="flex gap-1 ml-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleBulkEmail}
+                        disabled={bulkLoading}
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        Изпрати
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleBulkDownload}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Свали
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleBulkPrint}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Принтирай
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={handleBulkDelete}
+                        disabled={bulkLoading}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Изтрий
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        onClick={handleBulkCancel}
+                        disabled={bulkLoading}
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        Анулирай
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -135,20 +292,28 @@ export default function InvoicesList() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={invoices.length > 0 && selectedIds.size === invoices.length}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-slate-300 cursor-pointer"
+                      />
+                    </TableHead>
                     <TableHead>№</TableHead>
                     <TableHead>Тип</TableHead>
                     <TableHead>Клиент</TableHead>
                     <TableHead>Дата</TableHead>
                     <TableHead className="text-right">Сума</TableHead>
                     <TableHead>Статус</TableHead>
-                    <TableHead className="w-28">Действия</TableHead>
+                    <TableHead className="w-36">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invoices.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="text-center text-slate-500 py-12"
                       >
                         Няма намерени фактури
@@ -156,7 +321,18 @@ export default function InvoicesList() {
                     </TableRow>
                   ) : (
                     invoices.map((inv) => (
-                      <TableRow key={inv.id} className="hover:bg-slate-50">
+                      <TableRow
+                        key={inv.id}
+                        className={`hover:bg-slate-50 ${selectedIds.has(inv.id) ? "bg-blue-50" : ""}`}
+                      >
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(inv.id)}
+                            onChange={() => toggleSelect(inv.id)}
+                            className="h-4 w-4 rounded border-slate-300 cursor-pointer"
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm">
                           {inv.invoice_number.toString().padStart(10, "0")}
                         </TableCell>
@@ -186,8 +362,13 @@ export default function InvoicesList() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Link to={`/invoices/${inv.id}`}>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" title="Преглед">
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            <Link to={`/invoices/${inv.id}/edit`}>
+                              <Button variant="ghost" size="sm" title="Редактирай">
+                                <Pencil className="h-4 w-4" />
                               </Button>
                             </Link>
                             <a
@@ -195,7 +376,7 @@ export default function InvoicesList() {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" title="Свали PDF">
                                 <Download className="h-4 w-4" />
                               </Button>
                             </a>
