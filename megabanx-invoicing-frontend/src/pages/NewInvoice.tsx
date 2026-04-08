@@ -72,6 +72,12 @@ export default function NewInvoice() {
   const [numberSets, setNumberSets] = useState<NumberSet[]>([]);
   const [selectedNumberSet, setSelectedNumberSet] = useState<string>("");
   const [taxEventDateManuallyChanged, setTaxEventDateManuallyChanged] = useState(false);
+  const [showCreateKochan, setShowCreateKochan] = useState(false);
+  const [newKochanFrom, setNewKochanFrom] = useState("");
+  const [newKochanTo, setNewKochanTo] = useState("");
+  const [newKochanName, setNewKochanName] = useState("");
+  const [creatingKochan, setCreatingKochan] = useState(false);
+  const kochanRef = useRef<HTMLDivElement>(null);
 
   const [lines, setLines] = useState<LineItem[]>([
     { ...emptyLine },
@@ -102,6 +108,9 @@ export default function NewInvoice() {
       if (noVatReasonRef.current && !noVatReasonRef.current.contains(e.target as Node)) {
         setShowNoVatReasonDropdown(false);
       }
+      if (kochanRef.current && !kochanRef.current.contains(e.target as Node)) {
+        setShowCreateKochan(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -118,10 +127,33 @@ export default function NewInvoice() {
       .catch(() => {});
   }, [company, documentType]);
 
+  const handleCreateKochan = async () => {
+    if (!company || !newKochanFrom || !newKochanTo) return;
+    setCreatingKochan(true);
+    try {
+      await numberSetsApi.create({
+        company_id: company.id,
+        range_from: parseInt(newKochanFrom),
+        range_to: parseInt(newKochanTo),
+        name: newKochanName || undefined,
+      });
+      const updated = await numberSetsApi.list(company.id);
+      setNumberSets(updated);
+      setShowCreateKochan(false);
+      setNewKochanFrom("");
+      setNewKochanTo("");
+      setNewKochanName("");
+    } catch {
+      alert("Грешка при създаване на кочан");
+    } finally {
+      setCreatingKochan(false);
+    }
+  };
+
   const filteredClients = clients.filter(
     (c) =>
       c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-      (c.eik && c.eik.includes(clientSearch))
+      (isPhysicalPerson ? (c.egn && c.egn.includes(clientSearch)) : (c.eik && c.eik.includes(clientSearch)))
   );
 
   const selectClient = (client: Client) => {
@@ -340,17 +372,17 @@ export default function NewInvoice() {
           <div className="flex items-center gap-3" ref={clientDropdownRef}>
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041a\u043b\u0438\u0435\u043d\u0442:"}</label>
             <div className="flex-1 relative">
-              <div className="flex gap-1">
-                <Input placeholder="Търсене по име или ЕИК..." value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-amber-50 focus:bg-white" />
-                <button onClick={() => setShowClientList(!showClientList)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Избери от списъка"><List className="h-3.5 w-3.5 text-blue-600" /></button>
-                <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в Търговски регистър"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
-              </div>
+                <div className="flex gap-1">
+                  <Input placeholder={isPhysicalPerson ? "Търсене по име или ЕГН..." : "Търсене по име или ЕИК..."} value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setShowClientDropdown(true); if (!e.target.value) setSelectedClient(null); }} onFocus={() => setShowClientDropdown(true)} className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-amber-50 focus:bg-white" />
+                  <button onClick={() => setShowClientList(!showClientList)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Избери от списъка"><List className="h-3.5 w-3.5 text-blue-600" /></button>
+                  {!isPhysicalPerson && <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в Търговски регистър"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>}
+                </div>
               {showClientDropdown && clientSearch && filteredClients.length > 0 && (
                 <div className="absolute z-20 w-full mt-0.5 bg-white border border-slate-300 shadow-lg max-h-48 overflow-auto rounded-md">
                   {filteredClients.map((client) => (
                     <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
                       <div className="font-medium text-sm">{client.name}</div>
-                      <div className="text-xs text-slate-500">{client.eik && `\u0415\u0418\u041a: ${client.eik}`}{client.city && ` \u2022 ${client.city}`}</div>
+                      <div className="text-xs text-slate-500">{isPhysicalPerson ? (client.egn && `ЕГН: ${client.egn}`) : (client.eik && `ЕИК: ${client.eik}`)}{client.city && ` \u2022 ${client.city}`}</div>
                     </button>
                   ))}
                 </div>
@@ -365,7 +397,7 @@ export default function NewInvoice() {
                     clients.map((client) => (
                       <button key={client.id} onClick={() => selectClient(client)} className="w-full text-left px-3 py-1.5 hover:bg-blue-100 text-sm border-b border-slate-100 last:border-0">
                         <div className="font-medium">{client.name}</div>
-                        <div className="text-xs text-slate-500">{client.eik && `\u0415\u0418\u041a: ${client.eik}`}{client.city && ` \u2022 ${client.city}`}</div>
+                        <div className="text-xs text-slate-500">{isPhysicalPerson ? (client.egn && `ЕГН: ${client.egn}`) : (client.eik && `ЕИК: ${client.eik}`)}{client.city && ` \u2022 ${client.city}`}</div>
                       </button>
                     ))
                   )}
@@ -394,13 +426,22 @@ export default function NewInvoice() {
             </label>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0415\u0418\u041a/\u0411\u0443\u043b\u0441\u0442\u0430\u0442:"}</label>
-            <div className="flex-1 flex gap-1">
-              <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
-              <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в ТР"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
+          {isPhysicalPerson ? (
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">ЕГН:</label>
+              <Input value={selectedClient?.egn || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u0415\u0418\u041a/\u0411\u0443\u043b\u0441\u0442\u0430\u0442:"}</label>
+                <div className="flex-1 flex gap-1">
+                  <Input value={selectedClient?.eik || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
+                  <button onClick={() => setShowTrDialog(!showTrDialog)} className="h-[30px] w-[30px] border border-slate-300 rounded-md bg-white flex items-center justify-center hover:bg-amber-50 transition-colors" title="Търсене в ТР"><CloudCog className="h-3.5 w-3.5 text-amber-600" /></button>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="flex items-center gap-3">
             <div className="w-[130px] shrink-0" />
@@ -410,10 +451,12 @@ export default function NewInvoice() {
             </label>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041c\u041e\u041b:"}</label>
-            <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
-          </div>
+          {!isPhysicalPerson && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041c\u041e\u041b:"}</label>
+              <Input value={selectedClient?.mol || ""} readOnly className="h-[30px] text-sm flex-1 rounded-md border-slate-300 bg-slate-50" />
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">Град:</label>
@@ -436,9 +479,9 @@ export default function NewInvoice() {
 
         {/* RIGHT: Invoice details */}
         <div className="space-y-2.5">
-          {numberSets.length > 0 && (
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">Кочан:</label>
+          <div className="flex items-center gap-3 relative" ref={kochanRef}>
+            <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">Кочан:</label>
+            {numberSets.length > 0 ? (
               <select value={selectedNumberSet} onChange={(e) => setSelectedNumberSet(e.target.value)} className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white">
                 <option value="">Без кочан</option>
                 {numberSets.map((ns) => (
@@ -447,8 +490,23 @@ export default function NewInvoice() {
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            ) : (
+              <button onClick={() => setShowCreateKochan(!showCreateKochan)} className="text-sm text-blue-600 hover:text-blue-800 font-semibold underline">кочан</button>
+            )}
+            {showCreateKochan && (
+              <div className="absolute z-30 mt-1 bg-white border border-blue-300 shadow-lg rounded-md p-3 w-[340px]" style={{ top: "100%", right: 0 }}>
+                <p className="text-xs text-slate-500 mb-2">Тук може да създадете и изберете кочани с диапазон на номерата за издаване на фактури</p>
+                <div className="flex gap-1 mb-1.5">
+                  <Input placeholder="От №" value={newKochanFrom} onChange={(e) => setNewKochanFrom(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 flex-1" />
+                  <Input placeholder="До №" value={newKochanTo} onChange={(e) => setNewKochanTo(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 flex-1" />
+                </div>
+                <Input placeholder="Име (по избор)" value={newKochanName} onChange={(e) => setNewKochanName(e.target.value)} className="h-[28px] text-sm rounded-md border-slate-300 mb-2 w-full" />
+                <button onClick={handleCreateKochan} disabled={creatingKochan || !newKochanFrom || !newKochanTo} className="w-full h-[28px] bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  {creatingKochan ? "Създаване..." : "Създай кочан"}
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{{invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно изв.", credit_note: "Кредитно изв."}[documentType]} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
             <div className="flex gap-1 items-center">
@@ -469,7 +527,7 @@ export default function NewInvoice() {
 
           <div className="flex items-center gap-3">
             <div className="w-[185px] shrink-0 flex items-center justify-end gap-2">
-              <input type="checkbox" checked={showDueDate} onChange={(e) => setShowDueDate(e.target.checked)} className="w-3.5 h-3.5" />
+              <input type="checkbox" checked={showDueDate} onChange={(e) => { setShowDueDate(e.target.checked); if (e.target.checked && !dueDate) setDueDate(issueDate); }} className="w-3.5 h-3.5" />
               <label className="text-sm font-semibold text-slate-700">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u043f\u0430\u0434\u0435\u0436:"}</label>
             </div>
             {showDueDate && <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />}
@@ -583,27 +641,27 @@ export default function NewInvoice() {
         </div>
       </div>
 
-      {/* Totals */}
-      <div className="flex flex-col items-end mb-3">
+      {/* Totals + VAT + Total - compact section */}
+      <div className="flex flex-col items-end mb-1">
         <table className="border-collapse">
           <tbody>
             <tr>
-              <td className="text-right text-sm text-slate-600 pr-4 py-1">{"\u0421\u0443\u043c\u0430 (\u0431\u0435\u0437 \u043e\u0442\u0441\u0442\u044a\u043f\u043a\u0430)"}</td>
-              <td className="text-right text-sm font-semibold py-1 w-[120px]">{subtotal.toFixed(2)} EUR</td>
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u0421\u0443\u043c\u0430 (\u0431\u0435\u0437 \u043e\u0442\u0441\u0442\u044a\u043f\u043a\u0430)"}</td>
+              <td className="text-right text-sm font-semibold py-0.5 w-[120px]">{subtotal.toFixed(2)} EUR</td>
             </tr>
             <tr>
-              <td className="text-right text-sm text-slate-600 pr-4 py-1">{"\u041e\u0442\u0441\u0442\u044a\u043f\u043a\u0430"}</td>
-              <td className="text-right py-1">
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u041e\u0442\u0441\u0442\u044a\u043f\u043a\u0430"}</td>
+              <td className="text-right py-0.5">
                 <div className="flex items-center justify-end gap-1">
-                  <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[26px] text-sm text-right border-slate-300 rounded-md w-[70px]" />
+                  <Input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="h-[24px] text-sm text-right border-slate-300 rounded-md w-[70px]" />
                   <span className="text-xs text-slate-500">EUR</span>
                 </div>
               </td>
             </tr>
             <tr className="border-t border-slate-200">
-              <td className="text-right text-sm text-slate-600 pr-4 py-1">{"\u0414\u0430\u043d\u044a\u0447\u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0430"}</td>
-              <td className="text-right text-sm font-semibold py-1">
-                <div>{taxBase.toFixed(2)} EUR</div>
+              <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"\u0414\u0430\u043d\u044a\u0447\u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0430"}</td>
+              <td className="text-right text-sm font-semibold py-0.5">
+                {taxBase.toFixed(2)} EUR
                 <div className="text-xs text-slate-500 font-normal">{(taxBase * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
               </td>
             </tr>
@@ -611,8 +669,8 @@ export default function NewInvoice() {
         </table>
       </div>
 
-      {/* VAT settings row */}
-      <div className="flex items-start justify-between mb-3 border-t border-b border-slate-200 py-2">
+      {/* VAT settings row - compact */}
+      <div className="flex items-start justify-between mb-1 border-t border-b border-slate-200 py-1.5">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-semibold text-slate-700">{"\u0414\u0414\u0421 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438:"}</span>
           <label className="flex items-center gap-1.5 cursor-pointer text-sm">
@@ -625,7 +683,7 @@ export default function NewInvoice() {
           </label>
           {noVat && (
             <div className="w-full mt-1">
-              <div className="text-sm text-slate-600 mb-1">Основание за неначисляване на ДДС:</div>
+              <div className="text-sm text-slate-600 mb-0.5">Основание за неначисляване на ДДС:</div>
             <div className="relative" ref={noVatReasonRef}>
               <div className="flex items-center">
                       <Input
@@ -633,7 +691,7 @@ export default function NewInvoice() {
                         onChange={(e) => setNoVatReason(e.target.value)}
                         onFocus={() => setShowNoVatReasonDropdown(true)}
                         placeholder="Основание за неначисляване..."
-                        className="h-[28px] text-sm rounded-md border-slate-300 bg-white pr-14 min-w-[280px]"
+                        className="h-[26px] text-sm rounded-md border-slate-300 bg-white pr-14 min-w-[280px]"
                       />
                       {noVatReason && (
                         <button
@@ -668,9 +726,9 @@ export default function NewInvoice() {
           )}
         </div>
         <div className="text-right">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-0.5">
             <span className="text-sm text-slate-600">{"\u0414\u0414\u0421"}</span>
-            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[26px] border border-slate-300 rounded-md px-1 text-sm bg-white" disabled={noVat || vatPerLine}>
+            <select value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-[24px] border border-slate-300 rounded-md px-1 text-sm bg-white" disabled={noVat || vatPerLine}>
               <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
             </select>
           </div>
@@ -679,42 +737,37 @@ export default function NewInvoice() {
         </div>
       </div>
 
-      {/* Total */}
-      <div className="flex justify-end mb-4 border-b border-slate-200 pb-2">
-        <div className="text-right">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{"\u0421\u0443\u043c\u0430 \u0437\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</span>
-            <div>
-              <div className="text-lg font-bold text-slate-900">{total.toFixed(2)} EUR</div>
-              <div className="text-xs text-slate-500 font-semibold">{(total * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
-            </div>
+      {/* Total + Composer - compact */}
+      <div className="flex justify-between items-center mb-2 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-600">{"\u0421\u044a\u0441\u0442\u0430\u0432\u0438\u043b"}</label>
+          <select className="h-[28px] border border-slate-300 rounded-md px-2 text-sm bg-white min-w-[200px]">
+            <option>{company.mol || company.name}</option>
+          </select>
+        </div>
+        <div className="text-right flex items-center gap-4">
+          <span className="text-sm text-slate-600">{"\u0421\u0443\u043c\u0430 \u0437\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</span>
+          <div>
+            <div className="text-lg font-bold text-slate-900">{total.toFixed(2)} EUR</div>
+            <div className="text-xs text-slate-500 font-semibold">{(total * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
           </div>
         </div>
       </div>
 
-      {/* Composer */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex-1" />
-        <label className="text-sm text-slate-600">{"\u0421\u044a\u0441\u0442\u0430\u0432\u0438\u043b"}</label>
-        <select className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white min-w-[200px]">
-          <option>{company.mol || company.name}</option>
-        </select>
-      </div>
-
-      {/* Language tabs + Notes */}
-      <div className="border-t border-slate-200 pt-3 mb-4">
-        <div className="flex gap-4 mb-3">
+      {/* Language tabs + Notes - compact */}
+      <div className="pt-2 mb-2">
+        <div className="flex gap-4 mb-2">
           <button onClick={() => setNotesLang("bg")} className={`text-sm pb-1 ${notesLang === "bg" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>Български език</button>
           <button onClick={() => setNotesLang("en")} className={`text-sm pb-1 ${notesLang === "en" ? "text-slate-900 font-semibold border-b-2 border-slate-700" : "text-blue-500 hover:text-blue-700"}`}>Английски език</button>
         </div>
-        <div className="flex items-start gap-3 mb-4">
+        <div className="flex items-start gap-3 mb-2">
           <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right pt-1">{"\u0417\u0430\u0431\u0435\u043b\u0435\u0436\u043a\u0438"}<br /><span className="text-xs font-normal text-slate-500">{"\u0432\u0438\u0434\u0438\u043c\u0438 \u0437\u0430 \u043a\u043b\u0438\u0435\u043d\u0442\u0430"}</span></label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-sm flex-1 rounded-md border-slate-300 resize-none" />
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm flex-1 rounded-md border-slate-300 resize-none" />
         </div>
       </div>
 
-      {/* Payment */}
-      <div className="flex items-center gap-3 mb-4 border-t border-slate-200 pt-3">
+      {/* Payment - compact */}
+      <div className="flex items-center gap-3 mb-2 border-t border-slate-200 pt-2">
         <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041d\u0430\u0447\u0438\u043d \u043d\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</label>
         <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white">
           <option>В брой</option>
@@ -740,19 +793,19 @@ export default function NewInvoice() {
         )}
       </div>
 
-      {/* Internal comments */}
-      <div className="border border-slate-300 rounded-md mb-5">
-        <div className="bg-slate-50 px-3 py-1.5 border-b border-slate-300">
+      {/* Internal comments - compact */}
+      <div className="border border-slate-300 rounded-md mb-3">
+        <div className="bg-slate-50 px-3 py-1 border-b border-slate-300">
           <span className="text-sm font-semibold text-slate-700">{"\u041a\u043e\u043c\u0435\u043d\u0442\u0430\u0440\u0438"}</span>
+          <span className="text-xs text-red-500 ml-2">(не се вижда от клиента)</span>
         </div>
-        <div className="p-3">
-          <p className="text-sm text-red-500 font-semibold mb-2">{"\u041d\u0430\u043f\u0438\u0448\u0435\u0442\u0435 \u043a\u043e\u043c\u0435\u043d\u0442\u0430\u0440 (\u043d\u0435 \u0441\u0435 \u0432\u0438\u0436\u0434\u0430 \u043e\u0442 \u043a\u043b\u0438\u0435\u043d\u0442\u0430):"}</p>
-          <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={3} className="text-sm rounded-md border-slate-300 resize-none" />
+        <div className="p-2">
+          <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2} className="text-sm rounded-md border-slate-300 resize-none" />
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-center gap-6 pb-8">
+      <div className="flex items-center justify-center gap-6 pb-6">
         <button onClick={() => handleSave("issued")} disabled={saving || !selectedClient} className="bg-[#28a745] hover:bg-[#218838] text-white font-semibold text-base px-12 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
           {saving ? "\u0421\u044a\u0437\u0434\u0430\u0432\u0430\u043d\u0435..." : "\u0421\u044a\u0437\u0434\u0430\u0439 \u0444\u0430\u043a\u0442\u0443\u0440\u0430\u0442\u0430"}
         </button>

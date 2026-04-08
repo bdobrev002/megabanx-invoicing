@@ -22,6 +22,7 @@ export interface Client {
   company_id: string;
   name: string;
   eik: string | null;
+  egn: string | null;
   vat_number: string | null;
   is_vat_registered: boolean;
   is_individual: boolean;

@@ -15,6 +15,7 @@ class Client(Base):
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     eik: Mapped[str | None] = mapped_column(String(13), nullable=True)
+    egn: Mapped[str | None] = mapped_column(String(10), nullable=True)
     vat_number: Mapped[str | None] = mapped_column(String(15), nullable=True)
     is_vat_registered: Mapped[bool] = mapped_column(Boolean, default=False)
     is_individual: Mapped[bool] = mapped_column(Boolean, default=False)

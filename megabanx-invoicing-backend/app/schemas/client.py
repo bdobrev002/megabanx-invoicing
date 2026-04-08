@@ -7,6 +7,7 @@ class ClientCreate(BaseModel):
     company_id: uuid.UUID
     name: str
     eik: str | None = None
+    egn: str | None = None
     vat_number: str | None = None
     is_vat_registered: bool = False
     is_individual: bool = False
@@ -20,6 +21,7 @@ class ClientCreate(BaseModel):
 class ClientUpdate(BaseModel):
     name: str | None = None
     eik: str | None = None
+    egn: str | None = None
     vat_number: str | None = None
     is_vat_registered: bool | None = None
     is_individual: bool | None = None
@@ -35,6 +37,7 @@ class ClientResponse(BaseModel):
     company_id: uuid.UUID
     name: str
     eik: str | None = None
+    egn: str | None = None
     vat_number: str | None = None
     is_vat_registered: bool
     is_individual: bool
