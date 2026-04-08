@@ -271,10 +271,18 @@ export default function NewInvoice() {
     });
   };
 
+  const getBasePrice = (line: LineItem) => {
+    const price = parseFloat(line.unit_price) || 0;
+    if (priceMode === "with_vat") {
+      const rate = vatPerLine ? (parseFloat(line.vat_rate) || 20) : (parseFloat(vatRate) || 20);
+      return price / (1 + rate / 100);
+    }
+    return price;
+  };
+
   const calcLineTotal = (line: LineItem) => {
     const qty = parseFloat(line.quantity) || 0;
-    const price = parseFloat(line.unit_price) || 0;
-    return qty * price;
+    return qty * getBasePrice(line);
   };
 
   const subtotal = lines.reduce((sum, line) => sum + calcLineTotal(line), 0);
@@ -322,7 +330,7 @@ export default function NewInvoice() {
             description: line.description,
             quantity: parseFloat(line.quantity) || 1,
             unit: line.unit,
-            unit_price: parseFloat(line.unit_price) || 0,
+            unit_price: getBasePrice(line),
             vat_rate: (() => { const r = parseFloat(line.vat_rate); return isNaN(r) ? 20 : r; })(),
           })),
       };
