@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
-import { clientsApi, itemsApi, invoicesApi } from "@/lib/api";
+import { clientsApi, itemsApi, invoicesApi, numberSetsApi } from "@/lib/api";
+import type { NumberSet } from "@/lib/api";
 import type { Client, Item } from "@/types";
 import { Plus, X, GripVertical, List, CloudCog, Pencil, ChevronDown } from "lucide-react";
 import { registryApi } from "@/lib/api";
@@ -68,6 +69,9 @@ export default function NewInvoice() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [priceMode, setPriceMode] = useState<"without_vat" | "with_vat">("without_vat");
   const [showPriceModeDropdown, setShowPriceModeDropdown] = useState(false);
+  const [numberSets, setNumberSets] = useState<NumberSet[]>([]);
+  const [selectedNumberSet, setSelectedNumberSet] = useState<string>("");
+  const [taxEventDateManuallyChanged, setTaxEventDateManuallyChanged] = useState(false);
 
   const [lines, setLines] = useState<LineItem[]>([
     { ...emptyLine },
@@ -107,6 +111,7 @@ export default function NewInvoice() {
     if (!company) return;
     clientsApi.list({ company_id: company.id }).then(setClients).catch(() => {});
     itemsApi.list({ company_id: company.id }).then(setItems).catch(() => {});
+    numberSetsApi.list(company.id).then(setNumberSets).catch(() => {});
     invoicesApi
       .getNextNumber(company.id, documentType)
       .then((data) => setInvoiceNumber(String(data.next_number).padStart(10, "0")))
@@ -428,6 +433,19 @@ export default function NewInvoice() {
 
         {/* RIGHT: Invoice details */}
         <div className="space-y-2.5">
+          {numberSets.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">Кочан:</label>
+              <select value={selectedNumberSet} onChange={(e) => setSelectedNumberSet(e.target.value)} className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white">
+                <option value="">Без кочан</option>
+                {numberSets.map((ns) => (
+                  <option key={ns.id} value={ns.id}>
+                    {String(ns.range_from).padStart(10, "0")} - {String(ns.range_to).padStart(10, "0")}{ns.name ? ` (${ns.name})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{{invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно изв.", credit_note: "Кредитно изв."}[documentType]} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
             <div className="flex gap-1 items-center">
@@ -438,12 +456,12 @@ export default function NewInvoice() {
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0438\u0437\u0434\u0430\u0432\u0430\u043d\u0435:"}</label>
-            <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
+            <Input type="date" value={issueDate} onChange={(e) => { setIssueDate(e.target.value); if (!taxEventDateManuallyChanged) setTaxEventDate(e.target.value); }} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
           </div>
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{"\u0414\u0430\u0442\u0430 \u043d\u0430 \u0434\u0430\u043d\u044a\u0447\u043d\u043e \u0441\u044a\u0431\u0438\u0442\u0438\u0435:"}</label>
-            <Input type="date" value={taxEventDate} onChange={(e) => setTaxEventDate(e.target.value)} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
+            <Input type="date" value={taxEventDate} onChange={(e) => { setTaxEventDate(e.target.value); setTaxEventDateManuallyChanged(true); }} className="h-[30px] text-sm rounded-md border-slate-300 w-[160px]" />
           </div>
 
           <div className="flex items-center gap-3">
@@ -532,7 +550,7 @@ export default function NewInvoice() {
                 </td>
                 <td className="px-1 py-1 border-r border-slate-200">
                   <div className="flex gap-0.5 items-center">
-                    <Input type="number" step="0.01" min="0" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} className="h-[26px] text-sm text-center border-slate-300 rounded-md w-[55px]" />
+                    <Input type="number" step="0.01" min="0" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} className="h-[26px] text-sm text-center border-slate-300 rounded-md w-[70px]" />
                     <select value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} className="h-[26px] border border-slate-300 rounded-md px-1 text-sm bg-white">
                       <option>{"\u0431\u0440."}</option><option>{"\u043a\u0433"}</option><option>{"\u043c"}</option><option>{"\u043b"}</option><option>{"\u043c\u00b2"}</option><option>{"\u043c\u00b3"}</option><option>{"\u0447\u0430\u0441"}</option><option>{"\u0434\u0435\u043d"}</option><option>{"\u043c\u0435\u0441."}</option><option>{"\u0443\u0441\u043b\u0443\u0433\u0430"}</option>
                     </select>

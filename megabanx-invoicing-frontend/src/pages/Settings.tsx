@@ -5,14 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/company-context";
-import { companiesApi, registryApi } from "@/lib/api";
-import { Save, Upload, Building2, Search, Loader2 } from "lucide-react";
+import { companiesApi, registryApi, numberSetsApi } from "@/lib/api";
+import type { NumberSet } from "@/lib/api";
+import { Save, Upload, Building2, Search, Loader2, Plus, Trash2 } from "lucide-react";
 
 export default function Settings() {
   const { company, refreshCompanies } = useCompany();
   const [saving, setSaving] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState("");
+  const [numberSets, setNumberSets] = useState<NumberSet[]>([]);
+  const [newNs, setNewNs] = useState({ name: "", range_from: "1", range_to: "1000000000" });
+  const [showNsForm, setShowNsForm] = useState(false);
   const [form, setForm] = useState({
     name: "",
     eik: "",
@@ -30,6 +34,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (company) {
+      numberSetsApi.list(company.id).then(setNumberSets).catch(() => {});
       setForm({
         name: company.name || "",
         eik: company.eik || "",
@@ -306,6 +311,78 @@ export default function Settings() {
           </Card>
         </div>
       </div>
+
+      {/* Number Sets (Кочани) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Номериране (кочани)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-slate-500">Използвайте кочани за генериране на номера на фактури в определен диапазон.</p>
+          {numberSets.length > 0 && (
+            <div className="space-y-2">
+              {numberSets.map((ns) => (
+                <div key={ns.id} className="flex items-center gap-3 p-2 bg-slate-50 rounded-md border border-slate-200">
+                  <span className="text-sm font-mono">{String(ns.range_from).padStart(10, "0")} — {String(ns.range_to).padStart(10, "0")}</span>
+                  {ns.name && <span className="text-sm text-slate-600">({ns.name})</span>}
+                  <button
+                    onClick={async () => {
+                      await numberSetsApi.delete(ns.id);
+                      setNumberSets((prev) => prev.filter((n) => n.id !== ns.id));
+                    }}
+                    className="ml-auto text-red-400 hover:text-red-600 p-1"
+                    title="Изтрий"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showNsForm ? (
+            <div className="p-3 border border-blue-200 rounded-md bg-blue-50 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>От номер</Label>
+                  <Input value={newNs.range_from} onChange={(e) => setNewNs((p) => ({ ...p, range_from: e.target.value }))} placeholder="1" />
+                </div>
+                <div>
+                  <Label>До номер</Label>
+                  <Input value={newNs.range_to} onChange={(e) => setNewNs((p) => ({ ...p, range_to: e.target.value }))} placeholder="1000000000" />
+                </div>
+                <div>
+                  <Label>Име (по избор)</Label>
+                  <Input value={newNs.name} onChange={(e) => setNewNs((p) => ({ ...p, name: e.target.value }))} placeholder="Основен" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!company) return;
+                    const created = await numberSetsApi.create({
+                      company_id: company.id,
+                      name: newNs.name || undefined,
+                      range_from: parseInt(newNs.range_from) || 1,
+                      range_to: parseInt(newNs.range_to) || 1000000000,
+                    });
+                    setNumberSets((prev) => [...prev, created]);
+                    setNewNs({ name: "", range_from: "1", range_to: "1000000000" });
+                    setShowNsForm(false);
+                  }}
+                >
+                  Добави
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowNsForm(false)}>Откажи</Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowNsForm(true)}>
+              <Plus className="h-4 w-4" /> Добави нов кочан
+            </Button>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -110,4 +110,21 @@ export const registryApi = {
     }>(`/api/registry/lookup/${eik}`).then((r) => r.data),
 };
 
+// Number Sets (Кочани)
+export interface NumberSet {
+  id: string;
+  company_id: string;
+  name: string | null;
+  range_from: number;
+  range_to: number;
+}
+
+export const numberSetsApi = {
+  list: (companyId: string) =>
+    api.get<NumberSet[]>("/api/number-sets", { params: { company_id: companyId } }).then((r) => r.data),
+  create: (data: { company_id: string; name?: string; range_from: number; range_to: number }) =>
+    api.post<NumberSet>("/api/number-sets", data).then((r) => r.data),
+  delete: (id: string) => api.delete(`/api/number-sets/${id}`).then((r) => r.data),
+};
+
 export default api;
