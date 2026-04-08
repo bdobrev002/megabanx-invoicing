@@ -9,12 +9,11 @@ import { Plus, X, GripVertical, List, CloudCog, Pencil, ChevronDown } from "luci
 import { registryApi } from "@/lib/api";
 
 const NO_VAT_REASONS = [
-  "чл. 113, ал. 9 от ЗДДС",
-  "чл. 21, ал. 2 от ЗДДС",
-  "чл. 28 от ЗДДС (износ)",
-  "чл. 7 от ЗДДС (ВОД)",
-  "чл. 69, ал. 2 от ЗДДС",
-  "Нерегистрирано по ЗДДС лице",
+  "чл.113 ал.9 от ЗДДС - лицето не е регистрирано по ЗДДС",
+  "чл.86, ал.3 и чл.21 от ЗДДС",
+  "чл.82, ал. 2 от ЗДДС - обратно начисляване",
+  "чл.21 от ЗДДС - услугата е извън територията на България",
+  "чл.21 ал.2 от ЗДДС",
 ];
 
 interface LineItem {
@@ -45,7 +44,7 @@ export default function NewInvoice() {
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [documentType, setDocumentType] = useState<"invoice" | "proforma">("invoice");
+  const [documentType, setDocumentType] = useState<"invoice" | "proforma" | "debit_note" | "credit_note">("invoice");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isPhysicalPerson, setIsPhysicalPerson] = useState(false);
   const [isVatRegistered, setIsVatRegistered] = useState(false);
@@ -54,7 +53,7 @@ export default function NewInvoice() {
   const [taxEventDate, setTaxEventDate] = useState(new Date().toISOString().split("T")[0]);
   const [showDueDate, setShowDueDate] = useState(false);
   const [dueDate, setDueDate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("\u0411\u0430\u043d\u043a\u043e\u0432 \u043f\u044a\u0442");
+  const [paymentMethod, setPaymentMethod] = useState("В брой");
   const [notes, setNotes] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [noVat, setNoVat] = useState(false);
@@ -65,6 +64,10 @@ export default function NewInvoice() {
   const [notesLang, setNotesLang] = useState<"bg" | "en">("bg");
   const [discount, setDiscount] = useState("0.00");
   const [vatRate, setVatRate] = useState("20");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [priceMode, setPriceMode] = useState<"without_vat" | "with_vat">("without_vat");
+  const [showPriceModeDropdown, setShowPriceModeDropdown] = useState(false);
 
   const [lines, setLines] = useState<LineItem[]>([
     { ...emptyLine },
@@ -185,6 +188,36 @@ export default function NewInvoice() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (index: number) => {
+    if (dragIndex === null || dragIndex === index) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    setLines((prev) => {
+      const updated = [...prev];
+      const [dragged] = updated.splice(dragIndex, 1);
+      updated.splice(index, 0, dragged);
+      return updated;
+    });
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
   const selectItem = (index: number, item: Item) => {
     setLines((prev) => {
       const updated = [...prev];
@@ -212,7 +245,8 @@ export default function NewInvoice() {
   const vatAmount = noVat ? 0 : vatPerLine
     ? lines.reduce((sum, line) => {
         const base = calcLineTotal(line);
-        return sum + base * ((parseFloat(line.vat_rate) || 20) / 100);
+        const rate = parseFloat(line.vat_rate);
+        return sum + base * ((isNaN(rate) ? 20 : rate) / 100);
       }, 0) - discountAmount * ((parseFloat(vatRate) || 20) / 100)
     : taxBase * (parseFloat(vatRate) / 100);
   const total = taxBase + vatAmount;
@@ -278,14 +312,17 @@ export default function NewInvoice() {
       {/* Document Type */}
       <div className="flex items-center gap-1 mb-5">
         <span className="text-sm font-semibold text-slate-700 mr-3">Тип:</span>
-        <label className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <input type="radio" name="docType" checked={documentType === "proforma"} onChange={() => setDocumentType("proforma")} className="w-3.5 h-3.5 accent-blue-600" />
-          <span className={`text-sm ${documentType === "proforma" ? "font-bold" : ""}`}>Проформа</span>
-        </label>
-        <label className="flex items-center gap-1.5 cursor-pointer mr-4">
-          <input type="radio" name="docType" checked={documentType === "invoice"} onChange={() => setDocumentType("invoice")} className="w-3.5 h-3.5 accent-blue-600" />
-          <span className={`text-sm ${documentType === "invoice" ? "font-bold" : ""}`}>Фактура</span>
-        </label>
+        {([
+          { value: "proforma" as const, label: "Проформа" },
+          { value: "invoice" as const, label: "Фактура" },
+          { value: "debit_note" as const, label: "Дебитно известие" },
+          { value: "credit_note" as const, label: "Кредитно известие" },
+        ]).map((dt) => (
+          <label key={dt.value} className="flex items-center gap-1.5 cursor-pointer mr-4">
+            <input type="radio" name="docType" checked={documentType === dt.value} onChange={() => setDocumentType(dt.value)} className="w-3.5 h-3.5 accent-blue-600" />
+            <span className={`text-sm ${documentType === dt.value ? "font-bold" : ""}`}>{dt.label}</span>
+          </label>
+        ))}
       </div>
 
       {/* Two-column: Client (left) + Invoice Details (right) */}
@@ -392,7 +429,7 @@ export default function NewInvoice() {
         {/* RIGHT: Invoice details */}
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{documentType === "invoice" ? "Фактура" : "Проформа"} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
+            <label className="text-sm font-semibold text-slate-700 w-[185px] shrink-0 text-right">{{invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно изв.", credit_note: "Кредитно изв."}[documentType]} №:<br /><span className="text-xs font-normal text-slate-500">следващият свободен №</span></label>
             <div className="flex gap-1 items-center">
               <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-[30px] text-sm rounded-md border-blue-300 bg-blue-50 font-mono font-semibold text-blue-800 max-w-[160px]" />
               <button className="h-[30px] w-[30px] border border-blue-300 rounded-md bg-white flex items-center justify-center hover:bg-blue-50 transition-colors" title="Редактирай №"><Pencil className="h-3.5 w-3.5 text-blue-500" /></button>
@@ -427,17 +464,36 @@ export default function NewInvoice() {
               <th className="w-[100px] px-1 py-2 border-r border-slate-200" />
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 border-r border-slate-200" style={{ minWidth: 220 }}>{"\u0410\u0440\u0442\u0438\u043a\u0443\u043b"}</th>
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[130px] border-r border-slate-200">{"\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e"}</th>
-              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[150px] border-r border-slate-200">{"\u0415\u0434. \u0446\u0435\u043d\u0430"}</th>
+              <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[150px] border-r border-slate-200 relative">
+                <button onClick={() => setShowPriceModeDropdown(!showPriceModeDropdown)} className="inline-flex items-center gap-0.5 hover:text-blue-600">
+                  {priceMode === "without_vat" ? "Цена без ДДС" : "Цена с ДДС"}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showPriceModeDropdown && (
+                  <div className="absolute z-20 top-full left-0 right-0 bg-white border border-slate-300 shadow-lg rounded-md mt-0.5">
+                    <button onClick={() => { setPriceMode("without_vat"); setShowPriceModeDropdown(false); }} className={`w-full text-left px-2 py-1 text-sm hover:bg-blue-50 ${priceMode === "without_vat" ? "bg-blue-100 font-semibold" : ""}`}>Цена без ДДС</button>
+                    <button onClick={() => { setPriceMode("with_vat"); setShowPriceModeDropdown(false); }} className={`w-full text-left px-2 py-1 text-sm hover:bg-blue-50 ${priceMode === "with_vat" ? "bg-blue-100 font-semibold" : ""}`}>Цена с ДДС</button>
+                  </div>
+                )}
+              </th>
               {vatPerLine && <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[80px] border-r border-slate-200">ДДС %</th>}
               <th className="text-center text-sm font-semibold text-slate-700 px-2 py-2 w-[100px]">Стойност</th>
             </tr>
           </thead>
           <tbody>
             {lines.map((line, i) => (
-              <tr key={i} className="border-b border-slate-200 hover:bg-slate-50 group">
+              <tr
+                key={i}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDrop={() => handleDrop(i)}
+                onDragEnd={handleDragEnd}
+                className={`border-b border-slate-200 hover:bg-slate-50 group transition-colors ${dragIndex === i ? "opacity-40 bg-blue-50" : ""} ${dragOverIndex === i && dragIndex !== i ? "border-t-2 border-t-blue-500" : ""}`}
+              >
                 <td className="px-1 py-1 text-center border-r border-slate-200">
                   <div className="flex items-center justify-center gap-0.5">
-                    <button className="text-slate-400 hover:text-slate-600 cursor-grab p-0.5"><GripVertical className="h-4 w-4" /></button>
+                    <button className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5"><GripVertical className="h-4 w-4" /></button>
                     <button onClick={() => addLineAt(i)} className="text-blue-500 hover:text-blue-700 p-0.5"><Plus className="h-4 w-4" /></button>
                     <button onClick={() => removeLine(i)} disabled={lines.length <= 1} className="text-red-400 hover:text-red-600 disabled:text-slate-200 disabled:cursor-not-allowed p-0.5"><X className="h-4 w-4" /></button>
                   </div>
@@ -547,21 +603,31 @@ export default function NewInvoice() {
             ДДС на всеки ред
           </label>
           {noVat && (
+            <div className="w-full mt-1">
+              <div className="text-sm text-slate-600 mb-1">Основание за неначисляване на ДДС:</div>
             <div className="relative" ref={noVatReasonRef}>
               <div className="flex items-center">
-                <Input
-                  value={noVatReason}
-                  onChange={(e) => setNoVatReason(e.target.value)}
-                  onFocus={() => setShowNoVatReasonDropdown(true)}
-                  placeholder="Основание за неначисляване..."
-                  className="h-[28px] text-sm rounded-md border-slate-300 bg-white pr-7 min-w-[280px]"
-                />
-                <button
-                  onClick={() => setShowNoVatReasonDropdown(!showNoVatReasonDropdown)}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
+                      <Input
+                        value={noVatReason}
+                        onChange={(e) => setNoVatReason(e.target.value)}
+                        onFocus={() => setShowNoVatReasonDropdown(true)}
+                        placeholder="Основание за неначисляване..."
+                        className="h-[28px] text-sm rounded-md border-slate-300 bg-white pr-14 min-w-[280px]"
+                      />
+                      {noVatReason && (
+                        <button
+                          onClick={() => setNoVatReason("")}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowNoVatReasonDropdown(!showNoVatReasonDropdown)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
               </div>
               {showNoVatReasonDropdown && (
                 <div className="absolute z-30 w-full mt-0.5 bg-white border border-slate-300 shadow-lg rounded-md max-h-48 overflow-auto">
@@ -576,6 +642,7 @@ export default function NewInvoice() {
                   ))}
                 </div>
               )}
+            </div>
             </div>
           )}
         </div>
@@ -629,7 +696,20 @@ export default function NewInvoice() {
       <div className="flex items-center gap-3 mb-4 border-t border-slate-200 pt-3">
         <label className="text-sm font-semibold text-slate-700 w-[130px] shrink-0 text-right">{"\u041d\u0430\u0447\u0438\u043d \u043d\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</label>
         <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="h-[30px] border border-slate-300 rounded-md px-2 text-sm bg-white">
-          <option>{"\u0411\u0430\u043d\u043a\u043e\u0432 \u043f\u044a\u0442"}</option><option>{"\u0412 \u0431\u0440\u043e\u0439"}</option><option>{"\u0421 \u043a\u0430\u0440\u0442\u0430"}</option><option>PayPal</option><option>{"\u041d\u0430\u043b\u043e\u0436\u0435\u043d \u043f\u043b\u0430\u0442\u0435\u0436"}</option>
+          <option>В брой</option>
+          <option>Банков път</option>
+          <option>Наложен платеж</option>
+          <option>С карта</option>
+          <option>Платежно нареждане</option>
+          <option>Чек/Ваучер</option>
+          <option>С насрещно прихващане</option>
+          <option>Паричен превод</option>
+          <option>E-Pay</option>
+          <option>PayPal</option>
+          <option>Stripe</option>
+          <option>EasyPay</option>
+          <option>Пощенски паричен превод</option>
+          <option>Друг</option>
         </select>
         {paymentMethod === "\u0411\u0430\u043d\u043a\u043e\u0432 \u043f\u044a\u0442" && company.iban && (
           <div className="flex items-center gap-2 text-sm">
