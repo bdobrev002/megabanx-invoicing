@@ -188,7 +188,7 @@ export default function Dashboard() {
                     />
                     <div>
                       <p className="font-medium text-sm">
-                        {inv.document_type === "invoice" ? "Фактура" : "Проформа"}{" "}
+                        {{ invoice: "Фактура", proforma: "Проформа", debit_note: "Дебитно известие", credit_note: "Кредитно известие" }[inv.document_type] || "Фактура"}{" "}
                         №{inv.invoice_number.toString().padStart(10, "0")}
                       </p>
                       <p className="text-xs text-slate-500">

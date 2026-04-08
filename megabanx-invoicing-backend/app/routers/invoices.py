@@ -2,6 +2,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 import os
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -413,13 +414,15 @@ async def get_invoice_pdf(invoice_id: uuid.UUID, db: AsyncSession = Depends(get_
     filename = f"{doc_type}_{invoice.invoice_number}.pdf"
 
     # Return inline so browser shows preview instead of downloading
+    # Use RFC 5987 encoding for Cyrillic filename (latin-1 safe)
     with open(pdf_path, "rb") as f:
         pdf_bytes = f.read()
+    encoded_filename = quote(filename)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
         },
     )
 
