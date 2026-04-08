@@ -29,6 +29,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       setCompanies(data);
       if (data.length > 0 && !company) {
         setCompany(data[0]);
+      } else if (company) {
+        const updated = data.find((c) => c.id === company.id);
+        if (updated) setCompany(updated);
+        else if (data.length > 0) setCompany(data[0]);
+        else setCompany(null);
       }
     } catch {
       console.error("Failed to load companies");

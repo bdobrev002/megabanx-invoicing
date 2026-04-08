@@ -87,6 +87,12 @@ export const invoicesApi = {
         params: { company_id: companyId, document_type: documentType },
       })
       .then((r) => r.data),
+  getStats: (companyId: string) =>
+    api
+      .get<{ total_invoices: number; monthly_total: number; unpaid_count: number; unpaid_total: number }>("/api/invoices/stats", {
+        params: { company_id: companyId },
+      })
+      .then((r) => r.data),
   getPdfUrl: (id: string) => `${API_URL}/api/invoices/${id}/pdf`,
   sendEmail: (id: string, data: { recipient_email: string; subject?: string; message?: string }) =>
     api.post(`/api/invoices/${id}/send-email`, data).then((r) => r.data),

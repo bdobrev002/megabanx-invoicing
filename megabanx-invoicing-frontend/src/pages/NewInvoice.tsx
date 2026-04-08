@@ -676,7 +676,7 @@ export default function NewInvoice() {
               <td className="text-right text-sm text-slate-600 pr-4 py-0.5">{"Данъчна основа"}</td>
               <td className="text-right text-sm font-semibold py-0.5 w-[120px]">
                 {taxBase.toFixed(2)} EUR
-                <div className="text-xs text-slate-500 font-normal">{(taxBase * 1.9558).toFixed(2)} {"лв."}</div>
+                <div className="text-xs text-slate-500 font-normal">{(taxBase * 1.95583).toFixed(2)} {"лв."}</div>
               </td>
             </tr>
             <tr>
@@ -690,7 +690,7 @@ export default function NewInvoice() {
               </td>
               <td className="text-right text-sm font-semibold py-0.5">
                 {vatAmount.toFixed(2)} EUR
-                <div className="text-xs text-slate-500 font-normal">{(vatAmount * 1.9558).toFixed(2)} {"лв."}</div>
+                <div className="text-xs text-slate-500 font-normal">{(vatAmount * 1.95583).toFixed(2)} {"лв."}</div>
               </td>
             </tr>
           </tbody>
@@ -767,7 +767,7 @@ export default function NewInvoice() {
           <span className="text-sm text-slate-600">{"\u0421\u0443\u043c\u0430 \u0437\u0430 \u043f\u043b\u0430\u0449\u0430\u043d\u0435"}</span>
           <div>
             <div className="text-lg font-bold text-slate-900">{total.toFixed(2)} EUR</div>
-            <div className="text-xs text-slate-500 font-semibold">{(total * 1.9558).toFixed(2)} {"\u043b\u0432."}</div>
+            <div className="text-xs text-slate-500 font-semibold">{(total * 1.95583).toFixed(2)} {"\u043b\u0432."}</div>
           </div>
         </div>
       </div>

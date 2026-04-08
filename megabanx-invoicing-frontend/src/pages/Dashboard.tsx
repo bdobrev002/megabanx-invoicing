@@ -22,27 +22,15 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    // Fetch stats from a simple calculation
+    // Fetch stats from dedicated backend endpoint
     invoicesApi
-      .list({ company_id: company.id, page_size: 1000 })
+      .getStats(company.id)
       .then((data) => {
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-          .toISOString()
-          .split("T")[0];
-        const monthly = data.invoices.filter(
-          (i) => i.issue_date >= monthStart && i.document_type === "invoice"
-        );
-        const unpaid = data.invoices.filter(
-          (i) =>
-            i.document_type === "invoice" &&
-            (i.status === "issued" || i.status === "overdue")
-        );
         setStats({
-          total: data.invoices.filter((i) => i.document_type === "invoice").length,
-          monthlyTotal: monthly.reduce((sum, i) => sum + Number(i.total), 0),
-          unpaidCount: unpaid.length,
-          unpaidTotal: unpaid.reduce((sum, i) => sum + Number(i.total), 0),
+          total: data.total_invoices,
+          monthlyTotal: data.monthly_total,
+          unpaidCount: data.unpaid_count,
+          unpaidTotal: data.unpaid_total,
         });
       })
       .catch(() => {});
