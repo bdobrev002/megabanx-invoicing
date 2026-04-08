@@ -1,8 +1,9 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.exc import IntegrityError
@@ -317,6 +318,9 @@ async def update_invoice(
     for key, value in update_data.items():
         setattr(invoice, key, value)
 
+    # Invalidate cached PDF so it gets regenerated on next view
+    invoice.pdf_path = None
+
     # Update lines if provided
     if data.lines is not None:
         # Delete existing lines
@@ -393,19 +397,30 @@ async def get_invoice_pdf(invoice_id: uuid.UUID, db: AsyncSession = Depends(get_
     if not invoice or invoice.is_deleted:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    pdf_path = await generate_invoice_pdf(invoice)
-    invoice.pdf_path = pdf_path
-    await db.commit()
+    # Use cached PDF if it exists, otherwise generate
+    cached = invoice.pdf_path
+    if cached and os.path.exists(cached):
+        pdf_path = cached
+    else:
+        pdf_path = await generate_invoice_pdf(invoice)
+        invoice.pdf_path = pdf_path
+        await db.commit()
 
     doc_type = {
         "invoice": "Фактура", "proforma": "Проформа",
         "debit_note": "Дебитно_известие", "credit_note": "Кредитно_известие",
     }.get(invoice.document_type, "Фактура")
     filename = f"{doc_type}_{invoice.invoice_number}.pdf"
-    return FileResponse(
-        pdf_path,
+
+    # Return inline so browser shows preview instead of downloading
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename=filename,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+        },
     )
 
 
