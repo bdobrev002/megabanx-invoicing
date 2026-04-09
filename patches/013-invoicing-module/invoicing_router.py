@@ -35,10 +35,16 @@ def set_db_config(config: dict):
     global _db_config
     _db_config = config
 
+from contextlib import contextmanager
+
+@contextmanager
 def get_db():
     conn = psycopg2.connect(**_db_config)
     conn.autocommit = False
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 # ── Database table creation ───────────────────────────────────────────────
@@ -244,6 +250,7 @@ class InvoiceCreate(BaseModel):
     no_vat: bool = False
     no_vat_reason: Optional[str] = None
     discount: float = 0.00
+    discount_type: str = "EUR"  # "EUR" (absolute) or "%" (percentage of subtotal)
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     internal_notes: Optional[str] = None
@@ -824,7 +831,12 @@ async def create_invoice(data: InvoiceCreate):
             "line_total": float(line_total),
         })
 
-    discount = Decimal(str(data.discount))
+    # Calculate discount — percentage or absolute
+    discount_input = Decimal(str(data.discount))
+    if data.discount_type == "%":
+        discount = (subtotal * discount_input / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    else:
+        discount = discount_input
     tax_base = max(Decimal("0.00"), subtotal - discount)
 
     if data.no_vat:

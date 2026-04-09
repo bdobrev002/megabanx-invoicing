@@ -804,6 +804,7 @@
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
       const vr = parseFloat(modal.querySelector('[data-f="vat_rate"]').value) || 20;
       const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
+      const discountType = modal.querySelector('[data-f="discount_type"]').value;
       const notes = modal.querySelector('[data-f="notes"]').value;
       const internalNotes = modal.querySelector('[data-f="internal_notes"]').value;
 
@@ -828,6 +829,7 @@
         vat_rate: vr,
         no_vat: noVatChecked,
         discount: discountVal,
+        discount_type: discountType,
         payment_method: paymentMethod || null,
         notes: notes || null,
         internal_notes: internalNotes || null,
