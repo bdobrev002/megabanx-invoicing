@@ -1099,7 +1099,7 @@
   async function syncInvoices(companyId, profileId) {
     try {
       const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`);
-      const unsynced = invoices.filter(inv => inv.sync_status !== "synced" && inv.sync_status !== "accepted" && inv.status === "issued");
+      const unsynced = invoices.filter(inv => inv.sync_status !== "synced" && inv.sync_status !== "accepted" && inv.invoice_status === "processed");
       if (unsynced.length === 0) {
         toast("Няма неизпратени фактури");
         return;

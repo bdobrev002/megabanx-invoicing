@@ -1011,8 +1011,13 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
     if data.no_vat:
         vat_amount = Decimal("0.00")
     else:
-        vat_rate = Decimal(str(data.vat_rate))
-        vat_amount = (tax_base * vat_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Calculate VAT per-line (each line may have a different rate)
+        vat_amount = Decimal("0.00")
+        for ld in lines_data:
+            line_total_dec = Decimal(str(ld["line_total"]))
+            line_share = (line_total_dec / subtotal * tax_base) if subtotal > 0 else Decimal("0.00")
+            line_vat_rate = Decimal(str(ld["vat_rate"]))
+            vat_amount += (line_share * line_vat_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     total = tax_base + vat_amount
 
@@ -1158,6 +1163,13 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
                     row = cur.fetchone()
                     if row:
                         company_data = dict(row)
+                    # Fetch bank details from inv_company_settings
+                    cur.execute("SELECT * FROM inv_company_settings WHERE company_id = %s", (data.company_id,))
+                    settings_row = cur.fetchone()
+                    if settings_row:
+                        company_settings = dict(settings_row)
+                    else:
+                        company_settings = {}
                     cur.execute("SELECT * FROM inv_clients WHERE id = %s", (data.client_id,))
                     row = cur.fetchone()
                     if row:
@@ -1184,9 +1196,9 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
                 "address": company_data.get("address", ""),
                 "mol": company_data.get("mol", ""),
                 "city": company_data.get("city", ""),
-                "iban": company_data.get("iban", ""),
-                "bank_name": company_data.get("bank_name", ""),
-                "bic": company_data.get("bic", ""),
+                "iban": company_settings.get("iban", ""),
+                "bank_name": company_settings.get("bank_name", ""),
+                "bic": company_settings.get("bic", ""),
             },
             "client": {
                 "name": client_data.get("name", client_name),
