@@ -13,12 +13,47 @@ Changes to the "Фактури" (Invoices) tab in My Profile:
 Applied to both "Фактури покупки" and "Фактури продажби" sections.
 """
 
-import re
 import sys
 import shutil
 from datetime import datetime
 
 JS_PATH = "/opt/bginvoices/frontend/assets/index-XAyLRfCK.js"
+
+# All replacement pairs: (old_pattern, new_pattern, description)
+# Steps 1 and 2 are coordinated (header widths must match data widths).
+# Steps 3 and 4 are independent but still applied atomically for safety.
+REPLACEMENTS = [
+    (
+        # 1. Fix header: give Дата, Статус, Опции fixed widths for proper alignment
+        'n.jsxs("span",{className:"ml-auto flex items-center gap-3",children:['
+        'n.jsx("span",{className:"text-xs text-gray-400",children:"\u0414\u0430\u0442\u0430"}),'
+        'n.jsx("span",{className:"text-xs text-gray-400",children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
+        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"50px",textAlign:"right"},children:"\u041e\u043f\u0446\u0438\u0438"})]})',
+        'n.jsxs("span",{className:"ml-auto flex items-center gap-2",children:['
+        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"75px",textAlign:"center",flexShrink:0},children:"\u0414\u0430\u0442\u0430"}),'
+        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"28px",textAlign:"center",flexShrink:0},children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
+        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"90px",textAlign:"center",flexShrink:0},children:"\u041e\u043f\u0446\u0438\u0438"})]})',
+        "Column headers (Дата/Статус/Опции) fixed widths",
+    ),
+    (
+        # 2. Adjust date column width and alignment in data rows
+        'style:{width:"85px",textAlign:"right",flexShrink:0}',
+        'style:{width:"75px",textAlign:"center",flexShrink:0}',
+        "Date data column width 85px→75px, right→center",
+    ),
+    (
+        # 3. Make download icons always visible (remove hover-only opacity)
+        'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"',
+        'className:"text-gray-400 hover:text-indigo-600"',
+        "Download icon always visible",
+    ),
+    (
+        # 4. Make delete icons always visible (remove hover-only opacity)
+        'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"',
+        'className:"text-gray-400 hover:text-red-600"',
+        "Delete icon always visible",
+    ),
+]
 
 
 def apply_patch():
@@ -32,70 +67,29 @@ def apply_patch():
         code = f.read()
 
     original_size = len(code)
-    changes = 0
 
-    # 1. Fix header: give Дата, Статус, Опции fixed widths for proper alignment
-    old_header = (
-        'n.jsxs("span",{className:"ml-auto flex items-center gap-3",children:['
-        'n.jsx("span",{className:"text-xs text-gray-400",children:"\u0414\u0430\u0442\u0430"}),'
-        'n.jsx("span",{className:"text-xs text-gray-400",children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
-        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"50px",textAlign:"right"},children:"\u041e\u043f\u0446\u0438\u0438"})]})'
-    )
+    # --- Pre-flight check: verify ALL patterns exist before touching anything ---
+    all_found = True
+    for old, _new, desc in REPLACEMENTS:
+        count = code.count(old)
+        if count == 0:
+            print(f"MISSING: {desc} — pattern not found (already patched?)")
+            all_found = False
+        else:
+            print(f"  OK: {desc} — found {count} occurrence(s)")
 
-    new_header = (
-        'n.jsxs("span",{className:"ml-auto flex items-center gap-2",children:['
-        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"75px",textAlign:"center",flexShrink:0},children:"\u0414\u0430\u0442\u0430"}),'
-        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"28px",textAlign:"center",flexShrink:0},children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
-        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"90px",textAlign:"center",flexShrink:0},children:"\u041e\u043f\u0446\u0438\u0438"})]})'
-    )
-
-    count = code.count(old_header)
-    if count == 0:
-        print("WARNING: Header pattern not found - may already be patched")
-    else:
-        code = code.replace(old_header, new_header)
-        changes += count
-        print(f"  Replaced {count} header patterns")
-
-    # 2. Adjust date column width and alignment in data rows
-    old_date_style = 'style:{width:"85px",textAlign:"right",flexShrink:0}'
-    new_date_style = 'style:{width:"75px",textAlign:"center",flexShrink:0}'
-
-    count = code.count(old_date_style)
-    if count == 0:
-        print("WARNING: Date style pattern not found - may already be patched")
-    else:
-        code = code.replace(old_date_style, new_date_style)
-        changes += count
-        print(f"  Replaced {count} date style patterns")
-
-    # 3. Make download icons always visible (remove hover-only opacity)
-    old_dl = 'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"'
-    new_dl = 'className:"text-gray-400 hover:text-indigo-600"'
-
-    count = code.count(old_dl)
-    if count == 0:
-        print("WARNING: Download opacity pattern not found - may already be patched")
-    else:
-        code = code.replace(old_dl, new_dl)
-        changes += count
-        print(f"  Replaced {count} download opacity patterns")
-
-    # 4. Make delete icons always visible (remove hover-only opacity)
-    old_del = 'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"'
-    new_del = 'className:"text-gray-400 hover:text-red-600"'
-
-    count = code.count(old_del)
-    if count == 0:
-        print("WARNING: Delete opacity pattern not found - may already be patched")
-    else:
-        code = code.replace(old_del, new_del)
-        changes += count
-        print(f"  Replaced {count} delete opacity patterns")
-
-    if changes == 0:
-        print("No changes applied - patch may already be applied.")
+    if not all_found:
+        print("\nABORTED: Not all patterns found. No changes written.")
+        print("(If the patch was already applied, this is expected.)")
         return False
+
+    # --- Apply all replacements atomically ---
+    total = 0
+    for old, new, desc in REPLACEMENTS:
+        count = code.count(old)
+        code = code.replace(old, new)
+        total += count
+        print(f"  Replaced {count}x: {desc}")
 
     with open(JS_PATH, "w") as f:
         f.write(code)
@@ -103,7 +97,7 @@ def apply_patch():
     print(f"\nPatch applied successfully!")
     print(f"  Original size: {original_size} bytes")
     print(f"  New size: {len(code)} bytes")
-    print(f"  Total replacements: {changes}")
+    print(f"  Total replacements: {total}")
     return True
 
 
