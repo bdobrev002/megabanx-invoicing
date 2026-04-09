@@ -257,98 +257,227 @@ class SyncSettingsUpdate(BaseModel):
 
 
 # ── Trade Registry Lookup ─────────────────────────────────────────────────
+# Ported from :8005 registry.py — uses Accept: application/json header
+# and falls back to Summary endpoint when detail endpoint returns no data.
+
+import re as _re
 
 TR_API_BASE = "https://portal.registryagency.bg/CR/api/Deeds"
 
+
+def _extract_text_from_html(html: str) -> str:
+    """Strip HTML tags and collapse whitespace."""
+    text = _re.sub(r'<[^>]+>', ' ', html)
+    text = _re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _parse_address_from_field(html: str) -> str:
+    """Extract street/neighborhood part of address from TR HTML field."""
+    text = _extract_text_from_html(html)
+    for sep in ["Телефон:", "Тел.:", "Phone:", "Факс:", "Fax:", "Интернет стр", "Адрес на електронна поща:"]:
+        idx = text.find(sep)
+        if idx > 0:
+            text = text[:idx].strip().rstrip(",").strip()
+    rn_match = _re.search(r'р-н\s+[\wа-яА-ЯёЁ]+\s+(.*)', text, _re.IGNORECASE)
+    if rn_match:
+        return rn_match.group(1).strip().rstrip(",").strip()
+    pk_match = _re.search(r'п\.к\.\s*\d+\s+(.*)', text, _re.IGNORECASE)
+    if pk_match:
+        addr = pk_match.group(1).strip().rstrip(",").strip()
+        addr = _re.sub(r'^бул\./ул\.\s*', '', addr)
+        addr = _re.sub(r'^ул\.\s*ул\.\s*', 'ул. ', addr)
+        addr = _re.sub(r'^ул\.\s*', '', addr)
+        addr = _re.sub(r'^бул\.\s*', '', addr)
+        addr = addr.replace(' №', '').replace('№ ', '').replace('№', '')
+        if addr == addr.upper():
+            addr = addr.title()
+        return addr.strip()
+    return text
+
+
+def _extract_city_from_address(text: str) -> str:
+    """Extract city name from TR address text."""
+    match = _re.search(r'Населено\s+място:\s*([^,]+)', text)
+    if match:
+        city = match.group(1).strip()
+        city = _re.sub(r'\s*п\.к\.\s*\d+', '', city).strip()
+        city = _re.sub(r'^(?:гр\.|с\.|гр |с )\s*', '', city).strip()
+        return city
+    return ""
+
+
+def _extract_email_from_text(text: str) -> str:
+    """Extract email address from text."""
+    match = _re.search(r'[\w.-]+@[\w.-]+\.\w+', text)
+    return match.group(0).lower() if match else ""
+
+
+def _parse_trade_registry_response(data: dict) -> dict:
+    """Parse detailed response from Trade Registry API (same as :8005)."""
+    company_name = data.get("companyName", "").strip()
+    full_name = data.get("fullName", "").strip()
+    uic = data.get("uic", "").strip()
+
+    legal_form = ""
+    if full_name:
+        parts = full_name.rsplit(" ", 1)
+        if len(parts) == 2:
+            legal_form = parts[1].strip()
+
+    address = ""
+    city = ""
+    mol = ""
+    tr_email = ""
+    managers: list[str] = []
+
+    for section in data.get("sections", []):
+        for sub in section.get("subDeeds", []):
+            for group in sub.get("groups", []):
+                for field in group.get("fields", []):
+                    code = field.get("nameCode", "")
+                    html = field.get("htmlData", "")
+                    if code == "CR_F_5_L" and not address:
+                        full_addr_text = _extract_text_from_html(html)
+                        if not tr_email:
+                            tr_email = _extract_email_from_text(full_addr_text)
+                        if not city:
+                            city = _extract_city_from_address(full_addr_text)
+                        address = _parse_address_from_field(html)
+                    elif code == "CR_F_7_L" and not mol:
+                        raw = _extract_text_from_html(html)
+                        name_part = raw.split(",")[0].strip()
+                        if name_part:
+                            mol = name_part
+                    elif code == "CR_F_10_L" and not mol:
+                        mol = _extract_text_from_html(html)
+                    elif code == "CR_F_23_L":
+                        extracted_names = _extract_text_from_html(html)
+                        if extracted_names and extracted_names not in managers:
+                            managers.append(extracted_names)
+
+    display_name = full_name if full_name else company_name
+    if not mol and managers:
+        mol = managers[0]
+
+    return {
+        "name": display_name,
+        "eik": uic,
+        "vat_number": f"BG{uic}" if uic else "",
+        "is_vat_registered": False,
+        "mol": mol,
+        "city": city,
+        "address": address,
+        "phone": "",
+        "email": tr_email,
+        "legal_form": legal_form,
+        "source": "Търговски регистър (portal.registryagency.bg)",
+    }
+
+
+def _parse_summary_response(items: list, eik: str) -> dict:
+    """Parse summary response (fallback when detail endpoint has no data)."""
+    if not items:
+        return {}
+    item = items[0]
+    name = item.get("name", "").strip()
+    full_name = item.get("companyFullName", "").strip()
+    ident = item.get("ident", eik).strip()
+
+    legal_form = ""
+    display = full_name if full_name else name
+    if display:
+        parts = display.rsplit(" ", 1)
+        if len(parts) == 2:
+            legal_form = parts[1].strip()
+
+    return {
+        "name": display,
+        "eik": ident,
+        "vat_number": f"BG{ident}" if ident else "",
+        "is_vat_registered": False,
+        "mol": "",
+        "city": "",
+        "address": "",
+        "phone": "",
+        "email": "",
+        "legal_form": legal_form,
+        "source": "Търговски регистър (portal.registryagency.bg)",
+    }
+
+
 @invoicing_router.get("/registry/lookup/{eik}")
 async def registry_lookup(eik: str):
-    """Lookup company data in Bulgarian Trade Registry by EIK."""
-    eik = eik.strip()
-    if not eik or len(eik) < 9:
-        raise HTTPException(status_code=400, detail="ЕИК трябва да е поне 9 цифри")
+    """Lookup company data from Bulgarian Trade Registry by EIK.
+    Uses the same approach as :8005 — detail endpoint first, then summary fallback.
+    """
+    clean_eik = _re.sub(r'\s+', '', eik)
+    if not clean_eik.isdigit() or len(clean_eik) not in (9, 10, 13):
+        raise HTTPException(
+            status_code=400,
+            detail="Невалиден ЕИК. Трябва да е 9, 10 или 13 цифри.",
+        )
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Search for the company
-            search_url = f"{TR_API_BASE}?eik={eik}"
-            resp = await client.get(search_url)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=404, detail="Фирмата не е намерена в Търговски регистър")
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Try detailed lookup first (same as :8005)
+            detail_resp = await client.get(
+                f"{TR_API_BASE}/{clean_eik}",
+                headers={"Accept": "application/json"},
+            )
 
-            data = resp.json()
-            if not data:
-                raise HTTPException(status_code=404, detail="Фирмата не е намерена в Търговски регистър")
+            if detail_resp.status_code == 200 and detail_resp.text.strip():
+                try:
+                    data = detail_resp.json()
+                    if data.get("companyName") or data.get("fullName"):
+                        return _parse_trade_registry_response(data)
+                except Exception:
+                    pass
 
-            # Parse the response - TR API returns a list of deeds
-            deeds = data if isinstance(data, list) else [data]
-            if not deeds:
-                raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+            # Fallback to summary endpoint
+            summary_resp = await client.get(
+                f"{TR_API_BASE}/Summary",
+                params={
+                    "page": 1,
+                    "pageSize": 1,
+                    "count": 0,
+                    "ident": clean_eik,
+                    "selectedSearchFilter": 1,
+                    "includeHistory": "true",
+                },
+                headers={"Accept": "application/json"},
+            )
 
-            deed = deeds[0]
+            if summary_resp.status_code == 200 and summary_resp.text.strip():
+                try:
+                    items = summary_resp.json()
+                    if isinstance(items, list) and len(items) > 0:
+                        result = _parse_summary_response(items, clean_eik)
+                        if result:
+                            return result
+                except Exception:
+                    pass
 
-            # Extract company info from deed
-            company_name = ""
-            mol = ""
-            city = ""
-            address = ""
-            legal_form = ""
-            email_addr = ""
+            if detail_resp.status_code == 429 or (summary_resp and summary_resp.status_code == 429):
+                raise HTTPException(
+                    status_code=429,
+                    detail="Твърде много заявки към Търговския регистър. Моля, опитайте отново след малко.",
+                )
 
-            # Try different field structures
-            if isinstance(deed, dict):
-                company_name = deed.get("companyName", "") or deed.get("name", "") or ""
-                # Try to get subdeeds for detailed info
-                subdeed_groups = deed.get("subdeedGroups", []) or []
-                for group in subdeed_groups:
-                    subdeeds = group.get("subdeeds", []) or []
-                    for subdeed in subdeeds:
-                        field_ident = subdeed.get("fieldIdent", "")
-                        records = subdeed.get("records", []) or []
-                        for record in records:
-                            if field_ident in ("00010", "00011"):  # Company name fields
-                                company_name = company_name or record.get("value", "")
-                            elif field_ident in ("00040", "000401"):  # Seat/address
-                                addr_text = record.get("value", "")
-                                if addr_text:
-                                    if not city and ("гр." in addr_text or "с." in addr_text):
-                                        parts = addr_text.split(",")
-                                        for p in parts:
-                                            p = p.strip()
-                                            if p.startswith("гр.") or p.startswith("с."):
-                                                city = p
-                                                break
-                                    address = addr_text
-                            elif field_ident in ("000500", "00050", "00051"):  # Manager/MOL
-                                mol_text = record.get("value", "")
-                                if mol_text and not mol:
-                                    mol = mol_text
-                            elif field_ident == "00003":  # Legal form
-                                legal_form = record.get("value", "")
-
-            # Note: We cannot reliably determine VAT registration from TR alone.
-            # Set vat_number as a suggestion only; user must confirm in the form.
-            vat_number = ""
-            is_vat_registered = False
-
-            result = {
-                "name": company_name.strip(),
-                "eik": eik,
-                "vat_number": vat_number,
-                "is_vat_registered": is_vat_registered,
-                "mol": mol.strip(),
-                "city": city.strip(),
-                "address": address.strip(),
-                "email": email_addr.strip(),
-                "legal_form": legal_form.strip(),
-                "phone": "",
-            }
-
-            return result
+        raise HTTPException(
+            status_code=404,
+            detail=f"Не е намерена фирма с ЕИК {clean_eik} в Търговския регистър.",
+        )
 
     except HTTPException:
         raise
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Грешка при връзка с Търговския регистър: {str(e)}",
+        )
     except Exception as e:
-        logger.error(f"[TR] Error looking up EIK {eik}: {e}")
+        logger.error(f"[TR] Error looking up EIK {clean_eik}: {e}")
         raise HTTPException(status_code=500, detail=f"Грешка при търсене: {str(e)}")
 
 

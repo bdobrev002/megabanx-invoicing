@@ -43,7 +43,7 @@
   @keyframes invSlideUp { from { transform:translateY(20px);opacity:0 } to { transform:translateY(0);opacity:1 } }
   .inv-modal-sm { width: 480px; }
   .inv-modal-md { width: 600px; }
-  .inv-modal-lg { width: 900px; max-width: 95vw; }
+  .inv-modal-lg { width: 1100px; max-width: 95vw; }
   .inv-modal-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
@@ -520,69 +520,98 @@
         <!-- Document Type -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           <span style="font-size:13px;font-weight:600;color:#475569">Тип:</span>
-          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="invoice" checked> Фактура</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="proforma"> Проформа</label>
+          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="invoice" checked> Фактура</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="debit_note"> Дебитно известие</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="credit_note"> Кредитно известие</label>
         </div>
 
         <!-- Two columns: Client + Details -->
         <div class="inv-row" style="gap:24px;margin-bottom:16px">
-          <!-- Client -->
+          <!-- Client (left column) -->
           <div style="flex:1">
             <div class="inv-field">
-              <label>Клиент</label>
+              <label>Клиент:</label>
               <div style="display:flex;gap:4px">
                 <input class="inv-input" data-client-search placeholder="Търсене по име или ЕИК..." style="flex:1">
-                <button class="inv-tr-btn" data-tr-invoice title="Търсене в ТР">ТР</button>
+                <button class="inv-tr-btn" data-tr-invoice title="Търсене в ТР">🔍 ТР</button>
               </div>
               <div data-client-dropdown style="position:relative"></div>
             </div>
-            <div data-client-info style="font-size:12px;color:#64748b;padding:4px 0"></div>
+            <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_individual"> Клиентът е физическо лице</label>
+            <div class="inv-row">
+              <div class="inv-field"><label>ЕИК/Булстат:</label><input class="inv-input" data-f="client_eik" placeholder="123456789" readonly style="background:#f8fafc"></div>
+              <div class="inv-field"><label>ДДС номер</label><input class="inv-input" data-f="client_vat" placeholder="BG123456789" readonly style="background:#f8fafc"></div>
+            </div>
+            <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_vat" disabled> Регистрация по ЗДДС</label>
+            <div class="inv-field"><label>МОЛ:</label><input class="inv-input" data-f="client_mol" readonly style="background:#f8fafc"></div>
+            <div class="inv-field"><label>Град:</label><input class="inv-input" data-f="client_city" readonly style="background:#f8fafc"></div>
+            <div class="inv-field"><label>Адрес на регистрация:</label><textarea class="inv-textarea" data-f="client_address" rows="2" readonly style="background:#f8fafc"></textarea></div>
+            <div class="inv-field"><label>Получател:</label><input class="inv-input" data-f="recipient" placeholder="Получател (ако е различен от клиента)"></div>
           </div>
-          <!-- Details -->
+          <!-- Details (right column) -->
           <div style="flex:1">
             <div class="inv-row">
-              <div class="inv-field"><label>Номер</label><input class="inv-input" data-f="invoice_number" value="0000000001" style="font-family:monospace"></div>
-              <div class="inv-field"><label>Дата на издаване</label><input class="inv-input" data-f="issue_date" type="date" value="${today}"></div>
+              <div class="inv-field"><label>Фактура №</label><input class="inv-input" data-f="invoice_number" value="0000000001" style="font-family:monospace"></div>
+              <div class="inv-field"><label>Дата на издаване:</label><input class="inv-input" data-f="issue_date" type="date" value="${today}"></div>
             </div>
             <div class="inv-row">
-              <div class="inv-field"><label>Дата на данъчно събитие</label><input class="inv-input" data-f="tax_event_date" type="date" value="${today}"></div>
-              <div class="inv-field"><label>Крайна дата за плащане</label><input class="inv-input" data-f="due_date" type="date" value=""></div>
+              <div class="inv-field"><label>Дата на данъчно събитие:</label><input class="inv-input" data-f="tax_event_date" type="date" value="${today}"></div>
+              <div class="inv-field"><label>Дата на падеж:</label><input class="inv-input" data-f="due_date" type="date" value=""></div>
             </div>
-            <div class="inv-field"><label>Начин на плащане</label><input class="inv-input" data-f="payment_method" value="В брой" placeholder="В брой / По банков път"></div>
           </div>
         </div>
 
-        <!-- VAT options -->
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Без ДДС</label>
-          <div class="inv-field" style="margin-bottom:0;width:80px"><label>ДДС %</label><input class="inv-input" data-f="vat_rate" type="number" value="20" style="text-align:right"></div>
-        </div>
-
-        <!-- Line items table (narrower for popup) -->
+        <!-- Line items table -->
         <table class="inv-line-table">
           <thead><tr>
             <th style="width:30px">#</th>
-            <th class="inv-line-desc">Описание</th>
-            <th class="inv-line-num">Кол.</th>
+            <th class="inv-line-desc">Артикул</th>
+            <th class="inv-line-num">Количество</th>
             <th class="inv-line-unit">Мярка</th>
-            <th class="inv-line-num">Ед. цена</th>
-            <th class="inv-line-num">ДДС %</th>
-            <th class="inv-line-num">Сума</th>
+            <th class="inv-line-num">Цена без ДДС</th>
+            <th class="inv-line-num">Стойност</th>
             <th style="width:30px"></th>
           </tr></thead>
           <tbody data-lines></tbody>
         </table>
-        <button class="inv-btn" data-add-line style="margin-top:6px">${ICONS.plus} Добави ред</button>
+        <button class="inv-btn" data-add-line style="margin-top:6px">${ICONS.plus} + Добави ред</button>
 
         <!-- Totals -->
         <div class="inv-totals" data-totals></div>
 
+        <!-- VAT options -->
+        <div style="display:flex;align-items:center;gap:16px;margin:12px 0;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+          <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
+          <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
+          <label class="inv-checkbox"><input type="checkbox" data-f="vat_per_line"> ДДС на всеки ред</label>
+          <div class="inv-field" style="margin-bottom:0;width:80px"><label>ДДС %</label><input class="inv-input" data-f="vat_rate" type="number" value="20" style="text-align:right"></div>
+        </div>
+
+        <!-- Discount -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:flex-end">
+          <span style="font-size:13px;color:#475569">Отстъпка:</span>
+          <input class="inv-input" data-f="discount" type="number" step="0.01" value="0.00" style="width:100px;text-align:right">
+          <select class="inv-select" data-f="discount_type" style="width:80px"><option value="EUR">EUR</option><option value="%">%</option></select>
+        </div>
+
+        <!-- Composed by + Payment -->
+        <div class="inv-row" style="margin-bottom:12px">
+          <div class="inv-field"><label>Съставил</label><input class="inv-input" data-f="composed_by" placeholder="Име на съставителя"></div>
+          <div class="inv-field"><label>Начин на плащане</label>
+            <select class="inv-select" data-f="payment_method">
+              <option value="В брой">В брой</option>
+              <option value="По банков път">По банков път</option>
+              <option value="С карта">С карта</option>
+              <option value="Друг">Друг</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Notes -->
-        <div class="inv-row" style="margin-top:12px">
-          <div class="inv-field"><label>Бележки (видими на фактурата)</label><textarea class="inv-textarea" data-f="notes" rows="2" placeholder="Бележки..."></textarea></div>
-          <div class="inv-field"><label>Вътрешни бележки</label><textarea class="inv-textarea" data-f="internal_notes" rows="2" placeholder="Вътрешни бележки..."></textarea></div>
+        <div class="inv-row" style="margin-bottom:12px">
+          <div class="inv-field"><label>Забележки <span style='color:#94a3b8;font-weight:400'>(видими за клиента)</span></label><textarea class="inv-textarea" data-f="notes" rows="2" placeholder="Забележки..."></textarea></div>
+          <div class="inv-field"><label>Коментари <span style='color:#ef4444;font-weight:400'>(не се вижда от клиента)</span></label><textarea class="inv-textarea" data-f="internal_notes" rows="2" placeholder="Вътрешни коментари..."></textarea></div>
         </div>
 
         <!-- Sync settings -->
@@ -598,8 +627,8 @@
 
         <div class="inv-actions">
           <button class="inv-btn" data-cancel>Отказ</button>
-          <button class="inv-btn inv-btn-primary" data-save-draft>Запази като чернова</button>
-          <button class="inv-btn inv-btn-primary" data-save-issue style="background:#10b981;border-color:#059669">Издай фактура</button>
+          <button class="inv-btn inv-btn-primary" data-save-draft>Създай чернова</button>
+          <button class="inv-btn inv-btn-primary" data-save-issue style="background:#10b981;border-color:#059669">Създай фактурата</button>
         </div>
       </div>`;
 
@@ -641,7 +670,15 @@
     function selectClient(c) {
       selectedClient = c;
       clientSearchInput.value = c.name;
-      clientInfo.innerHTML = `<span style="color:#475569">${esc(c.name)}</span>${c.eik ? ` • ЕИК: ${esc(c.eik)}` : ""}${c.city ? ` • ${esc(c.city)}` : ""}`;
+      // Fill client detail fields in the form
+      const setField = (sel, val) => { const el = modal.querySelector(sel); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val || ''; } };
+      setField('[data-f="client_eik"]', c.eik);
+      setField('[data-f="client_vat"]', c.vat_number);
+      setField('[data-f="client_is_vat"]', c.is_vat_registered);
+      setField('[data-f="client_is_individual"]', c.is_individual);
+      setField('[data-f="client_mol"]', c.mol);
+      setField('[data-f="client_city"]', c.city);
+      setField('[data-f="client_address"]', c.address);
     }
 
     // TR lookup for invoice
@@ -683,8 +720,7 @@
           <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="quantity" type="number" step="0.01" value="${line.quantity}" style="text-align:right"></td>
           <td><input class="inv-input inv-line-unit" data-li="${i}" data-lf="unit" value="${esc(line.unit)}"></td>
           <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="unit_price" type="number" step="0.01" value="${line.unit_price}" style="text-align:right"></td>
-          <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="vat_rate" type="number" step="0.01" value="${line.vat_rate}" style="text-align:right"></td>
-          <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px" data-line-total="${i}">${calcLineTotal(line)}</td>
+          <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
           <td><button class="inv-icon-btn inv-danger" data-remove-line="${i}">${ICONS.x}</button></td>`;
         linesBody.appendChild(tr);
       });
@@ -723,23 +759,36 @@
     function renderTotals() {
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
       const vr = parseFloat(modal.querySelector('[data-f="vat_rate"]').value) || 20;
+      const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
+      const discountType = modal.querySelector('[data-f="discount_type"]').value;
 
-      let subtotal = 0;
-      lines.forEach(l => { subtotal += parseFloat(calcLineTotal(l)); });
+      let subtotalRaw = 0;
+      lines.forEach(l => { subtotalRaw += parseFloat(calcLineTotal(l)); });
+
+      // Apply discount
+      let discountAmt = 0;
+      if (discountType === '%') discountAmt = subtotalRaw * (discountVal / 100);
+      else discountAmt = discountVal;
+      const subtotal = subtotalRaw - discountAmt;
+
       const vatAmt = noVatChecked ? 0 : subtotal * (vr / 100);
       const total = subtotal + vatAmt;
 
       totalsDiv.innerHTML = `
+        <div class="inv-total-row"><span class="inv-total-label">Сума (без отстъпка):</span><span class="inv-total-value">${subtotalRaw.toFixed(2)} EUR</span></div>
+        ${discountAmt > 0 ? `<div class="inv-total-row"><span class="inv-total-label">Отстъпка:</span><span class="inv-total-value">-${discountAmt.toFixed(2)} EUR</span></div>` : ''}
         <div class="inv-total-row"><span class="inv-total-label">Данъчна основа:</span><span class="inv-total-value">${subtotal.toFixed(2)} EUR</span></div>
         ${!noVatChecked ? `<div class="inv-total-row"><span class="inv-total-label">ДДС (${vr}%):</span><span class="inv-total-value">${vatAmt.toFixed(2)} EUR</span></div>` : '<div class="inv-total-row"><span class="inv-total-label" style="color:#ef4444">Без ДДС</span><span class="inv-total-value">0.00 EUR</span></div>'}
-        <div class="inv-total-row inv-grand-total"><span class="inv-total-label">Общо:</span><span class="inv-total-value">${total.toFixed(2)} EUR</span></div>`;
+        <div class="inv-total-row inv-grand-total"><span class="inv-total-label">Сума за плащане:</span><span class="inv-total-value">${total.toFixed(2)} EUR</span></div>`;
     }
 
     modal.querySelector("[data-add-line]").onclick = () => { lines.push(emptyLine()); renderLines(); };
 
-    // VAT checkbox
+    // VAT checkbox + discount
     modal.querySelector('[data-f="no_vat"]').addEventListener("change", () => renderTotals());
     modal.querySelector('[data-f="vat_rate"]').addEventListener("input", () => renderTotals());
+    modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
+    modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
 
     // Save handlers
     async function saveInvoice(status) {
@@ -754,6 +803,7 @@
       const paymentMethod = modal.querySelector('[data-f="payment_method"]').value;
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
       const vr = parseFloat(modal.querySelector('[data-f="vat_rate"]').value) || 20;
+      const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
       const notes = modal.querySelector('[data-f="notes"]').value;
       const internalNotes = modal.querySelector('[data-f="internal_notes"]').value;
 
@@ -777,6 +827,7 @@
         due_date: dueDate || null,
         vat_rate: vr,
         no_vat: noVatChecked,
+        discount: discountVal,
         payment_method: paymentMethod || null,
         notes: notes || null,
         internal_notes: internalNotes || null,
