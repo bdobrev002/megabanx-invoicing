@@ -10,6 +10,8 @@ Changes to the "Фактури" (Invoices) tab in My Profile:
 4. Make download/delete icons always visible (not just on hover)
 5. Adjust date data column width from 85px to 80px for better alignment
 6. Format dates as dd.mm.yyyy (no time component)
+7. Wrap status and options data in fixed-width containers so columns
+   align properly under their headers
 
 Applied to both "Фактури покупки" and "Фактури продажби" sections.
 """
@@ -58,6 +60,39 @@ REPLACEMENTS = [
         'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"',
         'className:"text-gray-400 hover:text-red-600"',
         "Delete icon always visible",
+    ),
+    (
+        # 6. Wrap status + options in fixed-width containers (purchases rows)
+        #    so they align under СТАТУС (28px) and ОПЦИИ (90px) headers
+        '!N._shared&&n.jsx(Ul,{status:_.cross_copy_status,crossCopiedFrom:_.cross_copied_from}),'
+        'n.jsx("a",{href:N._shared?$u(N._shareId,N.company.name,"purchases",_.name):Du(M.id,N.company.name,"purchases",_.name),'
+        'className:"text-gray-400 hover:text-indigo-600",onClick:D=>D.stopPropagation(),download:!0,children:n.jsx(Ns,{className:"w-3.5 h-3.5"})}),'
+        '!N._shared&&n.jsx("button",{onClick:D=>{D.stopPropagation(),Rl(N.company.name,"purchases",_.name)},'
+        'className:"text-gray-400 hover:text-red-600",children:n.jsx(Ir,{className:"w-3.5 h-3.5"})})',
+        '!N._shared&&n.jsx("span",{style:{width:"28px",flexShrink:0,display:"inline-flex",justifyContent:"center"},'
+        'children:n.jsx(Ul,{status:_.cross_copy_status,crossCopiedFrom:_.cross_copied_from})}),'
+        'n.jsxs("span",{style:{width:"90px",flexShrink:0,display:"inline-flex",justifyContent:"center",gap:"6px"},children:['
+        'n.jsx("a",{href:N._shared?$u(N._shareId,N.company.name,"purchases",_.name):Du(M.id,N.company.name,"purchases",_.name),'
+        'className:"text-gray-400 hover:text-indigo-600",onClick:D=>D.stopPropagation(),download:!0,children:n.jsx(Ns,{className:"w-3.5 h-3.5"})}),'
+        '!N._shared&&n.jsx("button",{onClick:D=>{D.stopPropagation(),Rl(N.company.name,"purchases",_.name)},'
+        'className:"text-gray-400 hover:text-red-600",children:n.jsx(Ir,{className:"w-3.5 h-3.5"})})]})',
+        "Purchases: wrap status(28px) + options(90px)",
+    ),
+    (
+        # 7. Wrap status + options in fixed-width containers (sales rows)
+        '!N._shared&&n.jsx(Ul,{status:_.cross_copy_status,crossCopiedFrom:_.cross_copied_from}),'
+        'n.jsx("a",{href:N._shared?$u(N._shareId,N.company.name,"sales",_.name):Du(M.id,N.company.name,"sales",_.name),'
+        'className:"text-gray-400 hover:text-indigo-600",onClick:D=>D.stopPropagation(),download:!0,children:n.jsx(Ns,{className:"w-3.5 h-3.5"})}),'
+        '!N._shared&&n.jsx("button",{onClick:D=>{D.stopPropagation(),Rl(N.company.name,"sales",_.name)},'
+        'className:"text-gray-400 hover:text-red-600",children:n.jsx(Ir,{className:"w-3.5 h-3.5"})})',
+        '!N._shared&&n.jsx("span",{style:{width:"28px",flexShrink:0,display:"inline-flex",justifyContent:"center"},'
+        'children:n.jsx(Ul,{status:_.cross_copy_status,crossCopiedFrom:_.cross_copied_from})}),'
+        'n.jsxs("span",{style:{width:"90px",flexShrink:0,display:"inline-flex",justifyContent:"center",gap:"6px"},children:['
+        'n.jsx("a",{href:N._shared?$u(N._shareId,N.company.name,"sales",_.name):Du(M.id,N.company.name,"sales",_.name),'
+        'className:"text-gray-400 hover:text-indigo-600",onClick:D=>D.stopPropagation(),download:!0,children:n.jsx(Ns,{className:"w-3.5 h-3.5"})}),'
+        '!N._shared&&n.jsx("button",{onClick:D=>{D.stopPropagation(),Rl(N.company.name,"sales",_.name)},'
+        'className:"text-gray-400 hover:text-red-600",children:n.jsx(Ir,{className:"w-3.5 h-3.5"})})]})',
+        "Sales: wrap status(28px) + options(90px)",
     ),
 ]
 
