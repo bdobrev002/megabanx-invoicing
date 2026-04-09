@@ -155,6 +155,7 @@ def ensure_invoicing_tables():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_meta_invoice ON inv_invoice_meta(invoice_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_meta_company ON inv_invoice_meta(company_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_meta_profile ON inv_invoice_meta(profile_id)")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_inv_meta_unique_number ON inv_invoice_meta(company_id, document_type, invoice_number)")
 
                 # Add source column to existing invoices table if not exists
                 cur.execute("""
@@ -615,7 +616,7 @@ async def update_sync_settings(company_id: str, profile_id: str = Query(...), da
 # ── Invoice Creation ──────────────────────────────────────────────────────
 
 def _get_next_invoice_number(company_id: str, profile_id: str, document_type: str) -> int:
-    """Get the next available invoice number for a company."""
+    """Get the next available invoice number for a company (preview only, not race-safe)."""
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -628,6 +629,19 @@ def _get_next_invoice_number(company_id: str, profile_id: str, document_type: st
                 return (row[0] or 0) + 1
     except Exception:
         return 1
+
+
+def _atomic_next_invoice_number(cur, company_id: str, document_type: str) -> int:
+    """Atomically get the next invoice number within an existing transaction.
+    Uses SELECT FOR UPDATE to serialize concurrent access."""
+    cur.execute(
+        """SELECT COALESCE(MAX(invoice_number), 0) + 1 FROM inv_invoice_meta
+           WHERE company_id = %s AND document_type = %s
+           FOR UPDATE""",
+        (company_id, document_type)
+    )
+    row = cur.fetchone()
+    return row[0] if row and row[0] else 1
 
 
 @invoicing_router.get("/next-number")
@@ -645,12 +659,6 @@ async def create_invoice(data: InvoiceCreate):
     """Create a software-issued invoice. Saves to both inv_invoice_meta and main invoices table."""
     invoice_id = str(uuid.uuid4())
     meta_id = str(uuid.uuid4())
-
-    # Auto-generate invoice number if not provided
-    if data.invoice_number is None:
-        data.invoice_number = _get_next_invoice_number(
-            data.company_id, data.profile_id, data.document_type
-        )
 
     # Default dates
     today = date.today().isoformat()
@@ -689,30 +697,6 @@ async def create_invoice(data: InvoiceCreate):
 
     total = tax_base + vat_amount
 
-    # Get client name for the invoices table
-    client_name = ""
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT name, eik FROM inv_clients WHERE id = %s", (data.client_id,))
-                row = cur.fetchone()
-                if row:
-                    client_name = row[0]
-    except Exception:
-        pass
-
-    # Get company name
-    company_name = ""
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT name FROM companies WHERE id = %s", (data.company_id,))
-                row = cur.fetchone()
-                if row:
-                    company_name = row[0]
-    except Exception:
-        pass
-
     # Document type labels for filename
     doc_type_labels = {
         "invoice": "Фактура",
@@ -722,26 +706,41 @@ async def create_invoice(data: InvoiceCreate):
     }
     doc_label = doc_type_labels.get(data.document_type, "Фактура")
 
-    # Generate filename following megabanx naming convention
-    inv_num_str = str(data.invoice_number).zfill(10)
-    date_str = issue_date.replace("-", "")
-    new_filename = f"{doc_label} {inv_num_str} {client_name} {date_str}.pdf"
-
-    # Determine sync settings
-    sync_status = "pending"
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
+                # Atomically generate invoice number within this transaction
+                if data.invoice_number is None:
+                    data.invoice_number = _atomic_next_invoice_number(
+                        cur, data.company_id, data.document_type
+                    )
+
+                # Get client name for the invoices table
+                client_name = ""
+                cur.execute("SELECT name, eik FROM inv_clients WHERE id = %s", (data.client_id,))
+                row = cur.fetchone()
+                if row:
+                    client_name = row[0]
+
+                # Get company name
+                company_name = ""
+                cur.execute("SELECT name FROM companies WHERE id = %s", (data.company_id,))
+                row = cur.fetchone()
+                if row:
+                    company_name = row[0]
+
+                # Generate filename following megabanx naming convention
+                inv_num_str = str(data.invoice_number).zfill(10)
+                date_str = issue_date.replace("-", "")
+                new_filename = f"{doc_label} {inv_num_str} {client_name} {date_str}.pdf"
+
+                # Determine sync settings
+                sync_status = "pending"
                 cur.execute("SELECT sync_mode FROM inv_sync_settings WHERE company_id = %s", (data.company_id,))
                 row = cur.fetchone()
                 if row and row[0] == "immediate":
                     sync_status = "synced"
-    except Exception:
-        pass
 
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
                 # Insert into inv_invoice_meta
                 cur.execute(
                     """INSERT INTO inv_invoice_meta
