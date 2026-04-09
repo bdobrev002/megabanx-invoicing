@@ -925,9 +925,42 @@
     // This will be done via a MutationObserver watching for new invoice rows
   }
 
-  // ── Patch folder-structure response to add company data attributes ─────
+  // ── Discover profile_id from existing network requests ─────────────────
+  function discoverProfileId() {
+    // Try to find profile_id from Performance API entries (already-completed fetches)
+    try {
+      const entries = performance.getEntriesByType("resource");
+      for (const entry of entries) {
+        const m = entry.name.match(/\/api\/profiles\/([0-9a-f-]{36})\//i);
+        if (m) return m[1];
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  // ── Directly fetch folder structure + companies data ────────────────────
+  async function loadCompaniesData(profileId) {
+    try {
+      const resp = await fetch(`/api/profiles/${profileId}/folder-structure`);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      return data.folders || data;
+    } catch (e) {
+      console.warn("[INV] Failed to load folder-structure:", e);
+      return null;
+    }
+  }
+
+  async function loadSharesForCompany(profileId, companyId) {
+    try {
+      const resp = await fetch(`/api/profiles/${profileId}/companies/${companyId}/shares`);
+      if (!resp.ok) return [];
+      return resp.json();
+    } catch (e) { return []; }
+  }
+
+  // ── Patch fetch for future SPA navigations ──────────────────────────────
   function patchFolderStructure() {
-    // Intercept the folder-structure API response to add metadata to company elements
     const origFetch = window.fetch;
     window.fetch = async function (...args) {
       const resp = await origFetch.apply(this, args);
@@ -938,23 +971,28 @@
           const clone = resp.clone();
           const data = await clone.json();
           if (data.folders) {
-            // Store folder data for later use
             window.__invFolderData = data.folders;
-            // Extract profile_id from URL
             const match = url.match(/\/api\/profiles\/([^/]+)\//);
             if (match) {
               _currentProfile = match[1];
               window.__invProfileId = match[1];
             }
+            // Re-inject buttons on SPA navigation
+            setTimeout(() => tryInjectButtons(), 500);
           }
         } catch (e) { /* ignore */ }
       }
 
-      // Also intercept company shares
       if (url.includes("/api/") && url.includes("/shares")) {
         try {
           const clone = resp.clone();
-          _shareData = await clone.json();
+          const shares = await clone.json();
+          if (Array.isArray(shares)) {
+            if (!_shareData) _shareData = [];
+            shares.forEach(s => {
+              if (!_shareData.find(x => x.id === s.id)) _shareData.push(s);
+            });
+          }
         } catch (e) { /* ignore */ }
       }
 
@@ -962,24 +1000,8 @@
     };
   }
 
-  // ── Periodic DOM scan to inject buttons ────────────────────────────────
-  function startDOMObserver() {
-    // Use MutationObserver to detect when company sections are rendered
-    _observer = new MutationObserver(() => {
-      if (!window.__invFolderData || !window.__invProfileId) return;
-      tryInjectFromFolderData();
-    });
-    _observer.observe(document.body, { childList: true, subtree: true });
-
-    // Also try on a timer as fallback
-    setInterval(() => {
-      if (window.__invFolderData && window.__invProfileId) {
-        tryInjectFromFolderData();
-      }
-    }, 2000);
-  }
-
-  function tryInjectFromFolderData() {
+  // ── Button injection into company rows ──────────────────────────────────
+  function tryInjectButtons() {
     const folders = window.__invFolderData;
     const profileId = window.__invProfileId;
     if (!folders || !profileId) return;
@@ -988,93 +1010,170 @@
       const company = folder.company;
       if (!company) return;
 
-      // Find the DOM element that contains this company name
-      // Look for text nodes that match the company name
       const companyName = company.name;
       const companyId = company.id;
 
-      // Search for elements containing the company name
+      // Search for text nodes matching the company name
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
       while (walker.nextNode()) {
         const node = walker.currentNode;
-        if (node.textContent.trim() !== companyName) continue;
+        const txt = node.textContent.trim();
+        // Match exact company name or name with quotes (as displayed in UI)
+        if (txt !== companyName && txt !== `"${companyName}"` && !txt.startsWith(companyName)) continue;
+        // Avoid matching inside our own UI
+        if (node.parentElement?.closest(".inv-overlay, .inv-modal, .inv-btn-group")) continue;
 
         const parentEl = node.parentElement;
         if (!parentEl || parentEl.querySelector(".inv-btn-group")) continue;
         if (parentEl.dataset.invDone) continue;
 
-        // Verify this is actually a company header (not just any text match)
-        // Check that the parent or grandparent contains invoice-related content
-        const ancestor = parentEl.closest("[class]") || parentEl.parentElement;
-        if (!ancestor) continue;
+        // Verify this is in the invoices/folder-structure section
+        // Walk up to find a container that has invoice content nearby
+        let container = parentEl;
+        for (let i = 0; i < 5; i++) {
+          if (!container.parentElement) break;
+          container = container.parentElement;
+          const ct = container.textContent || "";
+          if (ct.includes("покупки") || ct.includes("продажби") || ct.includes("Структура на фактурите")) {
+            // Found the invoices section - inject buttons
+            parentEl.dataset.invDone = "1";
+            parentEl.style.display = "inline-flex";
+            parentEl.style.alignItems = "center";
+            parentEl.style.gap = "8px";
+            parentEl.style.flexWrap = "wrap";
 
-        const ancestorText = ancestor.textContent || "";
-        if (!ancestorText.includes("Фактури покупки") && !ancestorText.includes("Фактури продажби") && !ancestorText.includes("ДАТА")) continue;
+            const group = el("div", { className: "inv-btn-group" });
+            group.appendChild(el("button", {
+              className: "inv-btn inv-btn-primary",
+              innerHTML: ICONS.filetext + " Нова фактура",
+              onClick: (e) => { e.stopPropagation(); openNewInvoicePopup(companyId, profileId, companyName); }
+            }));
+            group.appendChild(el("button", {
+              className: "inv-btn",
+              innerHTML: ICONS.users + " Клиенти",
+              onClick: (e) => { e.stopPropagation(); openClientsPopup(companyId, profileId); }
+            }));
+            group.appendChild(el("button", {
+              className: "inv-btn inv-btn-emerald",
+              innerHTML: ICONS.package + " Артикули",
+              onClick: (e) => { e.stopPropagation(); openItemsPopup(companyId, profileId); }
+            }));
+            parentEl.appendChild(group);
+            console.log(`[INV] Buttons injected for: ${companyName}`);
 
-        // This is a company header - add buttons
-        parentEl.dataset.invDone = "1";
-        parentEl.style.display = "flex";
-        parentEl.style.alignItems = "center";
-        parentEl.style.flexWrap = "wrap";
-
-        const group = el("div", { className: "inv-btn-group" });
-        group.appendChild(el("button", {
-          className: "inv-btn inv-btn-primary",
-          innerHTML: ICONS.filetext + " Нова фактура",
-          onClick: (e) => { e.stopPropagation(); openNewInvoicePopup(companyId, profileId, companyName); }
-        }));
-        group.appendChild(el("button", {
-          className: "inv-btn",
-          innerHTML: ICONS.users + " Клиенти",
-          onClick: (e) => { e.stopPropagation(); openClientsPopup(companyId, profileId); }
-        }));
-        group.appendChild(el("button", {
-          className: "inv-btn inv-btn-emerald",
-          innerHTML: ICONS.package + " Артикули",
-          onClick: (e) => { e.stopPropagation(); openItemsPopup(companyId, profileId); }
-        }));
-        parentEl.appendChild(group);
-
-        // Also inject lightning bolts for software invoices in this company's section
-        injectBoltsForCompany(companyId, profileId, ancestor);
-
-        break; // Found the element, stop searching
+            // Inject lightning bolts for software invoices
+            injectBoltsForCompany(companyId, profileId, container);
+            break;
+          }
+        }
+        break;
       }
     });
   }
 
   async function injectBoltsForCompany(companyId, profileId, containerEl) {
-    // Find software-issued invoices for this company and add bolt icons
     try {
-      // Check the main invoices for source='software'
-      // We look for invoice file names in the DOM and match them
       const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`).catch(() => []);
       if (!invoices || invoices.length === 0) return;
 
-      // For each software invoice, find its row in the DOM and add bolt icon
-      invoices.forEach(inv => {
-        // Check if counterparty exists in megabanx
-        const clientEik = inv.client_eik || "";
-        // Determine bolt state: 1 gray, 2 gray, or 2 blue
-        // For now, default to 1 gray bolt
-        // This will be enhanced once we have the counterparty check
-      });
+      for (const inv of invoices) {
+        // Find the invoice row in the DOM by matching the filename
+        const fname = inv.new_filename || inv.original_filename || "";
+        if (!fname) continue;
+
+        // Look for the filename text in the container
+        const allText = containerEl.querySelectorAll("span, div, p");
+        for (const el of allText) {
+          if (el.textContent.trim() === fname || el.textContent.trim().includes(fname.replace(".pdf", ""))) {
+            if (el.querySelector(".inv-bolt")) continue;
+            // Determine bolt state
+            let boltCount = 1;
+            let boltColor = "gray";
+            if (inv.client_eik) {
+              try {
+                const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
+                if (check && check.exists) {
+                  boltCount = 2;
+                  boltColor = check.accepted ? "blue" : "gray";
+                }
+              } catch (e) { /* ignore */ }
+            }
+            const bolt = createBoltIcon(boltCount, boltColor);
+            el.prepend(bolt);
+            break;
+          }
+        }
+      }
     } catch (e) { /* ignore */ }
   }
 
+  // ── DOM Observer for SPA changes ───────────────────────────────────────
+  function startDOMObserver() {
+    let debounceTimer = null;
+    _observer = new MutationObserver(() => {
+      if (!window.__invFolderData || !window.__invProfileId) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => tryInjectButtons(), 300);
+    });
+    _observer.observe(document.body, { childList: true, subtree: true });
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────
-  function init() {
+  async function init() {
     // Inject styles
     const style = el("style", { innerHTML: STYLES });
     document.head.appendChild(style);
 
-    // Patch fetch to intercept folder-structure response
+    // Patch fetch for future SPA navigations
     patchFolderStructure();
 
-    // Start observing DOM for company sections
+    // Start observing DOM for changes
     startDOMObserver();
 
     console.log("[INV] Invoicing module loaded");
+
+    // Directly discover profile and load data (don't rely on fetch interception)
+    const tryBootstrap = async () => {
+      const profileId = discoverProfileId();
+      if (!profileId) {
+        console.log("[INV] Profile not found yet, retrying...");
+        return false;
+      }
+      _currentProfile = profileId;
+      window.__invProfileId = profileId;
+      console.log(`[INV] Discovered profile: ${profileId}`);
+
+      const folders = await loadCompaniesData(profileId);
+      if (!folders || folders.length === 0) {
+        console.log("[INV] No folders found");
+        return false;
+      }
+      window.__invFolderData = folders;
+      console.log(`[INV] Loaded ${folders.length} company folders`);
+
+      // Load shares for each company
+      for (const folder of folders) {
+        if (folder.company) {
+          const shares = await loadSharesForCompany(profileId, folder.company.id);
+          if (shares && shares.length > 0) {
+            if (!_shareData) _shareData = [];
+            _shareData = _shareData.concat(shares);
+          }
+        }
+      }
+
+      // Inject buttons
+      tryInjectButtons();
+      return true;
+    };
+
+    // Try immediately, then retry a few times with delay
+    if (!(await tryBootstrap())) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        if (await tryBootstrap()) break;
+      }
+    }
   }
 
   // Wait for DOM ready
