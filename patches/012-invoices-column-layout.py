@@ -8,7 +8,8 @@ Changes to the "Фактури" (Invoices) tab in My Profile:
 2. Add "Опции" header label for the download/delete actions column
 3. Widen the options column from 50px to 90px to accommodate future icons
 4. Make download/delete icons always visible (not just on hover)
-5. Adjust date data column width from 85px to 75px for better alignment
+5. Adjust date data column width from 85px to 80px for better alignment
+6. Format dates as dd.mm.yyyy (no time component)
 
 Applied to both "Фактури покупки" and "Фактури продажби" sections.
 """
@@ -20,8 +21,7 @@ from datetime import datetime
 JS_PATH = "/opt/bginvoices/frontend/assets/index-XAyLRfCK.js"
 
 # All replacement pairs: (old_pattern, new_pattern, description)
-# Steps 1 and 2 are coordinated (header widths must match data widths).
-# Steps 3 and 4 are independent but still applied atomically for safety.
+# The patch is atomic: ALL patterns must be found before any are applied.
 REPLACEMENTS = [
     (
         # 1. Fix header: give Дата, Статус, Опции fixed widths for proper alignment
@@ -30,7 +30,7 @@ REPLACEMENTS = [
         'n.jsx("span",{className:"text-xs text-gray-400",children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
         'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"50px",textAlign:"right"},children:"\u041e\u043f\u0446\u0438\u0438"})]})',
         'n.jsxs("span",{className:"ml-auto flex items-center gap-2",children:['
-        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"75px",textAlign:"center",flexShrink:0},children:"\u0414\u0430\u0442\u0430"}),'
+        'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"80px",textAlign:"center",flexShrink:0},children:"\u0414\u0430\u0442\u0430"}),'
         'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"28px",textAlign:"center",flexShrink:0},children:"\u0421\u0442\u0430\u0442\u0443\u0441"}),'
         'n.jsx("span",{className:"text-xs text-gray-400",style:{width:"90px",textAlign:"center",flexShrink:0},children:"\u041e\u043f\u0446\u0438\u0438"})]})',
         "Column headers (Дата/Статус/Опции) fixed widths",
@@ -38,17 +38,23 @@ REPLACEMENTS = [
     (
         # 2. Adjust date column width and alignment in data rows
         'style:{width:"85px",textAlign:"right",flexShrink:0}',
-        'style:{width:"75px",textAlign:"center",flexShrink:0}',
-        "Date data column width 85px→75px, right→center",
+        'style:{width:"80px",textAlign:"center",flexShrink:0}',
+        "Date data column width 85px→80px, right→center",
     ),
     (
-        # 3. Make download icons always visible (remove hover-only opacity)
+        # 3. Format dates as dd.mm.yyyy (no time)
+        'children:_.uploaded_at||""',
+        'children:_.uploaded_at?_.uploaded_at.slice(8,10)+"."+_.uploaded_at.slice(5,7)+"."+_.uploaded_at.slice(0,4):""',
+        "Date format: ISO → dd.mm.yyyy",
+    ),
+    (
+        # 4. Make download icons always visible (remove hover-only opacity)
         'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"',
         'className:"text-gray-400 hover:text-indigo-600"',
         "Download icon always visible",
     ),
     (
-        # 4. Make delete icons always visible (remove hover-only opacity)
+        # 5. Make delete icons always visible (remove hover-only opacity)
         'className:"opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"',
         'className:"text-gray-400 hover:text-red-600"',
         "Delete icon always visible",
