@@ -16,9 +16,13 @@ PASSWORD = os.environ.get("VPS_SSH_PASSWORD", "")
 PATCH_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def ssh(cmd, check=True):
-    """Run command on VPS via SSH."""
-    full = f'sshpass -p "{PASSWORD}" ssh -o StrictHostKeyChecking=no {VPS} \'{cmd}\''
-    result = subprocess.run(full, shell=True, capture_output=True, text=True)
+    """Run command on VPS via SSH using list-based invocation to avoid quoting issues."""
+    full = [
+        "sshpass", "-p", PASSWORD,
+        "ssh", "-o", "StrictHostKeyChecking=no", VPS,
+        cmd,
+    ]
+    result = subprocess.run(full, capture_output=True, text=True)
     if check and result.returncode != 0:
         print(f"ERROR: {cmd}")
         print(result.stderr)

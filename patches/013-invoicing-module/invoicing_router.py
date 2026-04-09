@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -800,7 +800,7 @@ async def get_next_number(
 
 
 @invoicing_router.post("/invoices")
-async def create_invoice(data: InvoiceCreate):
+async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks):
     """Create a software-issued invoice. Saves to both inv_invoice_meta and main invoices table."""
     invoice_id = str(uuid.uuid4())
     meta_id = str(uuid.uuid4())
@@ -936,9 +936,11 @@ async def create_invoice(data: InvoiceCreate):
 
             conn.commit()
 
-        # Generate PDF in the background (don't block the response)
-        _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_name,
-                               float(subtotal), float(discount), float(vat_amount), float(total))
+        # Generate PDF in a background task (non-blocking)
+        background_tasks.add_task(
+            _generate_and_save_pdf, invoice_id, data, lines_data, company_name, client_name,
+            float(subtotal), float(discount), float(vat_amount), float(total)
+        )
 
         return {
             "id": invoice_id,
@@ -1012,7 +1014,7 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
                 "vat_number": company_data.get("vat_number", ""),
                 "address": company_data.get("address", ""),
                 "mol": company_data.get("mol", ""),
-                "city": "",
+                "city": company_data.get("city", ""),
                 "iban": company_data.get("iban", ""),
                 "bank_name": company_data.get("bank_name", ""),
                 "bic": company_data.get("bic", ""),

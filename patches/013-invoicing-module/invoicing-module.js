@@ -732,7 +732,7 @@
           lines[idx][inp.dataset.lf] = inp.value;
           // Update line total
           const totalCell = linesBody.querySelector(`[data-line-total="${idx}"]`);
-          if (totalCell) totalCell.textContent = calcLineTotal(lines[idx]);
+          if (totalCell) totalCell.textContent = calcLineTotal(lines[idx]) + " EUR";
           renderTotals();
         });
       });
