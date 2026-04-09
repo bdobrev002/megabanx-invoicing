@@ -248,6 +248,7 @@ class InvoiceCreate(BaseModel):
     notes: Optional[str] = None
     internal_notes: Optional[str] = None
     currency: str = "EUR"
+    status: str = "issued"  # "draft" or "issued"
     lines: list[InvoiceLineCreate] = []
 
 class SyncSettingsUpdate(BaseModel):
@@ -324,14 +325,16 @@ async def registry_lookup(eik: str):
                             elif field_ident == "00003":  # Legal form
                                 legal_form = record.get("value", "")
 
-            # Determine VAT number
-            vat_number = f"BG{eik}" if len(eik) >= 9 else ""
+            # Note: We cannot reliably determine VAT registration from TR alone.
+            # Set vat_number as a suggestion only; user must confirm in the form.
+            vat_number = ""
+            is_vat_registered = False
 
             result = {
                 "name": company_name.strip(),
                 "eik": eik,
                 "vat_number": vat_number,
-                "is_vat_registered": bool(vat_number),
+                "is_vat_registered": is_vat_registered,
                 "mol": mol.strip(),
                 "city": city.strip(),
                 "address": address.strip(),
@@ -633,15 +636,21 @@ def _get_next_invoice_number(company_id: str, profile_id: str, document_type: st
 
 def _atomic_next_invoice_number(cur, company_id: str, document_type: str) -> int:
     """Atomically get the next invoice number within an existing transaction.
-    Uses SELECT FOR UPDATE to serialize concurrent access."""
+    Uses SELECT FOR UPDATE on individual rows to serialize concurrent access.
+    The UNIQUE index on (company_id, document_type, invoice_number) is the
+    ultimate safety net against duplicates."""
+    # Lock all existing rows for this company+doc_type to prevent concurrent reads
     cur.execute(
-        """SELECT COALESCE(MAX(invoice_number), 0) + 1 FROM inv_invoice_meta
+        """SELECT invoice_number FROM inv_invoice_meta
            WHERE company_id = %s AND document_type = %s
+           ORDER BY invoice_number DESC
            FOR UPDATE""",
         (company_id, document_type)
     )
-    row = cur.fetchone()
-    return row[0] if row and row[0] else 1
+    rows = cur.fetchall()
+    if rows and rows[0][0] is not None:
+        return rows[0][0] + 1
+    return 1
 
 
 @invoicing_router.get("/next-number")
@@ -781,7 +790,7 @@ async def create_invoice(data: InvoiceCreate):
                      "sales", data.company_id, company_name,
                      issue_date, company_name, client_name,
                      str(data.invoice_number), f"{company_name}/Фактури продажби/{new_filename}",
-                     "processed", "software")
+                     "draft" if data.status == "draft" else "processed", "software")
                 )
 
             conn.commit()
@@ -934,9 +943,11 @@ async def list_invoices(
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    """SELECT m.*, c.name as client_name
+                    """SELECT m.*, c.name as client_name, c.eik as client_eik,
+                              i.new_filename, i.original_filename, i.status as invoice_status
                        FROM inv_invoice_meta m
                        LEFT JOIN inv_clients c ON m.client_id = c.id
+                       LEFT JOIN invoices i ON m.invoice_id = i.id
                        WHERE m.company_id = %s AND m.profile_id = %s
                        ORDER BY m.created_at DESC""",
                     (company_id, profile_id)

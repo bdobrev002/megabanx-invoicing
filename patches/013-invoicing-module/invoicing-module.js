@@ -781,6 +781,7 @@
         notes: notes || null,
         internal_notes: internalNotes || null,
         currency: "EUR",
+        status: status,
         lines: filledLines.map((l, i) => ({
           item_id: l.item_id,
           position: i,
@@ -955,7 +956,7 @@
     try {
       const resp = await fetch(`/api/profiles/${profileId}/companies/${companyId}/shares`);
       if (!resp.ok) return [];
-      return resp.json();
+      return await resp.json();
     } catch (e) { return []; }
   }
 
@@ -1077,16 +1078,20 @@
       if (!invoices || invoices.length === 0) return;
 
       for (const inv of invoices) {
-        // Find the invoice row in the DOM by matching the filename
+        // Find the invoice row in the DOM by matching the filename from the joined invoices table
         const fname = inv.new_filename || inv.original_filename || "";
         if (!fname) continue;
 
         // Look for the filename text in the container
         const allText = containerEl.querySelectorAll("span, div, p");
-        for (const el of allText) {
-          if (el.textContent.trim() === fname || el.textContent.trim().includes(fname.replace(".pdf", ""))) {
-            if (el.querySelector(".inv-bolt")) continue;
-            // Determine bolt state
+        for (const textEl of allText) {
+          const trimmed = textEl.textContent.trim();
+          if (trimmed === fname || trimmed.includes(fname.replace(".pdf", ""))) {
+            if (textEl.querySelector(".inv-bolt")) continue;
+            // Determine bolt state:
+            // 1 gray bolt = counterparty not in megabanx system
+            // 2 gray bolts = counterparty exists in megabanx
+            // 2 blue bolts = invoice accepted by counterparty
             let boltCount = 1;
             let boltColor = "gray";
             if (inv.client_eik) {
@@ -1094,12 +1099,13 @@
                 const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
                 if (check && check.exists) {
                   boltCount = 2;
-                  boltColor = check.accepted ? "blue" : "gray";
+                  // Check sync_status for acceptance
+                  boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
                 }
               } catch (e) { /* ignore */ }
             }
             const bolt = createBoltIcon(boltCount, boltColor);
-            el.prepend(bolt);
+            textEl.prepend(bolt);
             break;
           }
         }

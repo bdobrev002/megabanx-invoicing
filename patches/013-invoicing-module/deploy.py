@@ -112,7 +112,7 @@ if _HAS_INVOICING:\
     # 6. Install dependencies and restart
     print("[6/6] Installing dependencies and restarting backend...")
     ssh("pip3 install httpx jinja2 weasyprint 2>/dev/null || pip install httpx jinja2 weasyprint 2>/dev/null || echo 'deps may already be installed'")
-    ssh("systemctl restart bginvoices-backend || supervisorctl restart bginvoices || echo 'Trying manual restart...' && cd /opt/bginvoices/backend && pkill -f 'uvicorn app.main' && sleep 1 && nohup uvicorn app.main:app --host 0.0.0.0 --port 8004 --workers 1 > /var/log/bginvoices.log 2>&1 &")
+    ssh("systemctl restart bginvoices-backend || supervisorctl restart bginvoices || { echo 'Trying manual restart...' && cd /opt/bginvoices/backend && pkill -f 'uvicorn app.main'; sleep 1 && nohup uvicorn app.main:app --host 0.0.0.0 --port 8004 --workers 1 > /var/log/bginvoices.log 2>&1 & }")
 
     print("\n=== Deployment complete ===")
     print("Check logs: ssh root@144.91.122.208 'tail -50 /var/log/bginvoices.log'")
