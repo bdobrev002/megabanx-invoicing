@@ -23,7 +23,10 @@ from datetime import datetime
 JS_PATH = "/opt/bginvoices/frontend/assets/index-XAyLRfCK.js"
 
 # All replacement pairs: (old_pattern, new_pattern, description)
-# The patch is atomic: ALL patterns must be found before any are applied.
+# Applied sequentially: each pattern is validated against the code AFTER
+# all previous replacements have been applied (some later steps depend on
+# earlier ones, e.g. steps 6/7 match classNames after steps 4/5 remove
+# the opacity-0 prefix).
 REPLACEMENTS = [
     (
         # 1. Fix header: give Дата, Статус, Опции fixed widths for proper alignment
@@ -109,22 +112,25 @@ def apply_patch():
 
     original_size = len(code)
 
-    # --- Pre-flight check: verify ALL patterns exist before touching anything ---
+    # --- Sequential pre-flight: validate each pattern against code after
+    #     previous replacements (steps 6/7 depend on 4/5 having run) ---
+    preflight_code = code  # work on a copy for validation
     all_found = True
-    for old, _new, desc in REPLACEMENTS:
-        count = code.count(old)
+    for old, new, desc in REPLACEMENTS:
+        count = preflight_code.count(old)
         if count == 0:
             print(f"MISSING: {desc} — pattern not found (already patched?)")
             all_found = False
         else:
             print(f"  OK: {desc} — found {count} occurrence(s)")
+            preflight_code = preflight_code.replace(old, new)
 
     if not all_found:
         print("\nABORTED: Not all patterns found. No changes written.")
         print("(If the patch was already applied, this is expected.)")
         return False
 
-    # --- Apply all replacements atomically ---
+    # --- Apply all replacements sequentially ---
     total = 0
     for old, new, desc in REPLACEMENTS:
         count = code.count(old)
