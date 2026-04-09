@@ -1156,6 +1156,7 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         # Get company data
         company_data = {}
         client_data = {}
+        company_settings = {}
         try:
             with get_db() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
