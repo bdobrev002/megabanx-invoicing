@@ -638,7 +638,14 @@
 
     // Document type change
     modal.querySelectorAll('[name="inv_doctype"]').forEach(r => {
-      r.addEventListener("change", () => { docType = r.value; });
+      r.addEventListener("change", async () => {
+        docType = r.value;
+        try {
+          const nn = await api("GET", `/next-number?company_id=${companyId}&profile_id=${profileId}&document_type=${docType}`);
+          const numInput = modal.querySelector('[data-f="invoice_number"]');
+          if (numInput) numInput.value = String(nn.next_number).padStart(10, "0");
+        } catch (e) { console.warn("Failed to fetch next number:", e); }
+      });
     });
 
     // Client search

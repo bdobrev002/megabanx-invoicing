@@ -30,9 +30,13 @@ def ssh(cmd, check=True):
     return result.stdout.strip()
 
 def scp(local, remote):
-    """Copy file to VPS."""
-    full = f'sshpass -p "{PASSWORD}" scp -o StrictHostKeyChecking=no {local} {VPS}:{remote}'
-    result = subprocess.run(full, shell=True, capture_output=True, text=True)
+    """Copy file to VPS using list-based invocation to avoid shell injection."""
+    full = [
+        "sshpass", "-p", PASSWORD,
+        "scp", "-o", "StrictHostKeyChecking=no",
+        local, f"{VPS}:{remote}",
+    ]
+    result = subprocess.run(full, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"ERROR copying {local} -> {remote}")
         print(result.stderr)
