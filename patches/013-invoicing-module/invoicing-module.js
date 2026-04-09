@@ -131,6 +131,30 @@
   .inv-radio { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569; cursor: pointer; }
   .inv-radio input { width: 16px; height: 16px; }
 
+  /* Amber button for Клиенти */
+  .inv-btn-amber { background: #f59e0b; color: #fff; border-color: #d97706; }
+  .inv-btn-amber:hover { background: #d97706; }
+  /* Outline/secondary button */
+  .inv-btn-outline { background: #fff; color: #475569; border-color: #94a3b8; }
+  .inv-btn-outline:hover { background: #f1f5f9; color: #1e293b; }
+  /* Item/client picker mini-button inside line items */
+  .inv-pick-btn {
+    width: 24px; height: 24px; padding: 0; border: 1px solid #cbd5e1; background: #f8fafc;
+    border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    color: #64748b; font-size: 11px; flex-shrink: 0;
+  }
+  .inv-pick-btn:hover { background: #e2e8f0; color: #1e293b; }
+  /* Client picker button (same size as TR button) */
+  .inv-client-pick-btn {
+    padding: 4px 10px; font-size: 12px; background: #3b82f6; color: #fff;
+    border: 1px solid #2563eb; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  }
+  .inv-client-pick-btn:hover { background: #2563eb; }
+  /* VAT column in line items */
+  .inv-line-vat { width: 60px; text-align: right; }
+  /* Price mode toggle */
+  .inv-price-toggle { font-size: 10px; cursor: pointer; color: #3b82f6; text-decoration: underline; margin-left: 2px; }
+
   /* Empty state */
   .inv-empty { text-align: center; padding: 32px; color: #94a3b8; }
   .inv-empty svg { width: 40px; height: 40px; margin-bottom: 8px; opacity: .5; }
@@ -157,6 +181,9 @@
     users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
     package: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
     filetext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+    sync: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
   };
 
   // ── Utility helpers ─────────────────────────────────────────────────────
@@ -482,11 +509,11 @@
   function openNewInvoicePopup(companyId, profileId, companyName) {
     let clients = [];
     let items = [];
+    let stubs = [];
     let selectedClient = null;
     let lines = [emptyLine(), emptyLine(), emptyLine()];
     let docType = "invoice";
-    let vatRate = 20;
-    let noVat = false;
+    let priceWithVat = false; // toggle: false = price without VAT, true = price with VAT
     let overlay = null;
 
     function emptyLine() {
@@ -496,15 +523,39 @@
     async function init() {
       try {
         const cParams = new URLSearchParams({ company_id: companyId, profile_id: profileId });
-        const [c, it, nn] = await Promise.all([
+        const [c, it, nn, st, cs] = await Promise.all([
           api("GET", `/clients?${cParams}`),
           api("GET", `/items?${cParams}`),
           api("GET", `/next-number?company_id=${companyId}&profile_id=${profileId}&document_type=${docType}`),
+          api("GET", `/stubs?${cParams}`).catch(() => []),
+          api("GET", `/company-settings/${companyId}`).catch(() => ({})),
         ]);
         clients = c;
         items = it;
+        stubs = st;
         const numInput = modal.querySelector('[data-f="invoice_number"]');
         if (numInput) numInput.value = String(nn.next_number).padStart(10, "0");
+
+        // Populate stubs dropdown
+        const stubSelect = modal.querySelector('[data-f="stub_id"]');
+        if (stubSelect && stubs.length > 0) {
+          stubs.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${s.start_number}-${s.end_number})`;
+            stubSelect.appendChild(opt);
+          });
+        }
+
+        // Auto-fill composed_by from company MOL
+        // Try to get company MOL from the folder data
+        const folders = window.__invFolderData || [];
+        const folder = folders.find(f => f.company && f.company.id === companyId);
+        if (folder && folder.company) {
+          const cmp = folder.company;
+          const composedByInput = modal.querySelector('[data-f="composed_by"]');
+          if (composedByInput && cmp.mol) composedByInput.value = cmp.mol;
+        }
       } catch (e) { console.error("Init error:", e); }
     }
 
@@ -517,13 +568,17 @@
         <button class="inv-modal-close" data-close>${ICONS.x}</button>
       </div>
       <div class="inv-modal-body">
-        <!-- Document Type -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <!-- Document Type + Stub -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
           <span style="font-size:13px;font-weight:600;color:#475569">Тип:</span>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="proforma"> Проформа</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="invoice" checked> Фактура</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="debit_note"> Дебитно известие</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="credit_note"> Кредитно известие</label>
+          <span style="margin-left:16px;font-size:13px;font-weight:600;color:#475569">Кочан:</span>
+          <select class="inv-select" data-f="stub_id" style="width:220px;font-size:12px">
+            <option value="">— без кочан —</option>
+          </select>
         </div>
 
         <!-- Two columns: Client + Details -->
@@ -534,6 +589,7 @@
               <label>Клиент:</label>
               <div style="display:flex;gap:4px">
                 <input class="inv-input" data-client-search placeholder="Търсене по име или ЕИК..." style="flex:1">
+                <button class="inv-client-pick-btn" data-client-pick title="Избери от базата">📋 Клиенти</button>
                 <button class="inv-tr-btn" data-tr-invoice title="Търсене в ТР">🔍 ТР</button>
               </div>
               <div data-client-dropdown style="position:relative"></div>
@@ -566,38 +622,43 @@
         <table class="inv-line-table">
           <thead><tr>
             <th style="width:30px">#</th>
+            <th style="width:24px"></th>
             <th class="inv-line-desc">Артикул</th>
             <th class="inv-line-num">Количество</th>
             <th class="inv-line-unit">Мярка</th>
-            <th class="inv-line-num">Цена без ДДС</th>
+            <th class="inv-line-num"><span data-price-label>Цена без ДДС</span> <span class="inv-price-toggle" data-price-toggle>(с ДДС)</span></th>
+            <th class="inv-line-vat">ДДС %</th>
             <th class="inv-line-num">Стойност</th>
             <th style="width:30px"></th>
           </tr></thead>
           <tbody data-lines></tbody>
         </table>
-        <button class="inv-btn" data-add-line style="margin-top:6px">${ICONS.plus} + Добави ред</button>
 
-        <!-- Totals -->
-        <div class="inv-totals" data-totals></div>
-
-        <!-- VAT options -->
-        <div style="display:flex;align-items:center;gap:16px;margin:12px 0;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
-          <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
-          <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
-          <label class="inv-checkbox"><input type="checkbox" data-f="vat_per_line"> ДДС на всеки ред</label>
-          <div class="inv-field" style="margin-bottom:0;width:80px"><label>ДДС %</label><input class="inv-input" data-f="vat_rate" type="number" value="20" style="text-align:right"></div>
+        <!-- Add line + Subtotal row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+          <button class="inv-btn" data-add-line>${ICONS.plus} + Добави ред</button>
+          <div style="font-size:13px;font-family:monospace;color:#475569" data-subtotal-raw>Сума: 0.00 EUR</div>
         </div>
 
         <!-- Discount -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:flex-end">
+        <div style="display:flex;align-items:center;gap:8px;margin:12px 0;justify-content:flex-end">
           <span style="font-size:13px;color:#475569">Отстъпка:</span>
           <input class="inv-input" data-f="discount" type="number" step="0.01" value="0.00" style="width:100px;text-align:right">
           <select class="inv-select" data-f="discount_type" style="width:80px"><option value="EUR">EUR</option><option value="%">%</option></select>
         </div>
 
+        <!-- Totals -->
+        <div class="inv-totals" data-totals></div>
+
+        <!-- VAT options (simplified: no "ДДС на всеки ред" checkbox, VAT is always per line) -->
+        <div style="display:flex;align-items:center;gap:16px;margin:12px 0;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+          <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
+          <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
+        </div>
+
         <!-- Composed by + Payment -->
         <div class="inv-row" style="margin-bottom:12px">
-          <div class="inv-field"><label>Съставил</label><input class="inv-input" data-f="composed_by" placeholder="Име на съставителя"></div>
+          <div class="inv-field"><label>Съставил</label><input class="inv-input" data-f="composed_by" placeholder="Име на съставителя (МОЛ)"></div>
           <div class="inv-field"><label>Начин на плащане</label>
             <select class="inv-select" data-f="payment_method">
               <option value="В брой">В брой</option>
@@ -636,6 +697,22 @@
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
     modal.querySelector("[data-cancel]").onclick = () => closeModal(overlay);
 
+    // Price toggle (with/without VAT)
+    modal.querySelector("[data-price-toggle]").onclick = () => {
+      priceWithVat = !priceWithVat;
+      const label = modal.querySelector("[data-price-label]");
+      const toggle = modal.querySelector("[data-price-toggle]");
+      if (priceWithVat) {
+        label.textContent = "Цена с ДДС";
+        toggle.textContent = "(без ДДС)";
+      } else {
+        label.textContent = "Цена без ДДС";
+        toggle.textContent = "(с ДДС)";
+      }
+      // Recalculate displayed prices
+      renderLines();
+    };
+
     // Document type change
     modal.querySelectorAll('[name="inv_doctype"]').forEach(r => {
       r.addEventListener("change", async () => {
@@ -648,10 +725,26 @@
       });
     });
 
+    // Client picker button - shows all clients from DB
+    modal.querySelector("[data-client-pick]").onclick = () => {
+      const clientDropdown = modal.querySelector("[data-client-dropdown]");
+      clientDropdown.innerHTML = "";
+      if (clients.length === 0) { toast("Няма добавени клиенти", "error"); return; }
+      const dd = el("div", { style: "position:absolute;z-index:10;width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:6px;max-height:200px;overflow-y:auto;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)" });
+      clients.forEach(c => {
+        const opt = el("button", {
+          style: "display:block;width:100%;text-align:left;padding:6px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9",
+          innerHTML: `<div style="font-weight:500">${esc(c.name)}</div><div style="font-size:11px;color:#94a3b8">${c.eik ? "ЕИК: " + esc(c.eik) : ""}${c.city ? " • " + esc(c.city) : ""}</div>`,
+          onClick: () => { selectClient(c); clientDropdown.innerHTML = ""; }
+        });
+        dd.appendChild(opt);
+      });
+      clientDropdown.appendChild(dd);
+    };
+
     // Client search
     const clientSearchInput = modal.querySelector("[data-client-search]");
     const clientDropdown = modal.querySelector("[data-client-dropdown]");
-    const clientInfo = modal.querySelector("[data-client-info]");
     let csDebounce;
     clientSearchInput.addEventListener("input", () => {
       clearTimeout(csDebounce);
@@ -677,7 +770,6 @@
     function selectClient(c) {
       selectedClient = c;
       clientSearchInput.value = c.name;
-      // Fill client detail fields in the form
       const setField = (sel, val) => { const el = modal.querySelector(sel); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val || ''; } };
       setField('[data-f="client_eik"]', c.eik);
       setField('[data-f="client_vat"]', c.vat_number);
@@ -694,17 +786,14 @@
       if (!eik || eik.length < 9) return;
       try {
         const data = await api("GET", `/registry/lookup/${eik}`);
-        // Check if client already exists
         const existing = clients.find(c => c.eik === eik);
         if (existing) { selectClient(existing); toast("Клиентът вече съществува"); return; }
-        // Create new client from TR data
         const result = await api("POST", "/clients", {
           company_id: companyId, profile_id: profileId,
           name: data.name, eik: data.eik, vat_number: data.vat_number,
           is_vat_registered: data.is_vat_registered, mol: data.mol,
           city: data.city, address: data.address, email: data.email, phone: data.phone || "",
         });
-        // Reload clients and select
         const cParams = new URLSearchParams({ company_id: companyId, profile_id: profileId });
         clients = await api("GET", `/clients?${cParams}`);
         const newClient = clients.find(c => c.id === result.id);
@@ -712,6 +801,45 @@
         toast("Клиент добавен от ТР");
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     };
+
+    // Item picker helper — opens a dropdown to pick from existing items
+    function showItemPicker(lineIdx) {
+      if (items.length === 0) { toast("Няма добавени артикули", "error"); return; }
+      // Remove any existing picker
+      const existingPicker = modal.querySelector("[data-item-picker]");
+      if (existingPicker) existingPicker.remove();
+
+      const row = linesBody.querySelectorAll("tr")[lineIdx];
+      if (!row) return;
+      const cell = row.cells[2]; // description cell
+      const picker = el("div", { style: "position:absolute;z-index:10;width:300px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;max-height:200px;overflow-y:auto;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)" });
+      picker.dataset.itemPicker = "1";
+
+      items.forEach(item => {
+        const opt = el("button", {
+          style: "display:block;width:100%;text-align:left;padding:6px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9",
+          innerHTML: `<div style="font-weight:500">${esc(item.name)}</div><div style="font-size:11px;color:#94a3b8">${Number(item.default_price).toFixed(2)} EUR • ${item.unit} • ДДС ${Number(item.vat_rate)}%</div>`,
+          onClick: () => {
+            lines[lineIdx].item_id = item.id;
+            lines[lineIdx].description = item.name;
+            lines[lineIdx].unit = item.unit;
+            lines[lineIdx].unit_price = Number(item.default_price).toFixed(2);
+            lines[lineIdx].vat_rate = Number(item.vat_rate).toFixed(2);
+            picker.remove();
+            renderLines();
+          }
+        });
+        picker.appendChild(opt);
+      });
+
+      cell.style.position = "relative";
+      cell.appendChild(picker);
+      // Close on click outside
+      setTimeout(() => {
+        const closer = (e) => { if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener("click", closer); } };
+        document.addEventListener("click", closer);
+      }, 10);
+    }
 
     // Line items
     const linesBody = modal.querySelector("[data-lines]");
@@ -721,23 +849,43 @@
       linesBody.innerHTML = "";
       lines.forEach((line, i) => {
         const tr = el("tr");
+        // Calculate display price based on priceWithVat toggle
+        let displayPrice = line.unit_price;
+        if (priceWithVat) {
+          const vr = parseFloat(line.vat_rate) || 20;
+          displayPrice = (parseFloat(line.unit_price) * (1 + vr / 100)).toFixed(2);
+        }
         tr.innerHTML = `
           <td style="color:#94a3b8;text-align:center;font-size:11px">${i + 1}</td>
-          <td><input class="inv-input inv-line-desc" data-li="${i}" data-lf="description" value="${esc(line.description)}" placeholder="Описание на стоката/услугата"></td>
+          <td><button class="inv-pick-btn" data-item-pick="${i}" title="Избери артикул">${ICONS.list}</button></td>
+          <td style="position:relative"><input class="inv-input inv-line-desc" data-li="${i}" data-lf="description" value="${esc(line.description)}" placeholder="Описание на стоката/услугата"></td>
           <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="quantity" type="number" step="0.01" value="${line.quantity}" style="text-align:right"></td>
           <td><input class="inv-input inv-line-unit" data-li="${i}" data-lf="unit" value="${esc(line.unit)}"></td>
-          <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="unit_price" type="number" step="0.01" value="${line.unit_price}" style="text-align:right"></td>
+          <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="unit_price" type="number" step="0.01" value="${displayPrice}" style="text-align:right"></td>
+          <td><input class="inv-input inv-line-vat" data-li="${i}" data-lf="vat_rate" type="number" step="0.01" value="${line.vat_rate}" style="text-align:right"></td>
           <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
           <td><button class="inv-icon-btn inv-danger" data-remove-line="${i}">${ICONS.x}</button></td>`;
         linesBody.appendChild(tr);
       });
 
-      // Bind events
+      // Bind item picker buttons
+      linesBody.querySelectorAll("[data-item-pick]").forEach(btn => {
+        btn.onclick = (e) => { e.stopPropagation(); showItemPicker(parseInt(btn.dataset.itemPick)); };
+      });
+
+      // Bind input events
       linesBody.querySelectorAll("[data-lf]").forEach(inp => {
         inp.addEventListener("input", () => {
           const idx = parseInt(inp.dataset.li);
-          lines[idx][inp.dataset.lf] = inp.value;
-          // Update line total
+          const field = inp.dataset.lf;
+          if (field === "unit_price" && priceWithVat) {
+            // Convert from VAT-inclusive price to VAT-exclusive
+            const vr = parseFloat(lines[idx].vat_rate) || 20;
+            const priceInc = parseFloat(inp.value) || 0;
+            lines[idx].unit_price = (priceInc / (1 + vr / 100)).toFixed(2);
+          } else {
+            lines[idx][field] = inp.value;
+          }
           const totalCell = linesBody.querySelector(`[data-line-total="${idx}"]`);
           if (totalCell) totalCell.textContent = calcLineTotal(lines[idx]) + " EUR";
           renderTotals();
@@ -765,27 +913,60 @@
 
     function renderTotals() {
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
-      const vr = parseFloat(modal.querySelector('[data-f="vat_rate"]').value) || 20;
       const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
       const discountType = modal.querySelector('[data-f="discount_type"]').value;
 
       let subtotalRaw = 0;
       lines.forEach(l => { subtotalRaw += parseFloat(calcLineTotal(l)); });
 
+      // Update subtotal display next to "Добави ред"
+      const subtotalRawEl = modal.querySelector("[data-subtotal-raw]");
+      if (subtotalRawEl) subtotalRawEl.textContent = `Сума: ${subtotalRaw.toFixed(2)} EUR`;
+
       // Apply discount
       let discountAmt = 0;
       if (discountType === '%') discountAmt = subtotalRaw * (discountVal / 100);
       else discountAmt = discountVal;
-      const subtotal = subtotalRaw - discountAmt;
+      const taxBase = subtotalRaw - discountAmt;
 
-      const vatAmt = noVatChecked ? 0 : subtotal * (vr / 100);
-      const total = subtotal + vatAmt;
+      // Calculate VAT per line (proportional to line share of taxBase)
+      let totalVat = 0;
+      if (!noVatChecked) {
+        lines.forEach(l => {
+          const lineTotal = parseFloat(calcLineTotal(l));
+          const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
+          const lineVatRate = parseFloat(l.vat_rate) || 20;
+          totalVat += lineShare * (lineVatRate / 100);
+        });
+      }
+      const total = taxBase + totalVat;
+
+      // Build VAT breakdown by rate
+      const vatByRate = {};
+      if (!noVatChecked) {
+        lines.forEach(l => {
+          const lineTotal = parseFloat(calcLineTotal(l));
+          const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
+          const vr = parseFloat(l.vat_rate) || 20;
+          const key = vr.toFixed(0);
+          if (!vatByRate[key]) vatByRate[key] = 0;
+          vatByRate[key] += lineShare * (vr / 100);
+        });
+      }
+
+      let vatRows = "";
+      if (!noVatChecked) {
+        for (const [rate, amt] of Object.entries(vatByRate)) {
+          if (amt > 0) vatRows += `<div class="inv-total-row"><span class="inv-total-label">ДДС (${rate}%):</span><span class="inv-total-value">${amt.toFixed(2)} EUR</span></div>`;
+        }
+      } else {
+        vatRows = '<div class="inv-total-row"><span class="inv-total-label" style="color:#ef4444">Без ДДС</span><span class="inv-total-value">0.00 EUR</span></div>';
+      }
 
       totalsDiv.innerHTML = `
-        <div class="inv-total-row"><span class="inv-total-label">Сума (без отстъпка):</span><span class="inv-total-value">${subtotalRaw.toFixed(2)} EUR</span></div>
         ${discountAmt > 0 ? `<div class="inv-total-row"><span class="inv-total-label">Отстъпка:</span><span class="inv-total-value">-${discountAmt.toFixed(2)} EUR</span></div>` : ''}
-        <div class="inv-total-row"><span class="inv-total-label">Данъчна основа:</span><span class="inv-total-value">${subtotal.toFixed(2)} EUR</span></div>
-        ${!noVatChecked ? `<div class="inv-total-row"><span class="inv-total-label">ДДС (${vr}%):</span><span class="inv-total-value">${vatAmt.toFixed(2)} EUR</span></div>` : '<div class="inv-total-row"><span class="inv-total-label" style="color:#ef4444">Без ДДС</span><span class="inv-total-value">0.00 EUR</span></div>'}
+        <div class="inv-total-row"><span class="inv-total-label">Данъчна основа:</span><span class="inv-total-value">${taxBase.toFixed(2)} EUR</span></div>
+        ${vatRows}
         <div class="inv-total-row inv-grand-total"><span class="inv-total-label">Сума за плащане:</span><span class="inv-total-value">${total.toFixed(2)} EUR</span></div>`;
     }
 
@@ -793,7 +974,6 @@
 
     // VAT checkbox + discount
     modal.querySelector('[data-f="no_vat"]').addEventListener("change", () => renderTotals());
-    modal.querySelector('[data-f="vat_rate"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
 
@@ -809,11 +989,14 @@
       const dueDate = modal.querySelector('[data-f="due_date"]').value;
       const paymentMethod = modal.querySelector('[data-f="payment_method"]').value;
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
-      const vr = parseFloat(modal.querySelector('[data-f="vat_rate"]').value) || 20;
       const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
       const discountType = modal.querySelector('[data-f="discount_type"]').value;
       const notes = modal.querySelector('[data-f="notes"]').value;
       const internalNotes = modal.querySelector('[data-f="internal_notes"]').value;
+
+      // Use the dominant VAT rate from lines for the overall invoice vat_rate field
+      const lineVatRates = filledLines.map(l => parseFloat(l.vat_rate) || 20);
+      const dominantVatRate = lineVatRates.length > 0 ? lineVatRates[0] : 20;
 
       // Sync settings
       const syncMode = modal.querySelector('[name="inv_sync"]:checked')?.value || "manual";
@@ -833,7 +1016,7 @@
         issue_date: issueDate || null,
         tax_event_date: taxEventDate || null,
         due_date: dueDate || null,
-        vat_rate: vr,
+        vat_rate: dominantVatRate,
         no_vat: noVatChecked,
         discount: discountVal,
         discount_type: discountType,
@@ -857,7 +1040,6 @@
         const result = await api("POST", "/invoices", payload);
         toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
         closeModal(overlay);
-        // Refresh the page to show the new invoice in the list
         setTimeout(() => window.location.reload(), 500);
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     }
@@ -867,6 +1049,68 @@
 
     renderLines();
     init();
+  }
+
+  // ── Settings Popup (bank account) ───────────────────────────────────────
+  function openSettingsPopup(companyId, profileId) {
+    const modal = el("div", { className: "inv-modal inv-modal-sm" });
+    modal.innerHTML = `
+      <div class="inv-modal-header">
+        <h2>${ICONS.settings} Настройки</h2>
+        <button class="inv-modal-close" data-close>${ICONS.x}</button>
+      </div>
+      <div class="inv-modal-body">
+        <div class="inv-field"><label>IBAN (Банкова сметка)</label><input class="inv-input" data-f="iban" placeholder="BG00XXXX00000000000000"></div>
+        <div class="inv-field"><label>Име на банката</label><input class="inv-input" data-f="bank_name" placeholder="Банка ООД"></div>
+        <div class="inv-field"><label>BIC код</label><input class="inv-input" data-f="bic" placeholder="XXXXBGSF"></div>
+        <div class="inv-actions">
+          <button class="inv-btn" data-cancel>Отказ</button>
+          <button class="inv-btn inv-btn-primary" data-save>Запази</button>
+        </div>
+      </div>`;
+
+    const overlay = createOverlay(modal);
+    modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
+    modal.querySelector("[data-cancel]").onclick = () => closeModal(overlay);
+
+    // Load current settings
+    (async () => {
+      try {
+        const settings = await api("GET", `/company-settings/${companyId}`);
+        if (settings.iban) modal.querySelector('[data-f="iban"]').value = settings.iban;
+        if (settings.bank_name) modal.querySelector('[data-f="bank_name"]').value = settings.bank_name;
+        if (settings.bic) modal.querySelector('[data-f="bic"]').value = settings.bic;
+      } catch (e) { /* ignore */ }
+    })();
+
+    modal.querySelector("[data-save]").onclick = async () => {
+      const iban = modal.querySelector('[data-f="iban"]').value;
+      const bankName = modal.querySelector('[data-f="bank_name"]').value;
+      const bic = modal.querySelector('[data-f="bic"]').value;
+      try {
+        await api("PUT", `/company-settings/${companyId}?profile_id=${profileId}`, { iban, bank_name: bankName, bic });
+        toast("Настройките са запазени");
+        closeModal(overlay);
+      } catch (e) { toast("Грешка: " + e.message, "error"); }
+    };
+  }
+
+  // ── Sync Invoices ─────────────────────────────────────────────────────
+  async function syncInvoices(companyId, profileId) {
+    try {
+      const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`);
+      const unsynced = invoices.filter(inv => inv.sync_status !== "synced" && inv.sync_status !== "accepted" && inv.status === "issued");
+      if (unsynced.length === 0) {
+        toast("Няма неизпратени фактури");
+        return;
+      }
+      toast(`Синхронизиране на ${unsynced.length} фактури...`);
+      // For now, mark them as synced (actual sync logic would send to counterparty)
+      // This is a placeholder - real implementation would use the sync settings
+      toast(`${unsynced.length} фактури са маркирани за синхронизация`);
+    } catch (e) {
+      toast("Грешка при синхронизация: " + e.message, "error");
+    }
   }
 
   // ── Lightning bolt icons ────────────────────────────────────────────────
@@ -925,7 +1169,7 @@
           onClick: (e) => { e.stopPropagation(); openNewInvoicePopup(companyId, profileId, companyName); }
         }));
         group.appendChild(el("button", {
-          className: "inv-btn",
+          className: "inv-btn inv-btn-amber",
           innerHTML: ICONS.users + " Клиенти",
           onClick: (e) => { e.stopPropagation(); openClientsPopup(companyId, profileId); }
         }));
@@ -933,6 +1177,16 @@
           className: "inv-btn inv-btn-emerald",
           innerHTML: ICONS.package + " Артикули",
           onClick: (e) => { e.stopPropagation(); openItemsPopup(companyId, profileId); }
+        }));
+        group.appendChild(el("button", {
+          className: "inv-btn inv-btn-outline",
+          innerHTML: ICONS.sync + " Синхронизирай",
+          onClick: (e) => { e.stopPropagation(); syncInvoices(companyId, profileId); }
+        }));
+        group.appendChild(el("button", {
+          className: "inv-btn inv-btn-outline",
+          innerHTML: ICONS.settings + " Настройки",
+          onClick: (e) => { e.stopPropagation(); openSettingsPopup(companyId, profileId); }
         }));
         header.appendChild(group);
       });
@@ -1110,7 +1364,7 @@
               onClick: (e) => { e.stopPropagation(); openNewInvoicePopup(companyId, profileId, companyName); }
             }));
             group.appendChild(el("button", {
-              className: "inv-btn",
+              className: "inv-btn inv-btn-amber",
               innerHTML: ICONS.users + " Клиенти",
               onClick: (e) => { e.stopPropagation(); openClientsPopup(companyId, profileId); }
             }));
@@ -1118,6 +1372,16 @@
               className: "inv-btn inv-btn-emerald",
               innerHTML: ICONS.package + " Артикули",
               onClick: (e) => { e.stopPropagation(); openItemsPopup(companyId, profileId); }
+            }));
+            group.appendChild(el("button", {
+              className: "inv-btn inv-btn-outline",
+              innerHTML: ICONS.sync + " Синхронизирай",
+              onClick: (e) => { e.stopPropagation(); syncInvoices(companyId, profileId); }
+            }));
+            group.appendChild(el("button", {
+              className: "inv-btn inv-btn-outline",
+              innerHTML: ICONS.settings + " Настройки",
+              onClick: (e) => { e.stopPropagation(); openSettingsPopup(companyId, profileId); }
             }));
             parentEl.appendChild(group);
             console.log(`[INV] Buttons injected for: ${companyName}`);

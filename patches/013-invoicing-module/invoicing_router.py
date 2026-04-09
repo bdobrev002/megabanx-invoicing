@@ -163,6 +163,38 @@ def ensure_invoicing_tables():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_meta_profile ON inv_invoice_meta(profile_id)")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_inv_meta_unique_number ON inv_invoice_meta(company_id, document_type, invoice_number)")
 
+                # Company settings table (bank account, etc.)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS inv_company_settings (
+                        id TEXT PRIMARY KEY,
+                        company_id TEXT NOT NULL UNIQUE,
+                        profile_id TEXT NOT NULL,
+                        iban TEXT,
+                        bank_name TEXT,
+                        bic TEXT,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_csettings_company ON inv_company_settings(company_id)")
+
+                # Invoice stubs (кочани) table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS inv_stubs (
+                        id TEXT PRIMARY KEY,
+                        company_id TEXT NOT NULL,
+                        profile_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        start_number INTEGER NOT NULL DEFAULT 1,
+                        end_number INTEGER NOT NULL DEFAULT 1000000,
+                        next_number INTEGER DEFAULT 1,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_stubs_company ON inv_stubs(company_id)")
+
                 # Add source column to existing invoices table if not exists
                 cur.execute("""
                     DO $$
@@ -261,6 +293,25 @@ class InvoiceCreate(BaseModel):
 class SyncSettingsUpdate(BaseModel):
     sync_mode: str = "manual"  # "immediate", "delayed", "manual"
     delay_minutes: int = 0
+
+class CompanySettingsUpdate(BaseModel):
+    iban: Optional[str] = None
+    bank_name: Optional[str] = None
+    bic: Optional[str] = None
+
+class StubCreate(BaseModel):
+    company_id: str
+    profile_id: str
+    name: str
+    start_number: int = 1
+    end_number: int = 1000000
+    next_number: Optional[int] = None
+
+class StubUpdate(BaseModel):
+    name: Optional[str] = None
+    start_number: Optional[int] = None
+    end_number: Optional[int] = None
+    next_number: Optional[int] = None
 
 
 # ── Trade Registry Lookup ─────────────────────────────────────────────────
@@ -708,6 +759,124 @@ async def delete_item(item_id: str):
         raise
     except Exception as e:
         logger.error(f"[INVOICING] Error deleting item: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Sync Settings ─────────────────────────────────────────────────────────
+
+# ── Company Settings (bank account) ───────────────────────────────────────
+
+@invoicing_router.get("/company-settings/{company_id}")
+async def get_company_settings(company_id: str):
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM inv_company_settings WHERE company_id = %s", (company_id,))
+                row = cur.fetchone()
+                if not row:
+                    return {"company_id": company_id, "iban": "", "bank_name": "", "bic": ""}
+                return dict(row)
+    except Exception as e:
+        logger.error(f"[INVOICING] Error getting company settings: {e}")
+        return {"company_id": company_id, "iban": "", "bank_name": "", "bic": ""}
+
+
+@invoicing_router.put("/company-settings/{company_id}")
+async def update_company_settings(company_id: str, profile_id: str = Query(...), data: CompanySettingsUpdate = None):
+    if data is None:
+        raise HTTPException(status_code=400, detail="No data")
+    setting_id = str(uuid.uuid4())
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO inv_company_settings (id, company_id, profile_id, iban, bank_name, bic)
+                       VALUES (%s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (company_id) DO UPDATE SET
+                       iban = EXCLUDED.iban,
+                       bank_name = EXCLUDED.bank_name,
+                       bic = EXCLUDED.bic,
+                       updated_at = NOW()""",
+                    (setting_id, company_id, profile_id, data.iban, data.bank_name, data.bic)
+                )
+            conn.commit()
+        return {"status": "updated"}
+    except Exception as e:
+        logger.error(f"[INVOICING] Error updating company settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Invoice Stubs (кочани) ────────────────────────────────────────────────
+
+@invoicing_router.get("/stubs")
+async def list_stubs(company_id: str = Query(...), profile_id: str = Query(...)):
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT * FROM inv_stubs WHERE company_id = %s AND profile_id = %s ORDER BY created_at",
+                    (company_id, profile_id)
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"[INVOICING] Error listing stubs: {e}")
+        return []
+
+
+@invoicing_router.post("/stubs")
+async def create_stub(data: StubCreate):
+    stub_id = str(uuid.uuid4())
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                next_num = data.next_number if data.next_number is not None else data.start_number
+                cur.execute(
+                    """INSERT INTO inv_stubs (id, company_id, profile_id, name, start_number, end_number, next_number)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (stub_id, data.company_id, data.profile_id, data.name,
+                     data.start_number, data.end_number, next_num)
+                )
+            conn.commit()
+        return {"id": stub_id, "status": "created"}
+    except Exception as e:
+        logger.error(f"[INVOICING] Error creating stub: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@invoicing_router.put("/stubs/{stub_id}")
+async def update_stub(stub_id: str, data: StubUpdate):
+    try:
+        updates = []
+        values = []
+        for field in ("name", "start_number", "end_number", "next_number"):
+            val = getattr(data, field, None)
+            if val is not None:
+                updates.append(f"{field} = %s")
+                values.append(val)
+        if not updates:
+            return {"status": "no changes"}
+        updates.append("updated_at = NOW()")
+        values.append(stub_id)
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"UPDATE inv_stubs SET {', '.join(updates)} WHERE id = %s", values)
+            conn.commit()
+        return {"status": "updated"}
+    except Exception as e:
+        logger.error(f"[INVOICING] Error updating stub: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@invoicing_router.delete("/stubs/{stub_id}")
+async def delete_stub(stub_id: str):
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM inv_stubs WHERE id = %s", (stub_id,))
+            conn.commit()
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"[INVOICING] Error deleting stub: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
