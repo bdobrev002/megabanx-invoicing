@@ -112,6 +112,13 @@
   .inv-line-table .inv-line-desc { min-width: 200px; }
   .inv-line-table .inv-line-num { width: 70px; text-align: right; }
   .inv-line-table .inv-line-unit { width: 60px; }
+  /* Remove number input spinners (Fix 8) */
+  .inv-line-table input[type="number"]::-webkit-inner-spin-button,
+  .inv-line-table input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .inv-line-table input[type="number"] { -moz-appearance: textbox; }
+  .inv-input[type="number"]::-webkit-inner-spin-button,
+  .inv-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .inv-input[type="number"] { -moz-appearance: textbox; }
   .inv-totals { text-align: right; margin-top: 12px; font-size: 13px; }
   .inv-totals .inv-total-row { display: flex; justify-content: flex-end; gap: 16px; padding: 2px 0; }
   .inv-totals .inv-total-label { color: #64748b; min-width: 120px; text-align: right; }
@@ -585,17 +592,22 @@
         <button class="inv-modal-close" data-close>${ICONS.x}</button>
       </div>
       <div class="inv-modal-body">
-        <!-- Document Type + Stub -->
+        <!-- Document Type -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          <span style="font-size:13px;font-weight:600;color:#475569">Тип:</span>
+          <span style="font-size:13px;font-weight:600;color:#475569">Тип документ:</span>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="proforma"> Проформа</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="invoice" checked> Фактура</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="debit_note"> Дебитно известие</label>
           <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="credit_note"> Кредитно известие</label>
-          <span style="margin-left:16px;font-size:13px;font-weight:600;color:#475569">Кочан:</span>
-          <select class="inv-select" data-f="stub_id" style="width:220px;font-size:12px">
+        </div>
+
+        <!-- Stub (Кочан) -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+          <span style="font-size:13px;font-weight:600;color:#475569">Кочан / Серия:</span>
+          <select class="inv-select" data-f="stub_id" style="width:280px;font-size:13px">
             <option value="">— без кочан —</option>
           </select>
+          <span style="font-size:11px;color:#94a3b8;margin-left:8px">Изберете кочан за автоматична номерация</span>
         </div>
 
         <!-- Two columns: Client + Details -->
@@ -613,7 +625,7 @@
             </div>
             <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_individual"> Клиентът е физическо лице</label>
             <div class="inv-row">
-              <div class="inv-field"><label>ЕИК/Булстат:</label><input class="inv-input" data-f="client_eik" placeholder="123456789" readonly style="background:#f8fafc"></div>
+              <div class="inv-field"><label data-eik-label>ЕИК/Булстат:</label><input class="inv-input" data-f="client_eik" placeholder="123456789" readonly style="background:#f8fafc"></div>
               <div class="inv-field"><label>ДДС номер</label><input class="inv-input" data-f="client_vat" placeholder="BG123456789" readonly style="background:#f8fafc"></div>
             </div>
             <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_vat" disabled> Регистрация по ЗДДС</label>
@@ -624,14 +636,16 @@
           </div>
           <!-- Details (right column) -->
           <div style="flex:1">
-            <div class="inv-row">
-              <div class="inv-field"><label>Фактура №</label><input class="inv-input" data-f="invoice_number" value="0000000001" style="font-family:monospace"></div>
-              <div class="inv-field"><label>Дата на издаване:</label><input class="inv-input" data-f="issue_date" type="date" value="${today}"></div>
+            <div class="inv-field" style="margin-bottom:10px">
+              <label style="font-size:14px;font-weight:700;color:#1e293b">Фактура №</label>
+              <input class="inv-input" data-f="invoice_number" value="0000000001" style="font-family:monospace;font-size:16px;padding:8px 12px;text-align:center;letter-spacing:2px;font-weight:700">
             </div>
-            <div class="inv-row">
-              <div class="inv-field"><label>Дата на данъчно събитие:</label><input class="inv-input" data-f="tax_event_date" type="date" value="${today}"></div>
-              <div class="inv-field"><label>Дата на падеж:</label><input class="inv-input" data-f="due_date" type="date" value=""></div>
+            <div class="inv-field"><label>Дата на издаване:</label><input class="inv-input" data-f="issue_date" type="date" value="${today}"></div>
+            <div class="inv-field"><label>Дата на данъчно събитие:</label><input class="inv-input" data-f="tax_event_date" type="date" value="${today}"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <label class="inv-checkbox"><input type="checkbox" data-f="show_due_date"> Дата на падеж</label>
             </div>
+            <div class="inv-field" data-due-date-field style="display:none;margin-top:4px"><input class="inv-input" data-f="due_date" type="date" value=""></div>
           </div>
         </div>
 
@@ -645,7 +659,7 @@
             <th class="inv-line-unit">Мярка</th>
             <th class="inv-line-num"><span data-price-label>Цена без ДДС</span> <span class="inv-price-toggle" data-price-toggle>(с ДДС)</span></th>
             <th class="inv-line-vat">ДДС %</th>
-            <th class="inv-line-num">Стойност</th>
+            <th class="inv-line-num" style="font-family:monospace">Стойност</th>
             <th style="width:30px"></th>
           </tr></thead>
           <tbody data-lines></tbody>
@@ -654,12 +668,12 @@
         <!-- Add line + Subtotal row -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
           <button class="inv-btn" data-add-line>${ICONS.plus} + Добави ред</button>
-          <div style="font-size:13px;font-family:monospace;color:#475569" data-subtotal-raw>Сума: 0.00 EUR</div>
+          <div style="font-size:13px;font-family:monospace;color:#1e293b;font-weight:600" data-subtotal-raw>Сума (без отстъпка): 0.00 EUR</div>
         </div>
 
         <!-- Discount -->
         <div style="display:flex;align-items:center;gap:8px;margin:12px 0;justify-content:flex-end">
-          <span style="font-size:13px;color:#475569">Отстъпка:</span>
+          <span style="font-size:13px;color:#475569;font-weight:600">Отстъпка:</span>
           <input class="inv-input" data-f="discount" type="number" step="0.01" value="0.00" style="width:100px;text-align:right">
           <select class="inv-select" data-f="discount_type" style="width:80px"><option value="EUR">EUR</option><option value="%">%</option></select>
         </div>
@@ -667,10 +681,27 @@
         <!-- Totals -->
         <div class="inv-totals" data-totals></div>
 
-        <!-- VAT options (simplified: no "ДДС на всеки ред" checkbox, VAT is always per line) -->
-        <div style="display:flex;align-items:center;gap:16px;margin:12px 0;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
-          <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
-          <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
+        <!-- VAT options -->
+        <div style="margin:12px 0;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+          <div style="display:flex;align-items:center;gap:16px">
+            <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
+            <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
+          </div>
+          <div data-no-vat-reason style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0">
+            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Основание за неначисляване на ДДС:</label>
+            <select class="inv-select" data-f="no_vat_reason" style="font-size:13px">
+              <option value="">— Изберете основание —</option>
+              <option value="чл. 21, ал. 2 от ЗДДС">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option>
+              <option value="чл. 28 от ЗДДС">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option>
+              <option value="чл. 41 от ЗДДС">чл. 41 от ЗДДС — Освободена доставка</option>
+              <option value="чл. 42 от ЗДДС">чл. 42 от ЗДДС — Безвъзмездна доставка</option>
+              <option value="чл. 50, ал. 1 от ЗДДС">чл. 50, ал. 1 от ЗДДС — Освободен внос</option>
+              <option value="чл. 113, ал. 9 от ЗДДС">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option>
+              <option value="чл. 7 от ЗДДС">чл. 7 от ЗДДС — ВОД (Вътреобщностна доставка)</option>
+              <option value="other">Друго (въведете ръчно)</option>
+            </select>
+            <input class="inv-input" data-f="no_vat_reason_custom" placeholder="Въведете основание..." style="display:none;margin-top:6px">
+          </div>
         </div>
 
         <!-- Composed by + Payment -->
@@ -713,6 +744,10 @@
     overlay = createOverlay(modal);
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
     modal.querySelector("[data-cancel]").onclick = () => closeModal(overlay);
+
+    // Fix 8: Prevent mousedown on modal from bubbling and causing form to disappear
+    modal.addEventListener("mousedown", (e) => e.stopPropagation());
+    modal.addEventListener("selectstart", (e) => e.stopPropagation());
 
     // Price toggle (with/without VAT)
     modal.querySelector("[data-price-toggle]").onclick = () => {
@@ -811,6 +846,9 @@
       setField('[data-f="client_mol"]', c.mol);
       setField('[data-f="client_city"]', c.city);
       setField('[data-f="client_address"]', c.address);
+      // Fix 3: Update EIK/EGN label based on individual status
+      const eikLabel = modal.querySelector("[data-eik-label]");
+      if (eikLabel) eikLabel.textContent = c.is_individual ? "ЕГН:" : "ЕИК/Булстат:";
     }
 
     // TR lookup for invoice — opens a styled popup
@@ -932,7 +970,7 @@
           <td><input class="inv-input inv-line-unit" data-li="${i}" data-lf="unit" value="${esc(line.unit)}"></td>
           <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="unit_price" type="number" step="0.01" value="${displayPrice}" style="text-align:right"></td>
           <td><input class="inv-input inv-line-vat" data-li="${i}" data-lf="vat_rate" type="number" step="0.01" value="${line.vat_rate}" style="text-align:right"></td>
-          <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
+          <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px;white-space:nowrap" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
           <td><button class="inv-icon-btn inv-danger" data-remove-line="${i}">${ICONS.x}</button></td>`;
         linesBody.appendChild(tr);
       });
@@ -990,7 +1028,7 @@
 
       // Update subtotal display next to "Добави ред"
       const subtotalRawEl = modal.querySelector("[data-subtotal-raw]");
-      if (subtotalRawEl) subtotalRawEl.textContent = `Сума: ${subtotalRaw.toFixed(2)} EUR`;
+      if (subtotalRawEl) subtotalRawEl.textContent = `Сума (без отстъпка): ${subtotalRaw.toFixed(2)} EUR`;
 
       // Apply discount
       let discountAmt = 0;
@@ -1041,8 +1079,51 @@
 
     modal.querySelector("[data-add-line]").onclick = () => { lines.push(emptyLine()); renderLines(); };
 
-    // VAT checkbox + discount
-    modal.querySelector('[data-f="no_vat"]').addEventListener("change", () => renderTotals());
+    // Fix 3: Switch ЕИК ↔ ЕГН when физическо лице is checked
+    modal.querySelector('[data-f="client_is_individual"]').addEventListener("change", (e) => {
+      const eikLabel = modal.querySelector("[data-eik-label]");
+      if (eikLabel) eikLabel.textContent = e.target.checked ? "ЕГН:" : "ЕИК/Булстат:";
+    });
+
+    // Fix 9: Due date checkbox — show/hide due date field, auto-fill with issue date
+    modal.querySelector('[data-f="show_due_date"]').addEventListener("change", (e) => {
+      const dueDateField = modal.querySelector("[data-due-date-field]");
+      const dueDateInput = modal.querySelector('[data-f="due_date"]');
+      if (e.target.checked) {
+        dueDateField.style.display = "block";
+        if (!dueDateInput.value) dueDateInput.value = modal.querySelector('[data-f="issue_date"]').value;
+      } else {
+        dueDateField.style.display = "none";
+      }
+    });
+
+    // Fix 1+6: VAT checkbox — show reason dropdown, set all VAT% to 0, re-render
+    const noVatCheckbox = modal.querySelector('[data-f="no_vat"]');
+    const noVatReasonDiv = modal.querySelector("[data-no-vat-reason]");
+    const noVatReasonSelect = modal.querySelector('[data-f="no_vat_reason"]');
+    const noVatReasonCustom = modal.querySelector('[data-f="no_vat_reason_custom"]');
+    noVatCheckbox.addEventListener("change", () => {
+      const checked = noVatCheckbox.checked;
+      noVatReasonDiv.style.display = checked ? "block" : "none";
+      if (checked) {
+        // Fix 6: Set all line VAT% to 0
+        lines.forEach(l => { l.vat_rate = "0.00"; });
+        renderLines();
+      } else {
+        // Restore default VAT (20%)
+        lines.forEach(l => { l.vat_rate = "20.00"; });
+        renderLines();
+      }
+      renderTotals();
+    });
+    // Show/hide custom reason input
+    if (noVatReasonSelect) {
+      noVatReasonSelect.addEventListener("change", () => {
+        noVatReasonCustom.style.display = noVatReasonSelect.value === "other" ? "block" : "none";
+      });
+    }
+
+    // Discount inputs
     modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
 
@@ -1055,13 +1136,20 @@
       const invNumber = modal.querySelector('[data-f="invoice_number"]').value;
       const issueDate = modal.querySelector('[data-f="issue_date"]').value;
       const taxEventDate = modal.querySelector('[data-f="tax_event_date"]').value;
-      const dueDate = modal.querySelector('[data-f="due_date"]').value;
+      const showDueDate = modal.querySelector('[data-f="show_due_date"]').checked;
+      const dueDate = showDueDate ? modal.querySelector('[data-f="due_date"]').value : null;
       const paymentMethod = modal.querySelector('[data-f="payment_method"]').value;
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
       const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
       const discountType = modal.querySelector('[data-f="discount_type"]').value;
       const notes = modal.querySelector('[data-f="notes"]').value;
       const internalNotes = modal.querySelector('[data-f="internal_notes"]').value;
+      // Get no_vat_reason
+      let noVatReason = "";
+      if (noVatChecked) {
+        const reasonSel = modal.querySelector('[data-f="no_vat_reason"]');
+        noVatReason = reasonSel.value === "other" ? (modal.querySelector('[data-f="no_vat_reason_custom"]').value || "") : (reasonSel.value || "");
+      }
 
       // Use the dominant VAT rate from lines for the overall invoice vat_rate field
       const lineVatRates = filledLines.map(l => parseFloat(l.vat_rate) || 20);
@@ -1087,6 +1175,7 @@
         due_date: dueDate || null,
         vat_rate: dominantVatRate,
         no_vat: noVatChecked,
+        no_vat_reason: noVatReason || null,
         discount: discountVal,
         discount_type: discountType,
         payment_method: paymentMethod || null,
