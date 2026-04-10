@@ -956,9 +956,13 @@ def _atomic_next_invoice_number(cur, company_id: str, document_type: str) -> int
     Uses advisory lock to serialize concurrent access even when no rows exist.
     The UNIQUE index on (company_id, document_type, invoice_number) is the
     ultimate safety net against duplicates."""
-    # Use advisory lock based on hash of company_id + document_type to serialize
-    # even when no rows exist (SELECT FOR UPDATE locks nothing on empty result)
-    lock_key = hash(f"{company_id}:{document_type}") % (2**31)
+    # Use advisory lock based on deterministic hash of company_id + document_type
+    # to serialize even when no rows exist (SELECT FOR UPDATE locks nothing on
+    # empty result). We use zlib.crc32 instead of hash() because hash() is
+    # randomized per-process since Python 3.3, which would defeat the lock
+    # if the backend runs with multiple workers.
+    import zlib
+    lock_key = zlib.crc32(f"{company_id}:{document_type}".encode()) % (2**31)
     cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
     cur.execute(
         """SELECT invoice_number FROM inv_invoice_meta
@@ -1126,9 +1130,11 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
             conn.commit()
 
         # Generate PDF in a background task (non-blocking)
+        # Pass already-computed dates to avoid re-deriving them (midnight drift)
         background_tasks.add_task(
             _generate_and_save_pdf, invoice_id, data, lines_data, company_name, client_name,
-            float(subtotal), float(discount), float(vat_amount), float(total)
+            float(subtotal), float(discount), float(vat_amount), float(total),
+            issue_date, tax_event_date
         )
 
         return {
@@ -1146,8 +1152,14 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
 
 
 def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_name,
-                           subtotal, discount, vat_amount, total):
-    """Generate invoice PDF and save to the correct location."""
+                           subtotal, discount, vat_amount, total,
+                           issue_date, tax_event_date):
+    """Generate invoice PDF and save to the correct location.
+    
+    issue_date and tax_event_date are passed from create_invoice to avoid
+    re-deriving them via date.today() (which could differ if the background
+    task runs after midnight).
+    """
     try:
         from jinja2 import Environment, FileSystemLoader
         from weasyprint import HTML
@@ -1193,9 +1205,7 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         except Exception as e:
             logger.error(f"[INVOICING] Error loading company/client for PDF: {e}")
 
-        # Prepare template context
-        issue_date = data.issue_date or date.today().isoformat()
-        tax_event_date = data.tax_event_date or issue_date
+        # Use the dates passed from create_invoice (already resolved from data or today())
 
         context = {
             "doc_type_label": doc_type_label,
