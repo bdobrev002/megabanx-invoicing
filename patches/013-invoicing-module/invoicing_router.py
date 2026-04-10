@@ -1349,6 +1349,155 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         logger.error(f"[INVOICING] Error generating PDF: {e}")
 
 
+@invoicing_router.put("/invoices/{invoice_id}")
+async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks: BackgroundTasks):
+    """Update an existing software-issued invoice."""
+    # Default dates
+    today = date.today().isoformat()
+    issue_date = data.issue_date or today
+    tax_event_date = data.tax_event_date or today
+
+    # Calculate totals
+    lines_data = []
+    subtotal = Decimal("0.00")
+    for i, line in enumerate(data.lines):
+        qty = Decimal(str(line.quantity))
+        price = Decimal(str(line.unit_price))
+        line_total = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        subtotal += line_total
+        lines_data.append({
+            "id": str(uuid.uuid4()),
+            "invoice_id": invoice_id,
+            "item_id": line.item_id,
+            "position": line.position if line.position is not None else i,
+            "description": line.description,
+            "quantity": float(qty),
+            "unit": line.unit,
+            "unit_price": float(price),
+            "vat_rate": line.vat_rate,
+            "line_total": float(line_total),
+        })
+
+    # Calculate discount
+    discount_input = Decimal(str(data.discount))
+    if data.discount_type == "%":
+        discount = (subtotal * discount_input / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    else:
+        discount = discount_input
+    tax_base = max(Decimal("0.00"), subtotal - discount)
+
+    if data.no_vat:
+        vat_amount = Decimal("0.00")
+    else:
+        vat_amount = Decimal("0.00")
+        for ld in lines_data:
+            line_total_dec = Decimal(str(ld["line_total"]))
+            line_share = (line_total_dec / subtotal * tax_base) if subtotal > 0 else Decimal("0.00")
+            line_vat_rate = Decimal(str(ld["vat_rate"]))
+            vat_amount += (line_share * line_vat_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    total = tax_base + vat_amount
+
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Verify invoice exists
+                cur.execute("SELECT id FROM inv_invoice_meta WHERE invoice_id = %s", (invoice_id,))
+                existing = cur.fetchone()
+                if not existing:
+                    raise HTTPException(status_code=404, detail="Invoice not found")
+
+                # Get client name
+                client_name = ""
+                cur.execute("SELECT name, eik FROM inv_clients WHERE id = %s", (data.client_id,))
+                row = cur.fetchone()
+                if row:
+                    client_name = row["name"]
+
+                # Get company name
+                company_name = ""
+                cur.execute("SELECT name FROM companies WHERE id = %s", (data.company_id,))
+                row = cur.fetchone()
+                if row:
+                    company_name = row["name"]
+
+                # Generate filename
+                inv_num_str = str(data.invoice_number).zfill(10)
+                date_parts = issue_date.split("-")
+                date_formatted = f"{date_parts[0]}.{date_parts[1]}.{date_parts[2]}"
+                new_filename = f"{date_formatted} {client_name} - {inv_num_str}.pdf"
+
+                # Update inv_invoice_meta
+                cur.execute(
+                    """UPDATE inv_invoice_meta SET
+                        client_id = %s, document_type = %s, invoice_number = %s,
+                        issue_date = %s, tax_event_date = %s, due_date = %s,
+                        subtotal = %s, discount = %s, vat_amount = %s, total = %s,
+                        vat_rate = %s, no_vat = %s, no_vat_reason = %s,
+                        payment_method = %s, notes = %s, internal_notes = %s,
+                        currency = %s, updated_at = NOW()
+                       WHERE invoice_id = %s""",
+                    (data.client_id, data.document_type, data.invoice_number,
+                     issue_date, tax_event_date, data.due_date,
+                     float(subtotal), float(discount), float(vat_amount), float(total),
+                     data.vat_rate, data.no_vat, data.no_vat_reason,
+                     data.payment_method, data.notes, data.internal_notes,
+                     data.currency, invoice_id)
+                )
+
+                # Delete old lines and insert new ones
+                cur.execute("DELETE FROM inv_invoice_lines WHERE invoice_id = %s", (invoice_id,))
+                for line in lines_data:
+                    cur.execute(
+                        """INSERT INTO inv_invoice_lines
+                           (id, invoice_id, item_id, position, description,
+                            quantity, unit, unit_price, vat_rate, line_total)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (line["id"], invoice_id, line["item_id"], line["position"],
+                         line["description"], line["quantity"], line["unit"],
+                         line["unit_price"], line["vat_rate"], line["line_total"])
+                    )
+
+                # Update main invoices table
+                cur.execute(
+                    """UPDATE invoices SET
+                        new_filename = %s, original_filename = %s,
+                        date = %s, issuer_name = %s, recipient_name = %s,
+                        invoice_number = %s, destination_path = %s,
+                        status = %s
+                       WHERE id = %s""",
+                    (new_filename, new_filename,
+                     issue_date, company_name, client_name,
+                     str(data.invoice_number),
+                     f"{company_name}/Фактури продажби/{new_filename}",
+                     "draft" if data.status == "draft" else "processed",
+                     invoice_id)
+                )
+
+            conn.commit()
+
+        # Regenerate PDF
+        background_tasks.add_task(
+            _generate_and_save_pdf, invoice_id, data, lines_data, company_name, client_name,
+            float(subtotal), float(discount), float(vat_amount), float(total),
+            issue_date, tax_event_date
+        )
+
+        return {
+            "id": invoice_id,
+            "invoice_number": data.invoice_number,
+            "new_filename": new_filename,
+            "total": float(total),
+            "status": "updated",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INVOICING] Error updating invoice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @invoicing_router.get("/invoices")
 async def list_invoices(
     company_id: str = Query(...),

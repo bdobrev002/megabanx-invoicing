@@ -128,12 +128,19 @@
   .inv-totals .inv-total-value { font-weight: 600; min-width: 100px; text-align: right; font-family: monospace; }
   .inv-totals .inv-grand-total { font-size: 16px; color: #1e293b; border-top: 2px solid #e2e8f0; padding-top: 6px; margin-top: 4px; }
 
-  /* Lightning bolt icons */
-  .inv-bolt { display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; }
+  /* Lightning bolt icons — overlay approach: we NEVER modify Vue DOM.
+     We add .inv-bolt-wrap as a sibling and use CSS to visually replace the checkmark. */
+  .inv-bolt { display: inline-flex; align-items: center; gap: 1px; }
   .inv-bolt svg { width: 14px; height: 14px; }
   .inv-bolt-gray svg { fill: #94a3b8; }
   .inv-bolt-red svg { fill: #ef4444; }
   .inv-bolt-blue svg { fill: #3b82f6; }
+  /* Bolt overlay wrapper — positioned over the status column */
+  .inv-bolt-wrap { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 1; background: white; }
+  /* The status span needs relative positioning so our overlay covers it */
+  [data-inv-has-bolt] { position: relative !important; }
+  /* Action icons wrapper — inserted as NEW span before options, not modifying Vue spans */
+  .inv-actions-wrap { display: inline-flex; align-items: center; gap: 0; flex-shrink: 0; }
 
   /* Inline action icons for Options column */
   .inv-action-icon { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 2px; border-radius: 4px; transition: color .15s; }
@@ -1543,8 +1550,14 @@
       };
 
       try {
-        const result = await api("POST", "/invoices", payload);
-        toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
+        let result;
+        if (isEditMode && editData && editData.invoice_id) {
+          result = await api("PUT", `/invoices/${editData.invoice_id}`, payload);
+          toast(`Фактура ${result.invoice_number} е обновена`);
+        } else {
+          result = await api("POST", "/invoices", payload);
+          toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
+        }
         closeModal(overlay);
         // Re-click the Фактури tab to refresh the file list without leaving the page
         setTimeout(() => {
@@ -2069,8 +2082,8 @@
             parentEl.appendChild(group);
             console.log(`[INV] Buttons injected for: ${companyName}`);
 
-            // Inject lightning bolts for software invoices
-            injectBoltsForCompany(companyId, profileId, container);
+            // Inject lightning bolts for software invoices (safe overlay approach)
+            injectBoltsForCompany(companyId, profileId);
             break;
           }
         }
@@ -2103,60 +2116,26 @@
     }
   }
 
+  // Safe bolt injection: NEVER modify Vue-managed DOM elements.
+  // Instead: add overlay elements and use CSS to visually replace the checkmark.
   async function injectBoltsForCompany(companyId, profileId) {
     try {
       const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`);
       if (!invoices || invoices.length === 0) { console.log("[INV] No invoices for", companyId); return; }
       console.log(`[INV] Found ${invoices.length} invoices for bolts`);
 
-      // Get company name for edit popup
       let companyName = "";
       const folders = window.__invFolderData || [];
       const folder = folders.find(f => f.company && f.company.id === companyId);
       if (folder && folder.company) companyName = folder.company.name;
 
-      // Find all file rows safely: only match spans with .pdf filenames, then walk up to parent row
-      // This avoids the dangerous div[class*='group'] selector that can match Vue internal elements
-      const allTruncateSpans = document.querySelectorAll("span.truncate");
-
+      // Collect bolt states first (all API calls), then do DOM changes in one batch
+      const boltData = [];
       for (const inv of invoices) {
         const fname = inv.new_filename || inv.original_filename || "";
         const invNum = inv.invoice_number ? String(inv.invoice_number).padStart(10, "0") : "";
         if (!fname && !invNum) continue;
-        const fnameBase = fname ? fname.replace(".pdf", "") : "";
 
-        // Find matching row by finding the filename span first, then its parent row
-        let matchedRow = null;
-        for (const span of allTruncateSpans) {
-          const rowText = span.textContent.trim();
-          if (!rowText.endsWith(".pdf")) continue; // Only match actual file rows
-          if ((invNum && rowText.includes(invNum)) || (fnameBase && (rowText === fname || rowText.includes(fnameBase)))) {
-            matchedRow = span.parentElement;
-            break;
-          }
-        }
-        if (!matchedRow) {
-          console.log("[INV] Row not found for inv#:", invNum, "fname:", fnameBase.substring(0, 40));
-          continue;
-        }
-        if (matchedRow.dataset.invBoltDone) continue;
-
-        // Extra validation: ensure the row has the expected column structure (span children with width styles)
-        const directChildren = matchedRow.querySelectorAll(":scope > span");
-        let hasStatusCol = false;
-        let hasOptionsCol = false;
-        for (const sp of directChildren) {
-          if (sp.style.width === "28px" || sp.style.width === "32px") hasStatusCol = true;
-          if (sp.style.width === "90px") hasOptionsCol = true;
-        }
-        if (!hasStatusCol && !hasOptionsCol) {
-          console.log("[INV] Row doesn't have expected column structure, skipping:", invNum);
-          continue;
-        }
-
-        matchedRow.dataset.invBoltDone = "1";
-
-        // Determine bolt state
         let boltCount = 1;
         let boltColor = "red";
         const isSynced = (inv.sync_status === "synced" || inv.sync_status === "accepted");
@@ -2168,68 +2147,88 @@
             if (check && check.exists) {
               boltCount = 2;
               boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
-            } else {
-              boltCount = 1; boltColor = "gray";
-            }
+            } else { boltCount = 1; boltColor = "gray"; }
           } catch (e) { boltCount = 1; boltColor = "gray"; }
         } else {
           boltCount = 1; boltColor = "gray";
         }
-
-        // Pause MutationObserver to avoid triggering Vue re-renders during our DOM changes
-        if (_observer) _observer.disconnect();
-        try {
-          // Replace the ✓ checkmark in the STATUS column (28px span) with our lightning bolt
-          for (const sp of directChildren) {
-            if (sp.style.width === "28px") {
-              sp.innerHTML = "";
-              sp.style.width = "32px";
-              const bolt = createBoltIcon(boltCount, boltColor);
-              sp.appendChild(bolt);
-              break;
-            }
-          }
-
-          // Inject sync + edit icons into the OPTIONS column (90px span)
-          for (const sp of directChildren) {
-            if (sp.style.width === "90px" && !sp.querySelector(".inv-action-icon")) {
-              if (!isSynced) {
-                const syncIcon = el("span", {
-                  className: "inv-action-icon inv-action-icon-sync",
-                  innerHTML: ICONS.syncSmall,
-                  title: "Синхронизирай фактурата",
-                  onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
-                });
-                sp.prepend(syncIcon);
-              }
-              const editIcon = el("span", {
-                className: "inv-action-icon inv-action-icon-edit",
-                innerHTML: ICONS.editSmall,
-                title: "Редактирай фактурата",
-                onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
-              });
-              sp.prepend(editIcon);
-              break;
-            }
-          }
-        } finally {
-          // Re-enable MutationObserver
-          if (_observer) _observer.observe(document.body, { childList: true, subtree: true });
-        }
+        boltData.push({ inv, fname, invNum, boltCount, boltColor, isSynced });
       }
+
+      // Now do all DOM changes in a single requestAnimationFrame — safe, non-destructive
+      requestAnimationFrame(() => {
+        const allTruncateSpans = document.querySelectorAll("span.truncate");
+        for (const { inv, fname, invNum, boltCount, boltColor, isSynced } of boltData) {
+          const fnameBase = fname ? fname.replace(".pdf", "") : "";
+
+          // Find the filename span, then its parent row
+          let matchedRow = null;
+          for (const span of allTruncateSpans) {
+            const rowText = span.textContent.trim();
+            if (!rowText.endsWith(".pdf")) continue;
+            if ((invNum && rowText.includes(invNum)) || (fnameBase && (rowText === fname || rowText.includes(fnameBase)))) {
+              matchedRow = span.parentElement;
+              break;
+            }
+          }
+          if (!matchedRow || matchedRow.dataset.invBoltDone) continue;
+
+          // Validate: must have status column (28px) and options column (90px)
+          const directChildren = matchedRow.querySelectorAll(":scope > span");
+          let statusSpan = null;
+          let optionsSpan = null;
+          for (const sp of directChildren) {
+            if (sp.style.width === "28px" || sp.style.width === "32px") statusSpan = sp;
+            if (sp.style.width === "90px") optionsSpan = sp;
+          }
+          if (!statusSpan && !optionsSpan) continue;
+
+          matchedRow.dataset.invBoltDone = "1";
+
+          // BOLT: Add overlay INSIDE the status span — don't clear innerHTML, don't change style.width
+          // The CSS class .inv-bolt-wrap covers the original checkmark visually
+          if (statusSpan && !statusSpan.querySelector(".inv-bolt-wrap")) {
+            statusSpan.setAttribute("data-inv-has-bolt", "1");
+            const wrap = document.createElement("span");
+            wrap.className = "inv-bolt-wrap";
+            wrap.appendChild(createBoltIcon(boltCount, boltColor));
+            statusSpan.appendChild(wrap);
+          }
+
+          // ICONS: Add as new elements INSIDE the options span — only append, never clear
+          if (optionsSpan && !optionsSpan.querySelector(".inv-action-icon")) {
+            if (!isSynced) {
+              const syncIcon = el("span", {
+                className: "inv-action-icon inv-action-icon-sync",
+                innerHTML: ICONS.syncSmall,
+                title: "Синхронизирай фактурата",
+                onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
+              });
+              optionsSpan.prepend(syncIcon);
+            }
+            const editIcon = el("span", {
+              className: "inv-action-icon inv-action-icon-edit",
+              innerHTML: ICONS.editSmall,
+              title: "Редактирай фактурата",
+              onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
+            });
+            optionsSpan.prepend(editIcon);
+          }
+        }
+      });
     } catch (e) { console.error("[INV] injectBoltsForCompany error:", e); }
   }
 
   // Concurrency lock for bolt injection
   let _boltInjecting = false;
 
-  // ── Try inject bolts for all visible expanded folders ──────────────────
+  // ── Periodic bolt check (replaces MutationObserver for bolts) ─────────
+  // Uses setInterval instead of MutationObserver to avoid interfering with Vue renders
   async function tryInjectBoltsAll() {
     if (_boltInjecting) return;
     const folders = window.__invFolderData;
     const profileId = window.__invProfileId;
     if (!folders || !profileId) return;
-    // Check if there are any unprocessed file rows (only .pdf spans without invBoltDone)
     const allTruncateSpans = document.querySelectorAll("span.truncate");
     const hasUnprocessed = [...allTruncateSpans].some(s => {
       const text = s.textContent.trim();
@@ -2249,18 +2248,17 @@
   }
 
   // ── DOM Observer for SPA changes ───────────────────────────────────────
+  // ONLY watches for button injection. Bolt injection uses setInterval (safer).
   function startDOMObserver() {
     let debounceTimer = null;
-    let boltDebounceTimer = null;
     _observer = new MutationObserver(() => {
       if (!window.__invFolderData || !window.__invProfileId) return;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => tryInjectButtons(), 300);
-      // Also try to inject bolts for expanded folders (separate debounce, longer to let Vue finish rendering)
-      clearTimeout(boltDebounceTimer);
-      boltDebounceTimer = setTimeout(() => tryInjectBoltsAll(), 800);
     });
     _observer.observe(document.body, { childList: true, subtree: true });
+    // Separate setInterval for bolt injection — doesn't interfere with Vue's MutationObserver
+    setInterval(() => tryInjectBoltsAll(), 2000);
   }
 
   // ── Init ────────────────────────────────────────────────────────────────
