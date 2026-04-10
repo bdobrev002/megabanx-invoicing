@@ -343,7 +343,7 @@
     async function deleteClient(id) {
       if (!confirm("Сигурни ли сте, че искате да изтриете този клиент?")) return;
       try {
-        await api("DELETE", `/clients/${id}`);
+        await api("DELETE", `/clients/${id}?company_id=${companyId}&profile_id=${profileId}`);
         toast("Клиентът е изтрит");
         loadClients();
       } catch (e) { toast("Грешка: " + e.message, "error"); }
@@ -422,7 +422,7 @@
         if (!vals.name) { toast("Въведете име", "error"); return; }
         try {
           if (existing) {
-            await api("PUT", `/clients/${existing.id}`, vals);
+            await api("PUT", `/clients/${existing.id}?company_id=${companyId}&profile_id=${profileId}`, vals);
             toast("Клиентът е обновен");
           } else {
             await api("POST", "/clients", { ...vals, company_id: companyId, profile_id: profileId });
@@ -536,7 +536,7 @@
 
     async function deleteItem(id) {
       if (!confirm("Сигурни ли сте, че искате да изтриете този артикул?")) return;
-      try { await api("DELETE", `/items/${id}`); toast("Артикулът е изтрит"); loadItems(); }
+      try { await api("DELETE", `/items/${id}?company_id=${companyId}&profile_id=${profileId}`); toast("Артикулът е изтрит"); loadItems(); }
       catch (e) { toast("Грешка: " + e.message, "error"); }
     }
 
@@ -569,7 +569,7 @@
         formModal.querySelectorAll("[data-f]").forEach(inp => { vals[inp.dataset.f] = inp.type === "number" ? parseFloat(inp.value) : inp.value; });
         if (!vals.name) { toast("Въведете име", "error"); return; }
         try {
-          if (existing) { await api("PUT", `/items/${existing.id}`, vals); toast("Артикулът е обновен"); }
+          if (existing) { await api("PUT", `/items/${existing.id}?company_id=${companyId}&profile_id=${profileId}`, vals); toast("Артикулът е обновен"); }
           else { await api("POST", "/items", { ...vals, company_id: companyId, profile_id: profileId }); toast("Артикулът е създаден"); }
           closeModal(formOverlay);
           loadItems();
@@ -2095,7 +2095,7 @@
   // ── Open edit invoice popup (pre-populated with existing data) ──────────
   async function openEditInvoicePopup(invoiceId, companyId, profileId, companyName) {
     try {
-      const inv = await api("GET", `/invoices/${invoiceId}`);
+      const inv = await api("GET", `/invoices/${invoiceId}?company_id=${companyId}&profile_id=${profileId}`);
       if (!inv) { toast("Фактурата не е намерена", "error"); return; }
       // Open the new invoice popup and pre-populate it
       openNewInvoicePopup(companyId, profileId, companyName, inv);
@@ -2108,7 +2108,7 @@
   async function syncSingleInvoice(invoiceId, companyId, profileId) {
     try {
       toast("Синхронизиране...");
-      await api("POST", `/invoices/${invoiceId}/sync`);
+      await api("POST", `/invoices/${invoiceId}/sync?company_id=${companyId}&profile_id=${profileId}`);
       toast("Фактурата е синхронизирана");
       setTimeout(() => location.reload(), 500);
     } catch (e) {

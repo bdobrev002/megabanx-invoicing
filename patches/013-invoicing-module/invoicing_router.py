@@ -630,11 +630,11 @@ async def create_client(data: ClientCreate):
 
 
 @invoicing_router.get("/clients/{client_id}")
-async def get_client(client_id: str):
+async def get_client(client_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM inv_clients WHERE id = %s", (client_id,))
+                cur.execute("SELECT * FROM inv_clients WHERE id = %s AND company_id = %s AND profile_id = %s", (client_id, company_id, profile_id))
                 row = cur.fetchone()
                 if not row:
                     raise HTTPException(status_code=404, detail="Client not found")
@@ -647,19 +647,19 @@ async def get_client(client_id: str):
 
 
 @invoicing_router.put("/clients/{client_id}")
-async def update_client(client_id: str, data: ClientUpdate):
+async def update_client(client_id: str, data: ClientUpdate, company_id: str = Query(...), profile_id: str = Query(...)):
     updates = {k: v for k, v in data.model_dump(exclude_unset=True).items()}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     updates["updated_at"] = datetime.now()
 
     set_clause = ", ".join(f"{k} = %s" for k in updates.keys())
-    values = list(updates.values()) + [client_id]
+    values = list(updates.values()) + [client_id, company_id, profile_id]
 
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"UPDATE inv_clients SET {set_clause} WHERE id = %s", values)
+                cur.execute(f"UPDATE inv_clients SET {set_clause} WHERE id = %s AND company_id = %s AND profile_id = %s", values)
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Client not found")
             conn.commit()
@@ -672,11 +672,11 @@ async def update_client(client_id: str, data: ClientUpdate):
 
 
 @invoicing_router.delete("/clients/{client_id}")
-async def delete_client(client_id: str):
+async def delete_client(client_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM inv_clients WHERE id = %s", (client_id,))
+                cur.execute("DELETE FROM inv_clients WHERE id = %s AND company_id = %s AND profile_id = %s", (client_id, company_id, profile_id))
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Client not found")
             conn.commit()
@@ -740,11 +740,11 @@ async def create_item(data: ItemCreate):
 
 
 @invoicing_router.get("/items/{item_id}")
-async def get_item(item_id: str):
+async def get_item(item_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM inv_items WHERE id = %s", (item_id,))
+                cur.execute("SELECT * FROM inv_items WHERE id = %s AND company_id = %s AND profile_id = %s", (item_id, company_id, profile_id))
                 row = cur.fetchone()
                 if not row:
                     raise HTTPException(status_code=404, detail="Item not found")
@@ -757,19 +757,19 @@ async def get_item(item_id: str):
 
 
 @invoicing_router.put("/items/{item_id}")
-async def update_item(item_id: str, data: ItemUpdate):
+async def update_item(item_id: str, data: ItemUpdate, company_id: str = Query(...), profile_id: str = Query(...)):
     updates = {k: v for k, v in data.model_dump(exclude_unset=True).items()}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     updates["updated_at"] = datetime.now()
 
     set_clause = ", ".join(f"{k} = %s" for k in updates.keys())
-    values = list(updates.values()) + [item_id]
+    values = list(updates.values()) + [item_id, company_id, profile_id]
 
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"UPDATE inv_items SET {set_clause} WHERE id = %s", values)
+                cur.execute(f"UPDATE inv_items SET {set_clause} WHERE id = %s AND company_id = %s AND profile_id = %s", values)
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Item not found")
             conn.commit()
@@ -782,11 +782,11 @@ async def update_item(item_id: str, data: ItemUpdate):
 
 
 @invoicing_router.delete("/items/{item_id}")
-async def delete_item(item_id: str):
+async def delete_item(item_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM inv_items WHERE id = %s", (item_id,))
+                cur.execute("DELETE FROM inv_items WHERE id = %s AND company_id = %s AND profile_id = %s", (item_id, company_id, profile_id))
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Item not found")
             conn.commit()
@@ -1537,7 +1537,7 @@ async def list_invoices(
 
 
 @invoicing_router.get("/invoices/{invoice_id}")
-async def get_invoice(invoice_id: str):
+async def get_invoice(invoice_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     """Get a specific software-issued invoice with its lines."""
     try:
         with get_db() as conn:
@@ -1546,8 +1546,8 @@ async def get_invoice(invoice_id: str):
                     """SELECT m.*, c.name as client_name
                        FROM inv_invoice_meta m
                        LEFT JOIN inv_clients c ON m.client_id = c.id
-                       WHERE m.invoice_id = %s""",
-                    (invoice_id,)
+                       WHERE m.invoice_id = %s AND m.company_id = %s AND m.profile_id = %s""",
+                    (invoice_id, company_id, profile_id)
                 )
                 row = cur.fetchone()
                 if not row:
@@ -1588,14 +1588,14 @@ async def get_invoice(invoice_id: str):
 # ── Check if counterparty exists in megabanx ──────────────────────────────
 
 @invoicing_router.post("/invoices/{invoice_id}/sync")
-async def sync_invoice(invoice_id: str):
+async def sync_invoice(invoice_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     """Mark an invoice as synced."""
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE inv_invoice_meta SET sync_status = 'synced', updated_at = NOW() WHERE invoice_id = %s",
-                    (invoice_id,)
+                    "UPDATE inv_invoice_meta SET sync_status = 'synced', updated_at = NOW() WHERE invoice_id = %s AND company_id = %s AND profile_id = %s",
+                    (invoice_id, company_id, profile_id)
                 )
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Invoice not found")
