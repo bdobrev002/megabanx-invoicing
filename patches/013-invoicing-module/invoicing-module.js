@@ -132,6 +132,7 @@
   .inv-bolt { display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; }
   .inv-bolt svg { width: 14px; height: 14px; }
   .inv-bolt-gray svg { fill: #94a3b8; }
+  .inv-bolt-red svg { fill: #ef4444; }
   .inv-bolt-blue svg { fill: #3b82f6; }
 
   /* Sync settings */
@@ -2010,14 +2011,14 @@
             // 2 gray bolts = counterparty exists in megabanx
             // 2 blue bolts = invoice accepted by counterparty
             let boltCount = 1;
-            let boltColor = "gray";
+            let boltColor = (inv.sync_status === "synced" || inv.sync_status === "accepted") ? "blue" : "red";
             if (inv.client_eik) {
               try {
                 const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
                 if (check && check.exists) {
                   boltCount = 2;
                   // Check sync_status for acceptance
-                  boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
+                  boltColor = (inv.sync_status === "accepted") ? "blue" : "red";
                 }
               } catch (e) { /* ignore */ }
             }
