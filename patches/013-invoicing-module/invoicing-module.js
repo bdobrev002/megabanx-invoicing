@@ -1410,8 +1410,8 @@
         lines.forEach(l => { l.vat_rate = "0.00"; });
         renderLines();
       } else {
-        // Restore default VAT (20%)
-        lines.forEach(l => { l.vat_rate = "20.00"; });
+        // Restore default VAT from company settings
+        lines.forEach(l => { l.vat_rate = defaultVatRate; });
         renderLines();
       }
       renderTotals();
@@ -1517,6 +1517,7 @@
         internal_notes: internalNotes || null,
         currency: "EUR",
         status: status,
+        stub_id: stubSelect ? (stubSelect.value || null) : null,
         lines: filledLines.map((l, i) => ({
           item_id: l.item_id,
           position: i,

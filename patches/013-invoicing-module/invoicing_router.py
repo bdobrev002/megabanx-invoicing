@@ -308,6 +308,7 @@ class InvoiceCreate(BaseModel):
     client_id: str
     document_type: str = "invoice"
     invoice_number: Optional[int] = None
+    stub_id: Optional[str] = None
     issue_date: Optional[str] = None
     tax_event_date: Optional[str] = None
     due_date: Optional[str] = None
@@ -1152,6 +1153,13 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                      str(data.invoice_number), f"{company_name}/Фактури продажби/{new_filename}",
                      "draft" if data.status == "draft" else "processed", "software")
                 )
+
+                # Advance stub next_number if a stub was used
+                if data.stub_id:
+                    cur.execute(
+                        "UPDATE inv_stubs SET next_number = %s, updated_at = NOW() WHERE id = %s",
+                        (data.invoice_number + 1, data.stub_id)
+                    )
 
             conn.commit()
 
