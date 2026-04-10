@@ -592,136 +592,215 @@
         <h2>${ICONS.filetext} Нова фактура</h2>
         <button class="inv-modal-close" data-close>${ICONS.x}</button>
       </div>
-      <div class="inv-modal-body">
-        <!-- Document Type -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          <span style="font-size:13px;font-weight:600;color:#475569">Тип документ:</span>
-          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="proforma"> Проформа</label>
-          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="invoice" checked> Фактура</label>
-          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="debit_note"> Дебитно известие</label>
-          <label class="inv-radio" style="flex-direction:row"><input type="radio" name="inv_doctype" value="credit_note"> Кредитно известие</label>
+      <div class="inv-modal-body" style="padding:16px 20px">
+
+        <!-- SEC 1: Document Type (exact :8005 layout) -->
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:14px">
+          <span style="font-size:13px;font-weight:600;color:#334155;margin-right:10px">Тип:</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-right:14px;font-size:13px"><input type="radio" name="inv_doctype" value="proforma" style="width:14px;height:14px;accent-color:#2563eb"><span>Проформа</span></label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-right:14px;font-size:13px"><input type="radio" name="inv_doctype" value="invoice" checked style="width:14px;height:14px;accent-color:#2563eb"><span style="font-weight:700">Фактура</span></label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-right:14px;font-size:13px"><input type="radio" name="inv_doctype" value="debit_note" style="width:14px;height:14px;accent-color:#2563eb"><span>Дебитно известие</span></label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="radio" name="inv_doctype" value="credit_note" style="width:14px;height:14px;accent-color:#2563eb"><span>Кредитно известие</span></label>
         </div>
 
-        <!-- Stub (Кочан) -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
-          <span style="font-size:13px;font-weight:600;color:#475569">Кочан / Серия:</span>
-          <select class="inv-select" data-f="stub_id" style="width:280px;font-size:13px">
-            <option value="">— без кочан —</option>
-          </select>
-          <span style="font-size:11px;color:#94a3b8;margin-left:8px">Изберете кочан за автоматична номерация</span>
-        </div>
-
-        <!-- Two columns: Client + Details -->
-        <div class="inv-row" style="gap:24px;margin-bottom:16px">
-          <!-- Client (left column) -->
-          <div style="flex:1">
-            <div class="inv-field">
-              <label>Клиент:</label>
-              <div style="display:flex;gap:4px">
-                <input class="inv-input" data-client-search placeholder="Търсене по име или ЕИК..." style="flex:1">
-                <button class="inv-client-pick-btn" data-client-pick title="Избери от базата">📋 Клиенти</button>
-                <button class="inv-tr-btn" data-tr-invoice title="Търсене в ТР">🔍 ТР</button>
+        <!-- SEC 2: Two-column grid (exact :8005 layout) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 28px;margin-bottom:12px">
+          <!-- Left column: Client fields (w-[130px] labels like :8005) -->
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">Клиент:</label>
+              <div style="flex:1;display:flex;gap:3px">
+                <input class="inv-input" data-client-search placeholder="Търсене по име или ЕИК..." style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px">
+                <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-client-pick title="Избери от базата"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg></button>
+                <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-tr-invoice title="Търсене в ТР"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
               </div>
               <div data-client-dropdown style="position:relative"></div>
             </div>
-            <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_individual"> Клиентът е физическо лице</label>
-            <div class="inv-row">
-              <div class="inv-field"><label data-eik-label>ЕИК/Булстат:</label><input class="inv-input" data-f="client_eik" placeholder="123456789" readonly style="background:#f8fafc"></div>
-              <div class="inv-field"><label>ДДС номер</label><input class="inv-input" data-f="client_vat" placeholder="BG123456789" readonly style="background:#f8fafc"></div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:130px;flex-shrink:0"></div>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="client_is_individual" style="width:14px;height:14px">Клиентът е физическо лице</label>
             </div>
-            <label class="inv-checkbox" style="margin-bottom:8px"><input type="checkbox" data-f="client_is_vat" disabled> Регистрация по ЗДДС</label>
-            <div class="inv-field"><label>МОЛ:</label><input class="inv-input" data-f="client_mol" readonly style="background:#f8fafc"></div>
-            <div class="inv-field"><label>Град:</label><input class="inv-input" data-f="client_city" readonly style="background:#f8fafc"></div>
-            <div class="inv-field"><label>Адрес на регистрация:</label><textarea class="inv-textarea" data-f="client_address" rows="2" readonly style="background:#f8fafc"></textarea></div>
-            <div class="inv-field"><label>Получател:</label><input class="inv-input" data-f="recipient" placeholder="Получател (ако е различен от клиента)"></div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right" data-eik-label>ЕИК/Булстат:</label>
+              <div style="flex:1;display:flex;gap:3px;align-items:center">
+                <input class="inv-input" data-f="client_eik" readonly style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;background:#f8fafc">
+                <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-tr-invoice-eik title="Търсене в ТР"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:130px;flex-shrink:0"></div>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="client_is_vat" style="width:14px;height:14px" disabled>Регистрация по ЗДДС</label>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">МОЛ:</label>
+              <input class="inv-input" data-f="client_mol" readonly style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;background:#f8fafc">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">Град:</label>
+              <input class="inv-input" data-f="client_city" readonly style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;background:#f8fafc">
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right;padding-top:4px">Адрес:<br><span style="font-size:11px;font-weight:400;color:#94a3b8">на регистрация</span></label>
+              <textarea class="inv-textarea" data-f="client_address" rows="2" readonly style="flex:1;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:4px 10px;background:#f8fafc;resize:none;min-height:50px"></textarea>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">Получател:</label>
+              <div style="flex:1;display:flex;gap:3px">
+                <input class="inv-input" data-f="recipient" style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;background:#f8fafc" readonly>
+                <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" title="Избери получател"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg></button>
+              </div>
+            </div>
           </div>
-          <!-- Details (right column) -->
-          <div style="flex:1">
-            <div class="inv-field" style="margin-bottom:10px">
-              <label style="font-size:14px;font-weight:700;color:#1e293b">Фактура №</label>
-              <input class="inv-input" data-f="invoice_number" value="0000000001" style="font-family:monospace;font-size:16px;padding:8px 12px;text-align:center;letter-spacing:2px;font-weight:700">
+          <!-- Right column: Stub + Invoice# + Dates (w-[185px] labels like :8005) -->
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Кочан:</label>
+              <button style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:underline;background:none;border:none;cursor:pointer" data-stub-link>кочан</button>
+              <select class="inv-select" data-f="stub_id" style="display:none"><option value="">—</option></select>
             </div>
-            <div class="inv-field"><label>Дата на издаване:</label><input class="inv-input" data-f="issue_date" type="date" value="${today}"></div>
-            <div class="inv-field"><label>Дата на данъчно събитие:</label><input class="inv-input" data-f="tax_event_date" type="date" value="${today}"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <label class="inv-checkbox"><input type="checkbox" data-f="show_due_date"> Дата на падеж</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Фактура №:<br><span style="font-size:11px;font-weight:400;color:#94a3b8">следващият свободен №</span></label>
+              <div style="display:flex;gap:3px;align-items:center">
+                <input class="inv-input" data-f="invoice_number" value="0000000001" maxlength="10" style="height:30px;font-size:13px;border-radius:6px;border:1px solid #93c5fd;background:#eff6ff;font-family:monospace;font-weight:600;color:#1e40af;max-width:160px;padding:2px 10px">
+                <button style="height:30px;width:30px;border:1px solid #93c5fd;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Редактирай №"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+              </div>
             </div>
-            <div class="inv-field" data-due-date-field style="display:none;margin-top:4px"><input class="inv-input" data-f="due_date" type="date" value=""></div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Дата на издаване:</label>
+              <input type="date" data-f="issue_date" value="${today}" style="height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;width:160px;background:transparent">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Дата на данъчно<br>събитие:</label>
+              <input type="date" data-f="tax_event_date" value="${today}" style="height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;width:160px;background:transparent">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:185px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                <input type="checkbox" data-f="show_due_date" style="width:14px;height:14px">
+                <label style="font-size:13px;font-weight:600;color:#334155">Дата на падеж:</label>
+              </div>
+              <div data-due-date-field style="display:none">
+                <input type="date" data-f="due_date" value="" style="height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px;width:160px;background:transparent">
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Line items table -->
-        <table class="inv-line-table">
-          <thead><tr>
-            <th style="width:30px">#</th>
-            <th style="width:24px"></th>
-            <th class="inv-line-desc">Артикул</th>
-            <th class="inv-line-num">Количество</th>
-            <th class="inv-line-unit">Мярка</th>
-            <th class="inv-line-num"><span data-price-label>Цена без ДДС</span> <span class="inv-price-toggle" data-price-toggle>(с ДДС)</span></th>
-            <th class="inv-line-vat">ДДС %</th>
-            <th class="inv-line-num" style="font-family:monospace">Стойност</th>
-            <th style="width:30px"></th>
-          </tr></thead>
-          <tbody data-lines></tbody>
-        </table>
-
-        <!-- Add line + Subtotal row -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
-          <button class="inv-btn" data-add-line>${ICONS.plus} + Добави ред</button>
-          <div style="font-size:13px;font-family:monospace;color:#1e293b;font-weight:600" data-subtotal-raw>Сума (без отстъпка): 0.00 EUR</div>
+        <!-- SEC 3: Items table (exact :8005 layout with borders) -->
+        <div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;margin-bottom:2px">
+          <table class="inv-line-table" style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:#f1f5f9;border-bottom:1px solid #cbd5e1">
+              <th style="width:100px;padding:6px 2px;border-right:1px solid #e2e8f0"></th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;border-right:1px solid #e2e8f0;min-width:220px">Артикул</th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:130px;border-right:1px solid #e2e8f0">Количество</th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:150px;border-right:1px solid #e2e8f0"><button style="display:inline-flex;align-items:center;gap:2px;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#334155" data-price-toggle><span data-price-label>Цена без ДДС</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:100px">Стойност</th>
+            </tr></thead>
+            <tbody data-lines></tbody>
+          </table>
         </div>
 
-        <!-- Discount -->
-        <div style="display:flex;align-items:center;gap:8px;margin:12px 0;justify-content:flex-end">
-          <span style="font-size:13px;color:#475569;font-weight:600">Отстъпка:</span>
-          <input class="inv-input" data-f="discount" type="number" step="0.01" value="0.00" style="width:100px;text-align:right">
-          <select class="inv-select" data-f="discount_type" style="width:80px"><option value="EUR">EUR</option><option value="%">%</option></select>
-        </div>
-
-        <!-- Totals -->
-        <div class="inv-totals" data-totals></div>
-
-        <!-- VAT options -->
-        <div style="margin:12px 0;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
-          <div style="display:flex;align-items:center;gap:16px">
-            <span style="font-size:13px;font-weight:600;color:#475569">ДДС настройки:</span>
-            <label class="inv-checkbox"><input type="checkbox" data-f="no_vat"> Не начислявай ДДС по тази фактура</label>
+        <!-- SEC 4: + Добави ред + Сума (без отстъпка) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;margin-bottom:2px">
+          <button style="display:flex;align-items:center;gap:4px;font-size:13px;color:#2563eb;background:none;border:none;cursor:pointer;font-weight:500" data-add-line><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Добави ред</span></button>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:#475569">Сума (без отстъпка)</span>
+            <span style="font-size:13px;font-weight:600;width:120px;text-align:right" data-subtotal-raw>0.00 EUR</span>
           </div>
-          <div data-no-vat-reason style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0">
-            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Основание за неначисляване на ДДС:</label>
-            <select class="inv-select" data-f="no_vat_reason" style="font-size:13px">
-              <option value="">— Изберете основание —</option>
-              <option value="чл. 21, ал. 2 от ЗДДС">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option>
-              <option value="чл. 28 от ЗДДС">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option>
-              <option value="чл. 41 от ЗДДС">чл. 41 от ЗДДС — Освободена доставка</option>
-              <option value="чл. 42 от ЗДДС">чл. 42 от ЗДДС — Безвъзмездна доставка</option>
-              <option value="чл. 50, ал. 1 от ЗДДС">чл. 50, ал. 1 от ЗДДС — Освободен внос</option>
-              <option value="чл. 113, ал. 9 от ЗДДС">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option>
-              <option value="чл. 7 от ЗДДС">чл. 7 от ЗДДС — ВОД (Вътреобщностна доставка)</option>
-              <option value="other">Друго (въведете ръчно)</option>
+        </div>
+
+        <!-- SEC 5: Totals table (exact :8005 layout — always visible ДДС row) -->
+        <div style="display:flex;flex-direction:column;align-items:flex-end;margin-bottom:2px" data-totals>
+          <table style="border-collapse:collapse">
+            <tbody>
+              <tr>
+                <td style="text-align:right;font-size:13px;color:#475569;padding:2px 12px 2px 0">Отстъпка</td>
+                <td style="text-align:right;padding:2px 0"><div style="display:flex;align-items:center;justify-content:flex-end;gap:3px">
+                  <input type="number" data-f="discount" step="0.01" min="0" value="0.00" style="height:24px;font-size:13px;text-align:right;border:1px solid #cbd5e1;border-radius:6px;width:70px;padding:0 6px">
+                  <select data-f="discount_type" style="height:24px;border:1px solid #cbd5e1;border-radius:6px;padding:0 2px;font-size:12px;background:#fff;width:52px"><option value="EUR">EUR</option><option value="%">%</option></select>
+                </div></td>
+              </tr>
+              <tr style="border-top:1px solid #e2e8f0">
+                <td style="text-align:right;font-size:13px;color:#475569;padding:2px 12px 2px 0">Данъчна основа</td>
+                <td style="text-align:right;font-size:13px;font-weight:600;padding:2px 0;width:120px" data-tax-base>0.00 EUR<div style="font-size:11px;color:#94a3b8;font-weight:400">0.00 лв.</div></td>
+              </tr>
+              <tr>
+                <td style="text-align:right;font-size:13px;color:#475569;padding:2px 12px 2px 0"><div style="display:flex;align-items:center;justify-content:flex-end;gap:6px"><span>ДДС</span><select data-f="vat_rate_display" style="height:22px;border:1px solid #cbd5e1;border-radius:6px;padding:0 2px;font-size:13px;background:#fff"><option value="20">20%</option><option value="9">9%</option><option value="0">0%</option></select></div></td>
+                <td style="text-align:right;font-size:13px;font-weight:600;padding:2px 0" data-vat-amount>0.00 EUR<div style="font-size:11px;color:#94a3b8;font-weight:400">0.00 лв.</div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- SEC 6: ДДС настройки (exact :8005 layout — simple row with borders) -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:6px 0">
+          <span style="font-size:13px;font-weight:600;color:#334155">ДДС настройки:</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="no_vat" style="width:14px;height:14px;accent-color:#2563eb">Не начислявай ДДС по тази фактура</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="vat_per_line" style="width:14px;height:14px;accent-color:#2563eb">ДДС на всеки ред</label>
+        </div>
+        <!-- VAT reason dropdown (shown when "Не начислявай ДДС" is checked) -->
+        <div data-no-vat-reason style="display:none;padding:8px 0">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Основание за неначисляване на ДДС:</label>
+          <select class="inv-select" data-f="no_vat_reason" style="font-size:13px;max-width:500px">
+            <option value="">— Изберете основание —</option>
+            <option value="чл. 21, ал. 2 от ЗДДС">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option>
+            <option value="чл. 28 от ЗДДС">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option>
+            <option value="чл. 41 от ЗДДС">чл. 41 от ЗДДС — Освободена доставка</option>
+            <option value="чл. 42 от ЗДДС">чл. 42 от ЗДДС — Безвъзмездна доставка</option>
+            <option value="чл. 50, ал. 1 от ЗДДС">чл. 50, ал. 1 от ЗДДС — Освободен внос</option>
+            <option value="чл. 113, ал. 9 от ЗДДС">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option>
+            <option value="чл. 7 от ЗДДС">чл. 7 от ЗДДС — ВОД (Вътреобщностна доставка)</option>
+            <option value="other">Друго (въведете ръчно)</option>
+          </select>
+          <input class="inv-input" data-f="no_vat_reason_custom" placeholder="Въведете основание..." style="display:none;margin-top:6px;max-width:500px">
+        </div>
+
+        <!-- SEC 7: Съставил + Сума за плащане (exact :8005 layout) -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="font-size:13px;color:#475569">Съставил</label>
+            <select class="inv-select" data-f="composed_by" style="height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px;background:#fff;min-width:200px">
+              <option value="">—</option>
             </select>
-            <input class="inv-input" data-f="no_vat_reason_custom" placeholder="Въведете основание..." style="display:none;margin-top:6px">
+          </div>
+          <div style="text-align:right;display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:#475569">Сума за плащане</span>
+            <div>
+              <div style="font-size:18px;font-weight:700;color:#0f172a" data-grand-total>0.00 EUR</div>
+              <div style="font-size:11px;color:#94a3b8;font-weight:600" data-grand-total-bgn>0.00 лв.</div>
+            </div>
           </div>
         </div>
 
-        <!-- Composed by + Payment -->
-        <div class="inv-row" style="margin-bottom:12px">
-          <div class="inv-field"><label>Съставил</label><input class="inv-input" data-f="composed_by" placeholder="Име на съставителя (МОЛ)"></div>
-          <div class="inv-field"><label>Начин на плащане</label>
-            <select class="inv-select" data-f="payment_method">
-              <option value="В брой">В брой</option>
-              <option value="По банков път">По банков път</option>
-              <option value="С карта">С карта</option>
-              <option value="Друг">Друг</option>
-            </select>
+        <!-- SEC 8: Забележки (exact :8005 layout with language tabs) -->
+        <div style="padding-top:6px;margin-bottom:6px">
+          <div style="display:flex;gap:12px;margin-bottom:6px">
+            <button style="font-size:13px;padding-bottom:2px;color:#0f172a;font-weight:600;border:none;border-bottom:2px solid #334155;background:none;cursor:pointer">Български език</button>
+            <button style="font-size:13px;padding-bottom:2px;color:#3b82f6;border:none;border-bottom:none;background:none;cursor:pointer">Английски език</button>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px">
+            <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right;padding-top:4px">Забележки<br><span style="font-size:11px;font-weight:400;color:#94a3b8">видими за клиента</span></label>
+            <textarea class="inv-textarea" data-f="notes" rows="2" style="flex:1;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:4px 10px;resize:none"></textarea>
           </div>
         </div>
 
-        <!-- Notes -->
-        <div class="inv-row" style="margin-bottom:12px">
-          <div class="inv-field"><label>Забележки <span style='color:#94a3b8;font-weight:400'>(видими за клиента)</span></label><textarea class="inv-textarea" data-f="notes" rows="2" placeholder="Забележки..."></textarea></div>
-          <div class="inv-field"><label>Коментари <span style='color:#ef4444;font-weight:400'>(не се вижда от клиента)</span></label><textarea class="inv-textarea" data-f="internal_notes" rows="2" placeholder="Вътрешни коментари..."></textarea></div>
+        <!-- SEC 9: Начин на плащане (exact :8005 layout) -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;border-top:1px solid #e2e8f0;padding-top:6px">
+          <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">Начин на плащане</label>
+          <select class="inv-select" data-f="payment_method" style="height:30px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px;background:#fff">
+            <option>В брой</option><option>Банков път</option><option>Наложен платеж</option><option>С карта</option>
+            <option>Платежно нареждане</option><option>Чек/Ваучер</option><option>С насрещно прихващане</option>
+            <option>Паричен превод</option><option>E-Pay</option><option>PayPal</option><option>Stripe</option>
+            <option>EasyPay</option><option>Пощенски паричен превод</option><option>Друг</option>
+          </select>
+        </div>
+
+        <!-- SEC 10: Коментари (exact :8005 layout — boxed) -->
+        <div style="border:1px solid #cbd5e1;border-radius:6px;margin-bottom:8px;overflow:hidden">
+          <div style="background:#f8fafc;padding:4px 10px;border-bottom:1px solid #cbd5e1">
+            <span style="font-size:13px;font-weight:600;color:#334155">Коментари</span>
+            <span style="font-size:11px;color:#ef4444;margin-left:6px">(не се вижда от клиента)</span>
+          </div>
+          <div style="padding:6px"><textarea class="inv-textarea" data-f="internal_notes" rows="2" style="font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:4px 10px;resize:none;width:100%;box-sizing:border-box"></textarea></div>
         </div>
 
         <!-- Sync settings -->
@@ -735,10 +814,10 @@
           </div>
         </div>
 
-        <div class="inv-actions">
-          <button class="inv-btn" data-cancel>Отказ</button>
-          <button class="inv-btn inv-btn-primary" data-save-draft>Създай чернова</button>
-          <button class="inv-btn inv-btn-primary" data-save-issue style="background:#10b981;border-color:#059669">Създай фактурата</button>
+        <!-- SEC 11: Buttons (exact :8005 layout) -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0">
+          <button data-save-issue style="background:#28a745;color:#fff;font-weight:600;font-size:15px;padding:8px 40px;border-radius:8px;border:none;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)">Създай фактурата</button>
+          <button data-save-draft style="background:#fff;color:#334155;font-weight:600;font-size:15px;padding:8px 40px;border-radius:8px;border:1px solid #cbd5e1;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)">Създай чернова</button>
         </div>
       </div>`;
 
@@ -957,6 +1036,9 @@
       linesBody.innerHTML = "";
       lines.forEach((line, i) => {
         const tr = el("tr");
+        tr.style.cssText = "border-bottom:1px solid #e2e8f0";
+        tr.onmouseenter = () => tr.style.background = "#f8fafc";
+        tr.onmouseleave = () => tr.style.background = "";
         // Calculate display price based on priceWithVat toggle
         let displayPrice = line.unit_price;
         if (priceWithVat) {
@@ -964,15 +1046,39 @@
           displayPrice = (parseFloat(line.unit_price) * (1 + vr / 100)).toFixed(2);
         }
         tr.innerHTML = `
-          <td style="color:#94a3b8;text-align:center;font-size:11px">${i + 1}</td>
-          <td><button class="inv-pick-btn" data-item-pick="${i}" title="Избери артикул">${ICONS.list}</button></td>
-          <td style="position:relative"><input class="inv-input inv-line-desc" data-li="${i}" data-lf="description" value="${esc(line.description)}" placeholder="Описание на стоката/услугата"></td>
-          <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="quantity" type="number" step="0.01" value="${line.quantity}" style="text-align:right"></td>
-          <td><input class="inv-input inv-line-unit" data-li="${i}" data-lf="unit" value="${esc(line.unit)}"></td>
-          <td><input class="inv-input inv-line-num" data-li="${i}" data-lf="unit_price" type="number" step="0.01" value="${displayPrice}" style="text-align:right"></td>
-          <td><input class="inv-input inv-line-vat" data-li="${i}" data-lf="vat_rate" type="number" step="0.01" value="${line.vat_rate}" style="text-align:right"></td>
-          <td style="text-align:right;font-family:monospace;font-size:12px;padding:4px 6px;white-space:nowrap" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
-          <td><button class="inv-icon-btn inv-danger" data-remove-line="${i}">${ICONS.x}</button></td>`;
+          <td style="padding:2px 2px;text-align:center;border-right:1px solid #e2e8f0">
+            <div style="display:flex;align-items:center;justify-content:center;gap:1px">
+              <button draggable="true" style="color:#94a3b8;cursor:grab;padding:2px;background:none;border:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg></button>
+              <button style="color:#3b82f6;padding:2px;background:none;border:none;cursor:pointer" data-add-line-at="${i}" title="Добави ред"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+              <button style="color:#f87171;padding:2px;background:none;border:none;cursor:pointer" data-remove-line="${i}" title="Премахни ред"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            </div>
+          </td>
+          <td style="padding:2px 2px;border-right:1px solid #e2e8f0">
+            <div style="display:flex;gap:2px;align-items:center">
+              <input style="flex:1;height:26px;font-size:13px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px" data-li="${i}" data-lf="description" value="${esc(line.description)}" placeholder="">
+              <button style="height:26px;width:26px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-item-pick="${i}" title="Избери от каталога"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg></button>
+            </div>
+          </td>
+          <td style="padding:2px 2px;border-right:1px solid #e2e8f0">
+            <div style="display:flex;gap:2px;align-items:center">
+              <input type="number" style="height:26px;font-size:13px;text-align:center;border:1px solid #cbd5e1;border-radius:6px;width:70px;padding:0 4px" step="0.01" min="0" data-li="${i}" data-lf="quantity" value="${line.quantity}">
+              <select style="height:26px;border:1px solid #cbd5e1;border-radius:6px;padding:0 2px;font-size:13px;background:#fff" data-li="${i}" data-lf="unit">
+                <option ${line.unit==='бр.' ? 'selected' : ''}>бр.</option><option ${line.unit==='кг' ? 'selected' : ''}>кг</option>
+                <option ${line.unit==='м' ? 'selected' : ''}>м</option><option ${line.unit==='л' ? 'selected' : ''}>л</option>
+                <option ${line.unit==='м²' ? 'selected' : ''}>м²</option><option ${line.unit==='м³' ? 'selected' : ''}>м³</option>
+                <option ${line.unit==='час' ? 'selected' : ''}>час</option><option ${line.unit==='ден' ? 'selected' : ''}>ден</option>
+                <option ${line.unit==='мес.' ? 'selected' : ''}>мес.</option><option ${line.unit==='услуга' ? 'selected' : ''}>услуга</option>
+              </select>
+            </div>
+          </td>
+          <td style="padding:2px 2px;border-right:1px solid #e2e8f0">
+            <div style="display:flex;gap:2px;align-items:center">
+              <button style="color:#cbd5e1;padding:2px;background:none;border:none;cursor:pointer" title="Изчисти"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              <input type="number" style="flex:1;height:26px;font-size:13px;text-align:right;border:1px solid #cbd5e1;border-radius:6px;padding:0 6px" step="0.01" min="0" data-li="${i}" data-lf="unit_price" value="${displayPrice}">
+              <span style="font-size:11px;color:#94a3b8;margin-left:2px;flex-shrink:0">EUR</span>
+            </div>
+          </td>
+          <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>`;
         linesBody.appendChild(tr);
       });
 
@@ -981,9 +1087,15 @@
         btn.onclick = (e) => { e.stopPropagation(); showItemPicker(parseInt(btn.dataset.itemPick)); };
       });
 
-      // Bind input events
+      // Bind add-line-at buttons (insert line at specific position)
+      linesBody.querySelectorAll("[data-add-line-at]").forEach(btn => {
+        btn.onclick = (e) => { e.stopPropagation(); lines.splice(parseInt(btn.dataset.addLineAt) + 1, 0, emptyLine()); renderLines(); };
+      });
+
+      // Bind input events (inputs and selects)
       linesBody.querySelectorAll("[data-lf]").forEach(inp => {
-        inp.addEventListener("input", () => {
+        const evtType = inp.tagName === "SELECT" ? "change" : "input";
+        inp.addEventListener(evtType, () => {
           const idx = parseInt(inp.dataset.li);
           const field = inp.dataset.lf;
           if (field === "unit_price" && priceWithVat) {
@@ -1019,6 +1131,8 @@
       return (qty * price).toFixed(2);
     }
 
+    const EUR_TO_BGN = 1.95583;
+
     function renderTotals() {
       const noVatChecked = modal.querySelector('[data-f="no_vat"]').checked;
       const discountVal = parseFloat(modal.querySelector('[data-f="discount"]').value) || 0;
@@ -1029,7 +1143,7 @@
 
       // Update subtotal display next to "Добави ред"
       const subtotalRawEl = modal.querySelector("[data-subtotal-raw]");
-      if (subtotalRawEl) subtotalRawEl.textContent = `Сума (без отстъпка): ${subtotalRaw.toFixed(2)} EUR`;
+      if (subtotalRawEl) subtotalRawEl.textContent = subtotalRaw.toFixed(2) + " EUR";
 
       // Apply discount
       let discountAmt = 0;
@@ -1049,33 +1163,18 @@
       }
       const total = taxBase + totalVat;
 
-      // Build VAT breakdown by rate
-      const vatByRate = {};
-      if (!noVatChecked) {
-        lines.forEach(l => {
-          const lineTotal = parseFloat(calcLineTotal(l));
-          const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
-          const vr = vatRate(l.vat_rate);
-          const key = vr.toFixed(0);
-          if (!vatByRate[key]) vatByRate[key] = 0;
-          vatByRate[key] += lineShare * (vr / 100);
-        });
-      }
+      // Update inline totals elements (matching :8005 layout)
+      const taxBaseEl = modal.querySelector("[data-tax-base]");
+      if (taxBaseEl) taxBaseEl.innerHTML = taxBase.toFixed(2) + " EUR" + '<div style="font-size:11px;color:#94a3b8;font-weight:400">' + (taxBase * EUR_TO_BGN).toFixed(2) + " лв.</div>";
 
-      let vatRows = "";
-      if (!noVatChecked) {
-        for (const [rate, amt] of Object.entries(vatByRate)) {
-          if (amt > 0) vatRows += `<div class="inv-total-row"><span class="inv-total-label">ДДС (${rate}%):</span><span class="inv-total-value">${amt.toFixed(2)} EUR</span></div>`;
-        }
-      } else {
-        vatRows = '<div class="inv-total-row"><span class="inv-total-label" style="color:#ef4444">Без ДДС</span><span class="inv-total-value">0.00 EUR</span></div>';
-      }
+      const vatAmountEl = modal.querySelector("[data-vat-amount]");
+      if (vatAmountEl) vatAmountEl.innerHTML = totalVat.toFixed(2) + " EUR" + '<div style="font-size:11px;color:#94a3b8;font-weight:400">' + (totalVat * EUR_TO_BGN).toFixed(2) + " лв.</div>";
 
-      totalsDiv.innerHTML = `
-        ${discountAmt > 0 ? `<div class="inv-total-row"><span class="inv-total-label">Отстъпка:</span><span class="inv-total-value">-${discountAmt.toFixed(2)} EUR</span></div>` : ''}
-        <div class="inv-total-row"><span class="inv-total-label">Данъчна основа:</span><span class="inv-total-value">${taxBase.toFixed(2)} EUR</span></div>
-        ${vatRows}
-        <div class="inv-total-row inv-grand-total"><span class="inv-total-label">Сума за плащане:</span><span class="inv-total-value">${total.toFixed(2)} EUR</span></div>`;
+      const grandTotalEl = modal.querySelector("[data-grand-total]");
+      if (grandTotalEl) grandTotalEl.textContent = total.toFixed(2) + " EUR";
+
+      const grandTotalBgnEl = modal.querySelector("[data-grand-total-bgn]");
+      if (grandTotalBgnEl) grandTotalBgnEl.textContent = (total * EUR_TO_BGN).toFixed(2) + " лв.";
     }
 
     modal.querySelector("[data-add-line]").onclick = () => { lines.push(emptyLine()); renderLines(); };
@@ -1127,6 +1226,17 @@
     // Discount inputs
     modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
+
+    // VAT rate display dropdown — changes all line VAT rates
+    const vatRateDisplaySelect = modal.querySelector('[data-f="vat_rate_display"]');
+    if (vatRateDisplaySelect) {
+      vatRateDisplaySelect.addEventListener("change", () => {
+        const newRate = vatRateDisplaySelect.value + ".00";
+        lines.forEach(l => { l.vat_rate = newRate; });
+        renderLines();
+        renderTotals();
+      });
+    }
 
     // Save handlers
     async function saveInvoice(status) {
