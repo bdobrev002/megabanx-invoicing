@@ -1559,23 +1559,36 @@
           toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
         }
         closeModal(overlay);
-        // Re-click the Фактури tab to refresh the file list without leaving the page
-        const clickFakturiTab = (attempt) => {
-          if (attempt > 5) return;
-          const allBtns = document.querySelectorAll('button, [role="tab"], .v-tab, .v-btn');
-          const tab = [...allBtns].find(b => {
-            const txt = (b.textContent || '').trim();
-            return txt === 'Фактури' || txt.includes('Фактури');
+        // Force Vue to re-fetch invoice list by switching to a DIFFERENT tab first,
+        // then switching BACK to "Фактури". Clicking the already-active tab does
+        // nothing because Vue skips re-render when tab index doesn't change.
+        const refreshInvoiceList = () => {
+          const allBtns = [...document.querySelectorAll('button, [role="tab"]')];
+          const fakturiTab = allBtns.find(b => {
+            const t = (b.textContent || '').trim();
+            return t === 'Фактури' || (t.startsWith('Фактури') && !t.includes('покупки') && !t.includes('продажби'));
           });
-          if (tab) {
-            tab.click();
-            // Click again after short delay to ensure Vue processes it
-            setTimeout(() => tab.click(), 300);
-          } else {
-            setTimeout(() => clickFakturiTab(attempt + 1), 500);
+          // Find a DIFFERENT tab to click first (any tab that is NOT "Фактури")
+          const otherTab = allBtns.find(b => {
+            const t = (b.textContent || '').trim();
+            return t && !t.includes('Фактури') && (
+              t === 'Споделяне' || t === 'Обща информация' ||
+              t === 'Файлова структура' || t === 'Настройки'
+            );
+          });
+          if (fakturiTab && otherTab) {
+            // Step 1: click away to different tab
+            otherTab.click();
+            // Step 2: after Vue processes the tab change, click back to Фактури
+            setTimeout(() => fakturiTab.click(), 350);
+          } else if (fakturiTab) {
+            // Fallback: if no other tab found, try double-click with a gap
+            fakturiTab.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+            fakturiTab.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            fakturiTab.click();
           }
         };
-        setTimeout(() => clickFakturiTab(0), 400);
+        setTimeout(refreshInvoiceList, 400);
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     }
 
