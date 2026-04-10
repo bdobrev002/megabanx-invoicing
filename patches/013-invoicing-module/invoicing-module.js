@@ -548,13 +548,30 @@
         }
 
         // Auto-fill composed_by from company MOL
-        // Try to get company MOL from the folder data
-        const folders = window.__invFolderData || [];
-        const folder = folders.find(f => f.company && f.company.id === companyId);
-        if (folder && folder.company) {
-          const cmp = folder.company;
-          const composedByInput = modal.querySelector('[data-f="composed_by"]');
-          if (composedByInput && cmp.mol) composedByInput.value = cmp.mol;
+        const composedByInput = modal.querySelector('[data-f="composed_by"]');
+        if (composedByInput) {
+          // Try folder data first
+          const folders = window.__invFolderData || [];
+          const folder = folders.find(f => f.company && f.company.id === companyId);
+          let mol = (folder && folder.company) ? (folder.company.mol || "") : "";
+          // Fallback: try managers array
+          if (!mol && folder && folder.company && Array.isArray(folder.company.managers) && folder.company.managers.length > 0) {
+            mol = folder.company.managers[0].name || folder.company.managers[0] || "";
+          }
+          // Fallback: fetch company data from API
+          if (!mol) {
+            try {
+              const resp = await fetch(`/api/profiles/${profileId}/companies/${companyId}`);
+              if (resp.ok) {
+                const compData = await resp.json();
+                mol = compData.mol || "";
+                if (!mol && Array.isArray(compData.managers) && compData.managers.length > 0) {
+                  mol = compData.managers[0].name || compData.managers[0] || "";
+                }
+              }
+            } catch (e) { /* ignore */ }
+          }
+          if (mol) composedByInput.value = mol;
         }
       } catch (e) { console.error("Init error:", e); }
     }
@@ -725,21 +742,37 @@
       });
     });
 
-    // Client picker button - shows all clients from DB
+    // Client picker button - opens a popup with all clients from DB
     modal.querySelector("[data-client-pick]").onclick = () => {
-      const clientDropdown = modal.querySelector("[data-client-dropdown]");
-      clientDropdown.innerHTML = "";
       if (clients.length === 0) { toast("Няма добавени клиенти", "error"); return; }
-      const dd = el("div", { style: "position:absolute;z-index:10;width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:6px;max-height:200px;overflow-y:auto;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)" });
-      clients.forEach(c => {
-        const opt = el("button", {
-          style: "display:block;width:100%;text-align:left;padding:6px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9",
-          innerHTML: `<div style="font-weight:500">${esc(c.name)}</div><div style="font-size:11px;color:#94a3b8">${c.eik ? "ЕИК: " + esc(c.eik) : ""}${c.city ? " • " + esc(c.city) : ""}</div>`,
-          onClick: () => { selectClient(c); clientDropdown.innerHTML = ""; }
+      const pickerModal = el("div", { className: "inv-modal", style: "width:600px;max-height:80vh" });
+      pickerModal.innerHTML = `
+        <div class="inv-modal-header"><h2>${ICONS.users} Избор на клиент</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div>
+        <div class="inv-modal-body" style="max-height:60vh;overflow-y:auto">
+          <div class="inv-search-bar" style="margin-bottom:12px">${ICONS.search}<input class="inv-input" data-picker-search placeholder="Търсене по име или ЕИК..." style="flex:1"></div>
+          <table class="inv-table" style="width:100%"><thead><tr><th>Име</th><th>ЕИК</th><th>Град</th><th>МОЛ</th></tr></thead><tbody data-picker-body></tbody></table>
+        </div>`;
+      const pickerOverlay = createOverlay(pickerModal);
+      pickerModal.querySelector("[data-close]").onclick = () => closeModal(pickerOverlay);
+      const pickerBody = pickerModal.querySelector("[data-picker-body]");
+      function renderPickerClients(list) {
+        pickerBody.innerHTML = "";
+        if (list.length === 0) { pickerBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">Няма намерени клиенти</td></tr>'; return; }
+        list.forEach(c => {
+          const tr = el("tr", { style: "cursor:pointer", onClick: () => { selectClient(c); closeModal(pickerOverlay); } });
+          tr.innerHTML = `<td style="padding:8px 10px;font-weight:500">${esc(c.name)}</td><td style="padding:8px 10px;color:#64748b">${esc(c.eik || "")}</td><td style="padding:8px 10px;color:#64748b">${esc(c.city || "")}</td><td style="padding:8px 10px;color:#64748b">${esc(c.mol || "")}</td>`;
+          tr.onmouseenter = () => tr.style.background = "#f1f5f9";
+          tr.onmouseleave = () => tr.style.background = "";
+          pickerBody.appendChild(tr);
         });
-        dd.appendChild(opt);
+      }
+      renderPickerClients(clients);
+      const searchInp = pickerModal.querySelector("[data-picker-search]");
+      searchInp.addEventListener("input", () => {
+        const q = searchInp.value.toLowerCase();
+        renderPickerClients(q ? clients.filter(c => c.name.toLowerCase().includes(q) || (c.eik && c.eik.includes(q))) : clients);
       });
-      clientDropdown.appendChild(dd);
+      searchInp.focus();
     };
 
     // Client search
@@ -780,65 +813,101 @@
       setField('[data-f="client_address"]', c.address);
     }
 
-    // TR lookup for invoice
-    modal.querySelector("[data-tr-invoice]").onclick = async () => {
-      const eik = prompt("Въведете ЕИК за търсене в Търговски регистър:");
-      if (!eik || eik.length < 9) return;
-      try {
-        const data = await api("GET", `/registry/lookup/${eik}`);
-        const existing = clients.find(c => c.eik === eik);
-        if (existing) { selectClient(existing); toast("Клиентът вече съществува"); return; }
-        const result = await api("POST", "/clients", {
-          company_id: companyId, profile_id: profileId,
-          name: data.name, eik: data.eik, vat_number: data.vat_number,
-          is_vat_registered: data.is_vat_registered, mol: data.mol,
-          city: data.city, address: data.address, email: data.email, phone: data.phone || "",
-        });
-        const cParams = new URLSearchParams({ company_id: companyId, profile_id: profileId });
-        clients = await api("GET", `/clients?${cParams}`);
-        const newClient = clients.find(c => c.id === result.id);
-        if (newClient) selectClient(newClient);
-        toast("Клиент добавен от ТР");
-      } catch (e) { toast("Грешка: " + e.message, "error"); }
+    // TR lookup for invoice — opens a styled popup
+    modal.querySelector("[data-tr-invoice]").onclick = () => {
+      const trModal = el("div", { className: "inv-modal", style: "width:480px" });
+      trModal.innerHTML = `
+        <div class="inv-modal-header"><h2>🔍 Търсене в Търговски регистър</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div>
+        <div class="inv-modal-body">
+          <p style="color:#475569;font-size:13px;margin-bottom:12px">Въведете ЕИК/Булстат на фирмата за автоматично извличане на данни от Търговския регистър.</p>
+          <div class="inv-field" style="margin-bottom:16px">
+            <label style="font-weight:600">ЕИК / Булстат:</label>
+            <input class="inv-input" data-tr-eik placeholder="напр. 123456789" style="font-size:16px;padding:10px 12px;text-align:center;letter-spacing:2px" autofocus>
+          </div>
+          <div data-tr-status style="display:none;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px"></div>
+          <div class="inv-actions"><button class="inv-btn" data-close-tr>Отказ</button><button class="inv-btn inv-btn-primary" data-tr-search>🔍 Търси</button></div>
+        </div>`;
+      const trOverlay = createOverlay(trModal);
+      trModal.querySelector("[data-close]").onclick = () => closeModal(trOverlay);
+      trModal.querySelector("[data-close-tr]").onclick = () => closeModal(trOverlay);
+      const eikInput = trModal.querySelector("[data-tr-eik]");
+      const statusDiv = trModal.querySelector("[data-tr-status]");
+      const searchBtn = trModal.querySelector("[data-tr-search]");
+      eikInput.addEventListener("keydown", (e) => { if (e.key === "Enter") searchBtn.click(); });
+      setTimeout(() => eikInput.focus(), 100);
+      searchBtn.onclick = async () => {
+        const eik = eikInput.value.replace(/\s/g, "");
+        if (!eik || eik.length < 9) {
+          statusDiv.style.display = "block"; statusDiv.style.background = "#fef2f2"; statusDiv.style.color = "#dc2626";
+          statusDiv.textContent = "Моля, въведете валиден ЕИК (9, 10 или 13 цифри).";
+          return;
+        }
+        statusDiv.style.display = "block"; statusDiv.style.background = "#eff6ff"; statusDiv.style.color = "#2563eb";
+        statusDiv.textContent = "Търсене в Търговски регистър...";
+        searchBtn.disabled = true;
+        try {
+          const data = await api("GET", `/registry/lookup/${eik}`);
+          const existing = clients.find(c => c.eik === eik);
+          if (existing) { selectClient(existing); closeModal(trOverlay); toast("Клиентът вече съществува"); return; }
+          const result = await api("POST", "/clients", {
+            company_id: companyId, profile_id: profileId,
+            name: data.name, eik: data.eik, vat_number: data.vat_number,
+            is_vat_registered: data.is_vat_registered, mol: data.mol,
+            city: data.city, address: data.address, email: data.email, phone: data.phone || "",
+          });
+          const cParams = new URLSearchParams({ company_id: companyId, profile_id: profileId });
+          clients = await api("GET", `/clients?${cParams}`);
+          const newClient = clients.find(c => c.id === result.id);
+          if (newClient) selectClient(newClient);
+          closeModal(trOverlay);
+          toast("Клиент добавен от ТР");
+        } catch (e) {
+          statusDiv.style.display = "block"; statusDiv.style.background = "#fef2f2"; statusDiv.style.color = "#dc2626";
+          statusDiv.textContent = "Грешка: " + e.message;
+          searchBtn.disabled = false;
+        }
+      };
     };
 
-    // Item picker helper — opens a dropdown to pick from existing items
+    // Item picker helper — opens a popup to pick from existing items
     function showItemPicker(lineIdx) {
       if (items.length === 0) { toast("Няма добавени артикули", "error"); return; }
-      // Remove any existing picker
-      const existingPicker = modal.querySelector("[data-item-picker]");
-      if (existingPicker) existingPicker.remove();
-
-      const row = linesBody.querySelectorAll("tr")[lineIdx];
-      if (!row) return;
-      const cell = row.cells[2]; // description cell
-      const picker = el("div", { style: "position:absolute;z-index:10;width:300px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;max-height:200px;overflow-y:auto;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)" });
-      picker.dataset.itemPicker = "1";
-
-      items.forEach(item => {
-        const opt = el("button", {
-          style: "display:block;width:100%;text-align:left;padding:6px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9",
-          innerHTML: `<div style="font-weight:500">${esc(item.name)}</div><div style="font-size:11px;color:#94a3b8">${Number(item.default_price).toFixed(2)} EUR • ${item.unit} • ДДС ${Number(item.vat_rate)}%</div>`,
-          onClick: () => {
+      const pickerModal = el("div", { className: "inv-modal", style: "width:650px;max-height:80vh" });
+      pickerModal.innerHTML = `
+        <div class="inv-modal-header"><h2>${ICONS.package} Избор на артикул</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div>
+        <div class="inv-modal-body" style="max-height:60vh;overflow-y:auto">
+          <div class="inv-search-bar" style="margin-bottom:12px">${ICONS.search}<input class="inv-input" data-picker-search placeholder="Търсене по име..." style="flex:1"></div>
+          <table class="inv-table" style="width:100%"><thead><tr><th>Артикул</th><th>Мярка</th><th>Цена</th><th>ДДС %</th></tr></thead><tbody data-picker-body></tbody></table>
+        </div>`;
+      const pickerOverlay = createOverlay(pickerModal);
+      pickerModal.querySelector("[data-close]").onclick = () => closeModal(pickerOverlay);
+      const pickerBody = pickerModal.querySelector("[data-picker-body]");
+      function renderPickerItems(list) {
+        pickerBody.innerHTML = "";
+        if (list.length === 0) { pickerBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">Няма намерени артикули</td></tr>'; return; }
+        list.forEach(item => {
+          const tr = el("tr", { style: "cursor:pointer", onClick: () => {
             lines[lineIdx].item_id = item.id;
             lines[lineIdx].description = item.name;
             lines[lineIdx].unit = item.unit;
             lines[lineIdx].unit_price = Number(item.default_price).toFixed(2);
             lines[lineIdx].vat_rate = Number(item.vat_rate).toFixed(2);
-            picker.remove();
+            closeModal(pickerOverlay);
             renderLines();
-          }
+          }});
+          tr.innerHTML = `<td style="padding:8px 10px;font-weight:500">${esc(item.name)}</td><td style="padding:8px 10px;color:#64748b">${esc(item.unit)}</td><td style="padding:8px 10px;font-family:monospace">${Number(item.default_price).toFixed(2)} EUR</td><td style="padding:8px 10px;color:#64748b">${Number(item.vat_rate)}%</td>`;
+          tr.onmouseenter = () => tr.style.background = "#f1f5f9";
+          tr.onmouseleave = () => tr.style.background = "";
+          pickerBody.appendChild(tr);
         });
-        picker.appendChild(opt);
+      }
+      renderPickerItems(items);
+      const searchInp = pickerModal.querySelector("[data-picker-search]");
+      searchInp.addEventListener("input", () => {
+        const q = searchInp.value.toLowerCase();
+        renderPickerItems(q ? items.filter(it => it.name.toLowerCase().includes(q)) : items);
       });
-
-      cell.style.position = "relative";
-      cell.appendChild(picker);
-      // Close on click outside
-      setTimeout(() => {
-        const closer = (e) => { if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener("click", closer); } };
-        document.addEventListener("click", closer);
-      }, 10);
+      searchInp.focus();
     }
 
     // Line items
