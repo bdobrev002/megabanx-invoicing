@@ -84,11 +84,12 @@
   .inv-table th { text-align: left; padding: 8px 10px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 600; font-size: 12px; }
   .inv-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
   .inv-table tr:hover td { background: #f8fafc; }
-  .inv-table .inv-td-actions { width: 70px; text-align: right; }
+  .inv-table .inv-td-actions { width: 56px; text-align: right; white-space: nowrap; }
   .inv-table .inv-icon-btn {
-    width: 28px; height: 28px; border: none; background: transparent;
+    width: 24px; height: 24px; border: none; background: transparent;
     cursor: pointer; border-radius: 4px; display: inline-flex;
     align-items: center; justify-content: center; color: #94a3b8;
+    padding: 0; flex-shrink: 0;
   }
   .inv-table .inv-icon-btn:hover { background: #f1f5f9; color: #475569; }
   .inv-table .inv-icon-btn.inv-danger:hover { background: #fef2f2; color: #ef4444; }
@@ -237,19 +238,44 @@
     return overlay;
   }
 
+  // Helper to get profileId for a given companyId from folder data
+  function _getProfileForCompany(cid) {
+    const folders = window.__invFolderData || [];
+    for (const f of folders) {
+      if (f.company && f.company.id === cid) return f.company.profile_id || window.__invProfileId;
+    }
+    return window.__invProfileId;
+  }
+
   // ── Clients Popup ───────────────────────────────────────────────────────
   function openClientsPopup(companyId, profileId) {
     let clients = [];
     let searchTerm = "";
     let overlay = null;
+    let filterCompanyId = ""; // "" = all companies
 
     const modal = el("div", { className: "inv-modal inv-modal-clients" });
 
     async function loadClients() {
       try {
-        const params = new URLSearchParams({ company_id: companyId, profile_id: profileId });
-        if (searchTerm) params.set("search", searchTerm);
-        clients = await api("GET", `/clients?${params}`);
+        const cid = filterCompanyId || companyId;
+        const pid = filterCompanyId ? _getProfileForCompany(filterCompanyId) || profileId : profileId;
+        if (filterCompanyId === "") {
+          // Load from all companies
+          const folders = window.__invFolderData || [];
+          let all = [];
+          for (const f of folders) {
+            if (!f.company) continue;
+            const p = new URLSearchParams({ company_id: f.company.id, profile_id: f.company.profile_id || profileId });
+            if (searchTerm) p.set("search", searchTerm);
+            try { const r = await api("GET", `/clients?${p}`); all = all.concat(r); } catch (e) {}
+          }
+          clients = all;
+        } else {
+          const params = new URLSearchParams({ company_id: cid, profile_id: pid });
+          if (searchTerm) params.set("search", searchTerm);
+          clients = await api("GET", `/clients?${params}`);
+        }
       } catch (e) { clients = []; }
       renderTable();
     }
@@ -286,12 +312,10 @@
           <td style="color:#64748b">${esc(c.city || "—")}</td>
           <td>${c.email ? `<a href="mailto:${esc(c.email)}" style="color:#3b82f6;text-decoration:none;font-size:12px">${esc(c.email)}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
           <td style="color:#64748b">${esc(c.phone || "—")}</td>
-          <td class="inv-td-actions"></td>`;
-        const actions = tr.querySelector(".inv-td-actions");
-        const editBtn = el("button", { className: "inv-icon-btn", innerHTML: ICONS.pencil, title: "Редактирай", onClick: () => openClientForm(c) });
-        const delBtn = el("button", { className: "inv-icon-btn inv-danger", innerHTML: ICONS.trash, title: "Изтрий", onClick: () => deleteClient(c.id) });
-        actions.appendChild(editBtn);
-        actions.appendChild(delBtn);
+          <td class="inv-td-actions"><div style="display:flex;gap:2px;align-items:center;justify-content:flex-end"></div></td>`;
+        const actionsDiv = tr.querySelector(".inv-td-actions div");
+        actionsDiv.appendChild(el("button", { className: "inv-icon-btn", innerHTML: ICONS.pencil, title: "Редактирай", onClick: () => openClientForm(c) }));
+        actionsDiv.appendChild(el("button", { className: "inv-icon-btn inv-danger", innerHTML: ICONS.trash, title: "Изтрий", onClick: () => deleteClient(c.id) }));
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -393,12 +417,26 @@
     }
 
     // Build modal
-    modal.innerHTML = `<div class="inv-modal-header"><h2>${ICONS.users} Клиенти</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div><div class="inv-modal-body"></div>`;
+    modal.innerHTML = `<div class="inv-modal-header"><h2>${ICONS.users} Клиенти</h2><div style="display:flex;align-items:center;gap:8px"><select data-company-filter style="height:28px;font-size:12px;border:1px solid #2563eb;border-radius:6px;padding:0 8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer"></select></div><button class="inv-modal-close" data-close>${ICONS.x}</button></div><div class="inv-modal-body"></div>`;
 
     // Add "Нов клиент" button in header
     const header = modal.querySelector(".inv-modal-header");
-    const newBtn = el("button", { className: "inv-btn inv-btn-primary", innerHTML: ICONS.plus + " Нов клиент", onClick: () => openClientForm(null) });
-    header.insertBefore(newBtn, header.querySelector("[data-close]"));
+    const headerBtnGroup = header.querySelector("div");
+    headerBtnGroup.appendChild(el("button", { className: "inv-btn inv-btn-primary", innerHTML: ICONS.plus + " Нов клиент", onClick: () => openClientForm(null) }));
+
+    // Company filter dropdown
+    const companyFilter = modal.querySelector("[data-company-filter]");
+    const allOpt = document.createElement("option"); allOpt.value = ""; allOpt.textContent = "Всички фирми"; companyFilter.appendChild(allOpt);
+    const folders = window.__invFolderData || [];
+    folders.forEach(f => {
+      if (!f.company) return;
+      const opt = document.createElement("option"); opt.value = f.company.id; opt.textContent = f.company.name;
+      if (f.company.id === companyId) opt.selected = true;
+      companyFilter.appendChild(opt);
+    });
+    // Default to "all"
+    companyFilter.value = "";
+    companyFilter.addEventListener("change", () => { filterCompanyId = companyFilter.value; loadClients(); });
 
     overlay = createOverlay(modal);
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
@@ -410,14 +448,29 @@
     let items = [];
     let searchTerm = "";
     let overlay = null;
+    let filterCompanyId = ""; // "" = all companies
 
     const modal = el("div", { className: "inv-modal inv-modal-items" });
 
     async function loadItems() {
       try {
-        const params = new URLSearchParams({ company_id: companyId, profile_id: profileId });
-        if (searchTerm) params.set("search", searchTerm);
-        items = await api("GET", `/items?${params}`);
+        if (filterCompanyId === "") {
+          const folders = window.__invFolderData || [];
+          let all = [];
+          for (const f of folders) {
+            if (!f.company) continue;
+            const p = new URLSearchParams({ company_id: f.company.id, profile_id: f.company.profile_id || profileId });
+            if (searchTerm) p.set("search", searchTerm);
+            try { const r = await api("GET", `/items?${p}`); all = all.concat(r); } catch (e) {}
+          }
+          items = all;
+        } else {
+          const cid = filterCompanyId;
+          const pid = _getProfileForCompany(filterCompanyId) || profileId;
+          const params = new URLSearchParams({ company_id: cid, profile_id: pid });
+          if (searchTerm) params.set("search", searchTerm);
+          items = await api("GET", `/items?${params}`);
+        }
       } catch (e) { items = []; }
       renderTable();
     }
@@ -453,10 +506,10 @@
           <td style="text-align:right;font-family:monospace;font-size:12px">${Number(item.default_price).toFixed(2)} EUR</td>
           <td style="text-align:right;color:#64748b">${Number(item.vat_rate)}%</td>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:#94a3b8">${esc(item.description || "—")}</td>
-          <td class="inv-td-actions"></td>`;
-        const actions = tr.querySelector(".inv-td-actions");
-        actions.appendChild(el("button", { className: "inv-icon-btn", innerHTML: ICONS.pencil, title: "Редактирай", onClick: () => openItemForm(item) }));
-        actions.appendChild(el("button", { className: "inv-icon-btn inv-danger", innerHTML: ICONS.trash, title: "Изтрий", onClick: () => deleteItem(item.id) }));
+          <td class="inv-td-actions"><div style="display:flex;gap:2px;align-items:center;justify-content:flex-end"></div></td>`;
+        const actionsDiv = tr.querySelector(".inv-td-actions div");
+        actionsDiv.appendChild(el("button", { className: "inv-icon-btn", innerHTML: ICONS.pencil, title: "Редактирай", onClick: () => openItemForm(item) }));
+        actionsDiv.appendChild(el("button", { className: "inv-icon-btn inv-danger", innerHTML: ICONS.trash, title: "Изтрий", onClick: () => deleteItem(item.id) }));
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -506,9 +559,23 @@
       };
     }
 
-    modal.innerHTML = `<div class="inv-modal-header"><h2>${ICONS.package} Артикули</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div><div class="inv-modal-body"></div>`;
+    modal.innerHTML = `<div class="inv-modal-header"><h2>${ICONS.package} Артикули</h2><div style="display:flex;align-items:center;gap:8px"><select data-company-filter style="height:28px;font-size:12px;border:1px solid #2563eb;border-radius:6px;padding:0 8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer"></select></div><button class="inv-modal-close" data-close>${ICONS.x}</button></div><div class="inv-modal-body"></div>`;
     const header = modal.querySelector(".inv-modal-header");
-    header.insertBefore(el("button", { className: "inv-btn inv-btn-emerald", innerHTML: ICONS.plus + " Нов артикул", onClick: () => openItemForm(null) }), header.querySelector("[data-close]"));
+    const headerBtnGroup = header.querySelector("div");
+    headerBtnGroup.appendChild(el("button", { className: "inv-btn inv-btn-emerald", innerHTML: ICONS.plus + " Нов артикул", onClick: () => openItemForm(null) }));
+
+    // Company filter dropdown
+    const companyFilter = modal.querySelector("[data-company-filter]");
+    const allOpt = document.createElement("option"); allOpt.value = ""; allOpt.textContent = "Всички фирми"; companyFilter.appendChild(allOpt);
+    const folders = window.__invFolderData || [];
+    folders.forEach(f => {
+      if (!f.company) return;
+      const opt = document.createElement("option"); opt.value = f.company.id; opt.textContent = f.company.name;
+      if (f.company.id === companyId) opt.selected = true;
+      companyFilter.appendChild(opt);
+    });
+    companyFilter.value = "";
+    companyFilter.addEventListener("change", () => { filterCompanyId = companyFilter.value; loadItems(); });
 
     overlay = createOverlay(modal);
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
@@ -718,6 +785,15 @@
           </div>
         </div>
 
+        <!-- Price toggle above table -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:0 6px">
+          <span style="font-size:12px;color:#64748b">Режим на цените:</span>
+          <select data-price-toggle style="height:26px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;background:#fff;color:#2563eb;font-weight:600;cursor:pointer">
+            <option value="0">Цена без ДДС</option>
+            <option value="1">Цена с ДДС</option>
+          </select>
+        </div>
+
         <!-- SEC 3: Items table (exact :8005 layout with borders) -->
         <div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;margin-bottom:2px">
           <table class="inv-line-table" style="width:100%;border-collapse:collapse">
@@ -725,9 +801,9 @@
               <th style="width:100px;padding:6px 2px;border-right:1px solid #e2e8f0"></th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;border-right:1px solid #e2e8f0;min-width:220px">Артикул</th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:130px;border-right:1px solid #e2e8f0">Количество</th>
-              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:150px;border-right:1px solid #e2e8f0"><button style="display:inline-flex;align-items:center;gap:2px;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#334155" data-price-toggle><span data-price-label>Цена без ДДС</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:100px;border-right:1px solid #e2e8f0">Ед. Цена</th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:70px;border-right:1px solid #e2e8f0">ДДС %</th>
-              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:100px">Стойност</th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:140px">Стойност</th>
             </tr></thead>
             <tbody data-lines></tbody>
           </table>
@@ -895,17 +971,13 @@
     modal.addEventListener("mousedown", (e) => e.stopPropagation());
     modal.addEventListener("selectstart", (e) => e.stopPropagation());
 
-    // Price toggle (with/without VAT)
+    // Price toggle (with/without VAT) - now a dropdown above the table
     const priceToggleBtn = modal.querySelector("[data-price-toggle]");
-    priceToggleBtn.onclick = () => {
-      priceWithVat = !priceWithVat;
-      const label = priceToggleBtn.querySelector("[data-price-label]");
-      if (label) {
-        label.textContent = priceWithVat ? "Цена с ДДС" : "Цена без ДДС";
-      }
-      // Recalculate displayed prices
+    priceToggleBtn.value = priceWithVat ? "1" : "0";
+    priceToggleBtn.addEventListener("change", () => {
+      priceWithVat = priceToggleBtn.value === "1";
       renderLines();
-    };
+    });
 
     // Document type change
     modal.querySelectorAll('[name="inv_doctype"]').forEach(r => {
@@ -921,16 +993,46 @@
 
     // Client picker button - opens a popup with all clients from DB
     modal.querySelector("[data-client-pick]").onclick = () => {
-      if (clients.length === 0) { toast("Няма добавени клиенти", "error"); return; }
+      let pickerClients = [...clients];
+      let pickerFilterCompany = "";
       const pickerModal = el("div", { className: "inv-modal", style: "width:600px;max-height:80vh" });
       pickerModal.innerHTML = `
-        <div class="inv-modal-header"><h2>${ICONS.users} Избор на клиент</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div>
+        <div class="inv-modal-header">
+          <h2>${ICONS.users} Избор на клиент</h2>
+          <select data-picker-company-filter style="height:28px;font-size:12px;border:1px solid #2563eb;border-radius:6px;padding:0 8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer"></select>
+          <button class="inv-modal-close" data-close>${ICONS.x}</button>
+        </div>
         <div class="inv-modal-body" style="max-height:60vh;overflow-y:auto">
           <div class="inv-search-bar" style="margin-bottom:12px">${ICONS.search}<input class="inv-input" data-picker-search placeholder="Търсене по име или ЕИК..." style="flex:1"></div>
           <table class="inv-table" style="width:100%"><thead><tr><th>Име</th><th>ЕИК</th><th>Град</th><th>МОЛ</th></tr></thead><tbody data-picker-body></tbody></table>
         </div>`;
       const pickerOverlay = createOverlay(pickerModal);
       pickerModal.querySelector("[data-close]").onclick = () => closeModal(pickerOverlay);
+      // Company filter in picker
+      const pFilter = pickerModal.querySelector("[data-picker-company-filter]");
+      const pAllOpt = document.createElement("option"); pAllOpt.value = ""; pAllOpt.textContent = "Всички фирми"; pFilter.appendChild(pAllOpt);
+      (window.__invFolderData || []).forEach(f => {
+        if (!f.company) return;
+        const o = document.createElement("option"); o.value = f.company.id; o.textContent = f.company.name; pFilter.appendChild(o);
+      });
+      pFilter.value = "";
+      async function reloadPickerClients() {
+        if (pickerFilterCompany === "") {
+          const folders = window.__invFolderData || [];
+          let all = [];
+          for (const f of folders) {
+            if (!f.company) continue;
+            const p = new URLSearchParams({ company_id: f.company.id, profile_id: f.company.profile_id || profileId });
+            try { const r = await api("GET", `/clients?${p}`); all = all.concat(r); } catch (e) {}
+          }
+          pickerClients = all;
+        } else {
+          const p = new URLSearchParams({ company_id: pickerFilterCompany, profile_id: _getProfileForCompany(pickerFilterCompany) || profileId });
+          pickerClients = await api("GET", `/clients?${p}`).catch(() => []);
+        }
+        renderPickerClients(pickerClients);
+      }
+      pFilter.addEventListener("change", () => { pickerFilterCompany = pFilter.value; reloadPickerClients(); });
       const pickerBody = pickerModal.querySelector("[data-picker-body]");
       function renderPickerClients(list) {
         pickerBody.innerHTML = "";
@@ -943,11 +1045,11 @@
           pickerBody.appendChild(tr);
         });
       }
-      renderPickerClients(clients);
+      reloadPickerClients();
       const searchInp = pickerModal.querySelector("[data-picker-search]");
       searchInp.addEventListener("input", () => {
         const q = searchInp.value.toLowerCase();
-        renderPickerClients(q ? clients.filter(c => c.name.toLowerCase().includes(q) || (c.eik && c.eik.includes(q))) : clients);
+        renderPickerClients(q ? pickerClients.filter(c => c.name.toLowerCase().includes(q) || (c.eik && c.eik.includes(q))) : pickerClients);
       });
       searchInp.focus();
     };
@@ -1060,16 +1162,46 @@
 
     // Item picker helper — opens a popup to pick from existing items
     function showItemPicker(lineIdx) {
-      if (items.length === 0) { toast("Няма добавени артикули", "error"); return; }
+      let pickerItems = [...items];
+      let pickerFilterCompany = "";
       const pickerModal = el("div", { className: "inv-modal", style: "width:650px;max-height:80vh" });
       pickerModal.innerHTML = `
-        <div class="inv-modal-header"><h2>${ICONS.package} Избор на артикул</h2><button class="inv-modal-close" data-close>${ICONS.x}</button></div>
+        <div class="inv-modal-header">
+          <h2>${ICONS.package} Избор на артикул</h2>
+          <select data-picker-company-filter style="height:28px;font-size:12px;border:1px solid #2563eb;border-radius:6px;padding:0 8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer"></select>
+          <button class="inv-modal-close" data-close>${ICONS.x}</button>
+        </div>
         <div class="inv-modal-body" style="max-height:60vh;overflow-y:auto">
           <div class="inv-search-bar" style="margin-bottom:12px">${ICONS.search}<input class="inv-input" data-picker-search placeholder="Търсене по име..." style="flex:1"></div>
           <table class="inv-table" style="width:100%"><thead><tr><th>Артикул</th><th>Мярка</th><th>Цена</th><th>ДДС %</th></tr></thead><tbody data-picker-body></tbody></table>
         </div>`;
       const pickerOverlay = createOverlay(pickerModal);
       pickerModal.querySelector("[data-close]").onclick = () => closeModal(pickerOverlay);
+      // Company filter in item picker
+      const pFilter = pickerModal.querySelector("[data-picker-company-filter]");
+      const pAllOpt = document.createElement("option"); pAllOpt.value = ""; pAllOpt.textContent = "Всички фирми"; pFilter.appendChild(pAllOpt);
+      (window.__invFolderData || []).forEach(f => {
+        if (!f.company) return;
+        const o = document.createElement("option"); o.value = f.company.id; o.textContent = f.company.name; pFilter.appendChild(o);
+      });
+      pFilter.value = "";
+      async function reloadPickerItems() {
+        if (pickerFilterCompany === "") {
+          const folders = window.__invFolderData || [];
+          let all = [];
+          for (const f of folders) {
+            if (!f.company) continue;
+            const p = new URLSearchParams({ company_id: f.company.id, profile_id: f.company.profile_id || profileId });
+            try { const r = await api("GET", `/items?${p}`); all = all.concat(r); } catch (e) {}
+          }
+          pickerItems = all;
+        } else {
+          const p = new URLSearchParams({ company_id: pickerFilterCompany, profile_id: _getProfileForCompany(pickerFilterCompany) || profileId });
+          pickerItems = await api("GET", `/items?${p}`).catch(() => []);
+        }
+        renderPickerItems(pickerItems);
+      }
+      pFilter.addEventListener("change", () => { pickerFilterCompany = pFilter.value; reloadPickerItems(); });
       const pickerBody = pickerModal.querySelector("[data-picker-body]");
       function renderPickerItems(list) {
         pickerBody.innerHTML = "";
@@ -1090,11 +1222,11 @@
           pickerBody.appendChild(tr);
         });
       }
-      renderPickerItems(items);
+      reloadPickerItems();
       const searchInp = pickerModal.querySelector("[data-picker-search]");
       searchInp.addEventListener("input", () => {
         const q = searchInp.value.toLowerCase();
-        renderPickerItems(q ? items.filter(it => it.name.toLowerCase().includes(q)) : items);
+        renderPickerItems(q ? pickerItems.filter(it => it.name.toLowerCase().includes(q)) : pickerItems);
       });
       searchInp.focus();
     }
@@ -1143,14 +1275,10 @@
             </div>
           </td>
           <td style="padding:2px 2px;border-right:1px solid #e2e8f0">
-            <div style="display:flex;gap:2px;align-items:center">
-              <button style="color:#cbd5e1;padding:2px;background:none;border:none;cursor:pointer" title="Изчисти"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-              <input type="number" style="flex:1;height:26px;font-size:13px;text-align:right;border:1px solid #cbd5e1;border-radius:6px;padding:0 6px" step="0.01" min="0" data-li="${i}" data-lf="unit_price" value="${displayPrice}">
-              <span style="font-size:11px;color:#94a3b8;margin-left:2px;flex-shrink:0">EUR</span>
-            </div>
+            <input type="number" style="width:100%;height:26px;font-size:13px;text-align:right;border:1px solid #cbd5e1;border-radius:6px;padding:0 6px" step="0.01" min="0" data-li="${i}" data-lf="unit_price" value="${displayPrice}">
           </td>
-          <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
-          <td style="padding:2px 2px;text-align:center;border-left:1px solid #e2e8f0"><select style="height:24px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;padding:0 2px;background:#fff" data-li="${i}" data-lf="vat_rate"><option value="20.00" ${line.vat_rate==="20.00"||line.vat_rate===20?"selected":""}>20%</option><option value="9.00" ${line.vat_rate==="9.00"||line.vat_rate===9?"selected":""}>9%</option><option value="0.00" ${line.vat_rate==="0.00"||line.vat_rate===0?"selected":""}>0%</option></select></td>`;
+          <td style="padding:2px 2px;text-align:center;border-right:1px solid #e2e8f0"><select style="height:24px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;padding:0 2px;background:#fff" data-li="${i}" data-lf="vat_rate"><option value="20.00" ${line.vat_rate==="20.00"||line.vat_rate===20?"selected":""}>20%</option><option value="9.00" ${line.vat_rate==="9.00"||line.vat_rate===9?"selected":""}>9%</option><option value="0.00" ${line.vat_rate==="0.00"||line.vat_rate===0?"selected":""}>0%</option></select></td>
+          <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>`;
         linesBody.appendChild(tr);
       });
 
