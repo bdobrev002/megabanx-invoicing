@@ -227,6 +227,7 @@
   }
 
   function closeModal(overlay) { if (overlay) overlay.remove(); }
+  function vatRate(v) { const p = parseFloat(v); return isNaN(p) ? 20 : p; }
 
   function createOverlay(modal) {
     const overlay = el("div", { className: "inv-overlay", onClick: (e) => { if (e.target === overlay) closeModal(overlay); } }, modal);
@@ -959,7 +960,7 @@
         // Calculate display price based on priceWithVat toggle
         let displayPrice = line.unit_price;
         if (priceWithVat) {
-          const vr = parseFloat(line.vat_rate) || 20;
+          const vr = vatRate(line.vat_rate);
           displayPrice = (parseFloat(line.unit_price) * (1 + vr / 100)).toFixed(2);
         }
         tr.innerHTML = `
@@ -987,7 +988,7 @@
           const field = inp.dataset.lf;
           if (field === "unit_price" && priceWithVat) {
             // Convert from VAT-inclusive price to VAT-exclusive
-            const vr = parseFloat(lines[idx].vat_rate) || 20;
+            const vr = vatRate(lines[idx].vat_rate);
             const priceInc = parseFloat(inp.value) || 0;
             lines[idx].unit_price = (priceInc / (1 + vr / 100)).toFixed(2);
           } else {
@@ -1042,7 +1043,7 @@
         lines.forEach(l => {
           const lineTotal = parseFloat(calcLineTotal(l));
           const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
-          const lineVatRate = parseFloat(l.vat_rate) || 20;
+          const lineVatRate = vatRate(l.vat_rate);
           totalVat += lineShare * (lineVatRate / 100);
         });
       }
@@ -1054,7 +1055,7 @@
         lines.forEach(l => {
           const lineTotal = parseFloat(calcLineTotal(l));
           const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
-          const vr = parseFloat(l.vat_rate) || 20;
+          const vr = vatRate(l.vat_rate);
           const key = vr.toFixed(0);
           if (!vatByRate[key]) vatByRate[key] = 0;
           vatByRate[key] += lineShare * (vr / 100);
@@ -1152,7 +1153,7 @@
       }
 
       // Use the dominant VAT rate from lines for the overall invoice vat_rate field
-      const lineVatRates = filledLines.map(l => parseFloat(l.vat_rate) || 20);
+      const lineVatRates = filledLines.map(l => vatRate(l.vat_rate));
       const dominantVatRate = lineVatRates.length > 0 ? lineVatRates[0] : 20;
 
       // Sync settings
@@ -1190,7 +1191,7 @@
           quantity: parseFloat(l.quantity) || 1,
           unit: l.unit,
           unit_price: parseFloat(l.unit_price) || 0,
-          vat_rate: parseFloat(l.vat_rate) || 20,
+          vat_rate: vatRate(l.vat_rate),
         })),
       };
 
