@@ -30,10 +30,24 @@ invoicing_router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
 # ── Database helper (reuse main app's DB_CONFIG) ──────────────────────────
 # These will be set by the main app when including this router
 _db_config = None
+_ws_notify_fn = None  # Will be set by main.py to ws_manager.notify_profile
 
 def set_db_config(config: dict):
     global _db_config
     _db_config = config
+
+def set_ws_notify(fn):
+    """Set the WebSocket notification function (ws_manager.notify_profile from main.py)."""
+    global _ws_notify_fn
+    _ws_notify_fn = fn
+
+async def _notify_refresh(profile_id: str, reason: str = "invoice_updated"):
+    """Send a WebSocket refresh event so the React frontend reloads the file list."""
+    if _ws_notify_fn:
+        try:
+            await _ws_notify_fn(profile_id, {"type": "refresh", "reason": reason})
+        except Exception as e:
+            logger.warning(f"[INVOICING] WebSocket notify failed: {e}")
 
 from contextlib import contextmanager
 
@@ -1199,6 +1213,9 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
             issue_date, tax_event_date
         )
 
+        # Notify React frontend via WebSocket to refresh the file list
+        await _notify_refresh(data.profile_id, "invoice_created")
+
         return {
             "id": invoice_id,
             "invoice_number": data.invoice_number,
@@ -1497,6 +1514,9 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
             float(subtotal), float(discount), float(vat_amount), float(total),
             issue_date, tax_event_date, old_pdf_path
         )
+
+        # Notify React frontend via WebSocket to refresh the file list
+        await _notify_refresh(data.profile_id, "invoice_updated")
 
         return {
             "id": invoice_id,
