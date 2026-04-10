@@ -556,15 +556,19 @@
         }
 
         // Auto-fill composed_by from company MOL
-        const composedByInput = modal.querySelector('[data-f="composed_by"]');
-        if (composedByInput) {
+        const composedBySelect = modal.querySelector('[data-f="composed_by"]');
+        if (composedBySelect) {
           // Try folder data first
           const folders = window.__invFolderData || [];
           const folder = folders.find(f => f.company && f.company.id === companyId);
           let mol = (folder && folder.company) ? (folder.company.mol || "") : "";
           // Fallback: try managers array
-          if (!mol && folder && folder.company && Array.isArray(folder.company.managers) && folder.company.managers.length > 0) {
-            mol = folder.company.managers[0].name || folder.company.managers[0] || "";
+          let managers = [];
+          if (folder && folder.company && Array.isArray(folder.company.managers)) {
+            managers = folder.company.managers;
+          }
+          if (!mol && managers.length > 0) {
+            mol = managers[0].name || managers[0] || "";
           }
           // Fallback: fetch company data from API
           if (!mol) {
@@ -573,13 +577,31 @@
               if (resp.ok) {
                 const compData = await resp.json();
                 mol = compData.mol || "";
-                if (!mol && Array.isArray(compData.managers) && compData.managers.length > 0) {
-                  mol = compData.managers[0].name || compData.managers[0] || "";
+                if (Array.isArray(compData.managers)) managers = compData.managers;
+                if (!mol && managers.length > 0) {
+                  mol = managers[0].name || managers[0] || "";
                 }
               }
             } catch (e) { /* ignore */ }
           }
-          if (mol) composedByInput.value = mol;
+          // Populate the select with MOL and managers as options
+          if (mol) {
+            const opt = document.createElement("option");
+            opt.value = mol;
+            opt.textContent = mol;
+            opt.selected = true;
+            composedBySelect.appendChild(opt);
+          }
+          // Add any additional managers as options
+          managers.forEach(m => {
+            const mName = m.name || m || "";
+            if (mName && mName !== mol) {
+              const opt = document.createElement("option");
+              opt.value = mName;
+              opt.textContent = mName;
+              composedBySelect.appendChild(opt);
+            }
+          });
         }
       } catch (e) { console.error("Init error:", e); }
     }
@@ -823,7 +845,8 @@
 
     overlay = createOverlay(modal);
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
-    modal.querySelector("[data-cancel]").onclick = () => closeModal(overlay);
+    const cancelBtn = modal.querySelector("[data-cancel]");
+    if (cancelBtn) cancelBtn.onclick = () => closeModal(overlay);
 
     // Fix 8: Prevent mousedown on modal from bubbling and causing form to disappear
     modal.addEventListener("mousedown", (e) => e.stopPropagation());
