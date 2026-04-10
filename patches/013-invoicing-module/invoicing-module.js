@@ -1559,16 +1559,9 @@
           toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
         }
         closeModal(overlay);
-        // Re-click the Фактури tab to refresh the file list without leaving the page
-        setTimeout(() => {
-          const tabs = document.querySelectorAll("button");
-          const fakturiTab = [...tabs].find(t => t.textContent.trim() === "Фактури" || t.textContent.trim().includes("Фактури"));
-          if (fakturiTab) {
-            fakturiTab.click();
-          } else {
-            window.location.href = "/admin";
-          }
-        }, 500);
+        // Store flag so after reload we auto-click Фактури tab
+        sessionStorage.setItem("inv_goto_fakturi", "1");
+        window.location.reload();
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     }
 
@@ -2274,6 +2267,16 @@
     startDOMObserver();
 
     console.log("[INV] Invoicing module loaded");
+
+    // After invoice save, auto-click Фактури tab
+    if (sessionStorage.getItem("inv_goto_fakturi")) {
+      sessionStorage.removeItem("inv_goto_fakturi");
+      setTimeout(() => {
+        const tabs = document.querySelectorAll("button");
+        const fakturiTab = [...tabs].find(t => t.textContent.trim() === "Фактури" || t.textContent.trim().includes("Фактури"));
+        if (fakturiTab) fakturiTab.click();
+      }, 1500);
+    }
 
     // Directly discover profile and load data (don't rely on fetch interception)
     const tryBootstrap = async () => {
