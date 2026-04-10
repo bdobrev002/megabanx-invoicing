@@ -2103,7 +2103,7 @@
     }
   }
 
-  async function injectBoltsForCompany(companyId, profileId, containerEl) {
+  async function injectBoltsForCompany(companyId, profileId) {
     try {
       const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`);
       if (!invoices || invoices.length === 0) { console.log("[INV] No invoices for", companyId); return; }
@@ -2115,12 +2115,9 @@
       const folder = folders.find(f => f.company && f.company.id === companyId);
       if (folder && folder.company) companyName = folder.company.name;
 
-      // Known DOM structure:
-      // ROW: DIV.flex.items-center.group (parent of filename span)
-      //   ├── SPAN.truncate.flex-1 (filename text)
-      //   ├── SPAN[style="width:80px"] (date column)
-      //   ├── SPAN[style="width:28px"] (status column - contains ✓ checkmark)
-      //   └── SPAN[style="width:90px"] (options column - contains download/delete)
+      // Find all file rows safely: only match spans with .pdf filenames, then walk up to parent row
+      // This avoids the dangerous div[class*='group'] selector that can match Vue internal elements
+      const allTruncateSpans = document.querySelectorAll("span.truncate");
 
       for (const inv of invoices) {
         const fname = inv.new_filename || inv.original_filename || "";
@@ -2128,16 +2125,13 @@
         if (!fname && !invNum) continue;
         const fnameBase = fname ? fname.replace(".pdf", "") : "";
 
-        // Find matching row by invoice number (most reliable) or filename
-        const rows = containerEl.querySelectorAll("div.group, div[class*='group']");
+        // Find matching row by finding the filename span first, then its parent row
         let matchedRow = null;
-        for (const row of rows) {
-          const filenameSpan = row.querySelector("span.truncate");
-          if (!filenameSpan) continue;
-          const rowText = filenameSpan.textContent.trim();
-          // Match by invoice number (always present in filename) or exact filename
+        for (const span of allTruncateSpans) {
+          const rowText = span.textContent.trim();
+          if (!rowText.endsWith(".pdf")) continue; // Only match actual file rows
           if ((invNum && rowText.includes(invNum)) || (fnameBase && (rowText === fname || rowText.includes(fnameBase)))) {
-            matchedRow = row;
+            matchedRow = span.parentElement;
             break;
           }
         }
@@ -2146,6 +2140,20 @@
           continue;
         }
         if (matchedRow.dataset.invBoltDone) continue;
+
+        // Extra validation: ensure the row has the expected column structure (span children with width styles)
+        const directChildren = matchedRow.querySelectorAll(":scope > span");
+        let hasStatusCol = false;
+        let hasOptionsCol = false;
+        for (const sp of directChildren) {
+          if (sp.style.width === "28px" || sp.style.width === "32px") hasStatusCol = true;
+          if (sp.style.width === "90px") hasOptionsCol = true;
+        }
+        if (!hasStatusCol && !hasOptionsCol) {
+          console.log("[INV] Row doesn't have expected column structure, skipping:", invNum);
+          continue;
+        }
+
         matchedRow.dataset.invBoltDone = "1";
 
         // Determine bolt state
@@ -2168,61 +2176,76 @@
           boltCount = 1; boltColor = "gray";
         }
 
-        // Replace the ✓ checkmark in the STATUS column (28px span) with our lightning bolt
-        const directChildren = matchedRow.querySelectorAll(":scope > span");
-        for (const sp of directChildren) {
-          if (sp.style.width === "28px") {
-            sp.innerHTML = "";
-            sp.style.width = "32px";
-            const bolt = createBoltIcon(boltCount, boltColor);
-            sp.appendChild(bolt);
-            break;
-          }
-        }
-
-        // Inject sync + edit icons into the OPTIONS column (90px span)
-        for (const sp of directChildren) {
-          if (sp.style.width === "90px" && !sp.querySelector(".inv-action-icon")) {
-            // Add sync icon (only if not yet synced)
-            if (!isSynced) {
-              const syncIcon = el("span", {
-                className: "inv-action-icon inv-action-icon-sync",
-                innerHTML: ICONS.syncSmall,
-                title: "Синхронизирай фактурата",
-                onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
-              });
-              sp.prepend(syncIcon);
+        // Pause MutationObserver to avoid triggering Vue re-renders during our DOM changes
+        if (_observer) _observer.disconnect();
+        try {
+          // Replace the ✓ checkmark in the STATUS column (28px span) with our lightning bolt
+          for (const sp of directChildren) {
+            if (sp.style.width === "28px") {
+              sp.innerHTML = "";
+              sp.style.width = "32px";
+              const bolt = createBoltIcon(boltCount, boltColor);
+              sp.appendChild(bolt);
+              break;
             }
-            // Add edit icon
-            const editIcon = el("span", {
-              className: "inv-action-icon inv-action-icon-edit",
-              innerHTML: ICONS.editSmall,
-              title: "Редактирай фактурата",
-              onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
-            });
-            sp.prepend(editIcon);
-            break;
           }
+
+          // Inject sync + edit icons into the OPTIONS column (90px span)
+          for (const sp of directChildren) {
+            if (sp.style.width === "90px" && !sp.querySelector(".inv-action-icon")) {
+              if (!isSynced) {
+                const syncIcon = el("span", {
+                  className: "inv-action-icon inv-action-icon-sync",
+                  innerHTML: ICONS.syncSmall,
+                  title: "Синхронизирай фактурата",
+                  onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
+                });
+                sp.prepend(syncIcon);
+              }
+              const editIcon = el("span", {
+                className: "inv-action-icon inv-action-icon-edit",
+                innerHTML: ICONS.editSmall,
+                title: "Редактирай фактурата",
+                onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
+              });
+              sp.prepend(editIcon);
+              break;
+            }
+          }
+        } finally {
+          // Re-enable MutationObserver
+          if (_observer) _observer.observe(document.body, { childList: true, subtree: true });
         }
       }
     } catch (e) { console.error("[INV] injectBoltsForCompany error:", e); }
   }
 
+  // Concurrency lock for bolt injection
+  let _boltInjecting = false;
+
   // ── Try inject bolts for all visible expanded folders ──────────────────
-  function tryInjectBoltsAll() {
+  async function tryInjectBoltsAll() {
+    if (_boltInjecting) return;
     const folders = window.__invFolderData;
     const profileId = window.__invProfileId;
     if (!folders || !profileId) return;
-    // Check if there are any unprocessed invoice rows on the page
-    const allGroupRows = document.querySelectorAll("div.group, div[class*='group']");
-    const hasUnprocessed = [...allGroupRows].some(r => r.querySelector("span.truncate") && !r.dataset.invBoltDone);
-    if (!hasUnprocessed) return;
-    // Use document.body as container since we match by unique invoice number
-    folders.forEach(folder => {
-      const company = folder.company;
-      if (!company) return;
-      injectBoltsForCompany(company.id, profileId, document.body);
+    // Check if there are any unprocessed file rows (only .pdf spans without invBoltDone)
+    const allTruncateSpans = document.querySelectorAll("span.truncate");
+    const hasUnprocessed = [...allTruncateSpans].some(s => {
+      const text = s.textContent.trim();
+      return text.endsWith(".pdf") && s.parentElement && !s.parentElement.dataset.invBoltDone;
     });
+    if (!hasUnprocessed) return;
+    _boltInjecting = true;
+    try {
+      for (const folder of folders) {
+        const company = folder.company;
+        if (!company) continue;
+        await injectBoltsForCompany(company.id, profileId);
+      }
+    } finally {
+      _boltInjecting = false;
+    }
   }
 
   // ── DOM Observer for SPA changes ───────────────────────────────────────
@@ -2233,9 +2256,9 @@
       if (!window.__invFolderData || !window.__invProfileId) return;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => tryInjectButtons(), 300);
-      // Also try to inject bolts for expanded folders (separate debounce)
+      // Also try to inject bolts for expanded folders (separate debounce, longer to let Vue finish rendering)
       clearTimeout(boltDebounceTimer);
-      boltDebounceTimer = setTimeout(() => tryInjectBoltsAll(), 500);
+      boltDebounceTimer = setTimeout(() => tryInjectBoltsAll(), 800);
     });
     _observer.observe(document.body, { childList: true, subtree: true });
   }
