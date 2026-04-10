@@ -1217,12 +1217,16 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
 
 def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_name,
                            subtotal, discount, vat_amount, total,
-                           issue_date, tax_event_date):
+                           issue_date, tax_event_date, old_pdf_path=""):
     """Generate invoice PDF and save to the correct location.
     
     issue_date and tax_event_date are passed from create_invoice to avoid
     re-deriving them via date.today() (which could differ if the background
     task runs after midnight).
+    
+    old_pdf_path: if provided and different from new path, the old file is
+    deleted after the new PDF is written (used by update_invoice to avoid
+    leaving stale copies on disk).
     """
     try:
         from jinja2 import Environment, FileSystemLoader
@@ -1332,6 +1336,14 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         HTML(string=html_content).write_pdf(pdf_path)
         logger.info(f"[INVOICING] PDF generated: {pdf_path}")
 
+        # Delete old PDF if path changed (edit scenario where filename changed)
+        if old_pdf_path and old_pdf_path != pdf_path and os.path.exists(old_pdf_path):
+            try:
+                os.remove(old_pdf_path)
+                logger.info(f"[INVOICING] Old PDF deleted: {old_pdf_path}")
+            except OSError as e:
+                logger.warning(f"[INVOICING] Could not delete old PDF {old_pdf_path}: {e}")
+
         # Update meta with PDF path
         try:
             with get_db() as conn:
@@ -1402,11 +1414,12 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                # Verify invoice exists
-                cur.execute("SELECT id FROM inv_invoice_meta WHERE invoice_id = %s", (invoice_id,))
+                # Verify invoice exists and get old PDF path for cleanup
+                cur.execute("SELECT id, pdf_path FROM inv_invoice_meta WHERE invoice_id = %s", (invoice_id,))
                 existing = cur.fetchone()
                 if not existing:
                     raise HTTPException(status_code=404, detail="Invoice not found")
+                old_pdf_path = existing.get("pdf_path") or ""
 
                 # Get client name
                 client_name = ""
@@ -1478,11 +1491,11 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
 
             conn.commit()
 
-        # Regenerate PDF
+        # Regenerate PDF and delete old file if filename changed
         background_tasks.add_task(
             _generate_and_save_pdf, invoice_id, data, lines_data, company_name, client_name,
             float(subtotal), float(discount), float(vat_amount), float(total),
-            issue_date, tax_event_date
+            issue_date, tax_event_date, old_pdf_path
         )
 
         return {
