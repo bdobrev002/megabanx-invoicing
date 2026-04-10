@@ -1559,9 +1559,23 @@
           toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
         }
         closeModal(overlay);
-        // Store flag so after reload we auto-click Фактури tab
-        sessionStorage.setItem("inv_goto_fakturi", "1");
-        window.location.reload();
+        // Re-click the Фактури tab to refresh the file list without leaving the page
+        const clickFakturiTab = (attempt) => {
+          if (attempt > 5) return;
+          const allBtns = document.querySelectorAll('button, [role="tab"], .v-tab, .v-btn');
+          const tab = [...allBtns].find(b => {
+            const txt = (b.textContent || '').trim();
+            return txt === 'Фактури' || txt.includes('Фактури');
+          });
+          if (tab) {
+            tab.click();
+            // Click again after short delay to ensure Vue processes it
+            setTimeout(() => tab.click(), 300);
+          } else {
+            setTimeout(() => clickFakturiTab(attempt + 1), 500);
+          }
+        };
+        setTimeout(() => clickFakturiTab(0), 400);
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     }
 
@@ -2267,16 +2281,6 @@
     startDOMObserver();
 
     console.log("[INV] Invoicing module loaded");
-
-    // After invoice save, auto-click Фактури tab
-    if (sessionStorage.getItem("inv_goto_fakturi")) {
-      sessionStorage.removeItem("inv_goto_fakturi");
-      setTimeout(() => {
-        const tabs = document.querySelectorAll("button");
-        const fakturiTab = [...tabs].find(t => t.textContent.trim() === "Фактури" || t.textContent.trim().includes("Фактури"));
-        if (fakturiTab) fakturiTab.click();
-      }, 1500);
-    }
 
     // Directly discover profile and load data (don't rely on fetch interception)
     const tryBootstrap = async () => {
