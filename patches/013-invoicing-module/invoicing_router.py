@@ -1081,9 +1081,31 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
             with conn.cursor() as cur:
                 # Atomically generate invoice number within this transaction
                 if data.invoice_number is None:
-                    data.invoice_number = _atomic_next_invoice_number(
-                        cur, data.company_id, data.document_type
-                    )
+                    if data.stub_id:
+                        # Use stub's next_number instead of global MAX+1
+                        import zlib
+                        lock_key = zlib.crc32(f"{data.company_id}:{data.document_type}".encode()) % (2**31)
+                        cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
+                        cur.execute(
+                            "SELECT next_number, start_number, end_number FROM inv_stubs WHERE id = %s",
+                            (data.stub_id,)
+                        )
+                        stub_row = cur.fetchone()
+                        if stub_row:
+                            data.invoice_number = stub_row[0]
+                            if data.invoice_number < stub_row[1] or data.invoice_number > stub_row[2]:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Номерът {data.invoice_number} е извън обхвата на кочана ({stub_row[1]}-{stub_row[2]})"
+                                )
+                        else:
+                            data.invoice_number = _atomic_next_invoice_number(
+                                cur, data.company_id, data.document_type
+                            )
+                    else:
+                        data.invoice_number = _atomic_next_invoice_number(
+                            cur, data.company_id, data.document_type
+                        )
 
                 # Get client name for the invoices table
                 client_name = ""
@@ -1148,7 +1170,7 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                         invoice_number, destination_path, status, source)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (invoice_id, data.profile_id, new_filename, new_filename,
-                     "sales", data.company_id, company_name,
+                     "sale", data.company_id, company_name,
                      issue_date, company_name, client_name,
                      str(data.invoice_number), f"{company_name}/Фактури продажби/{new_filename}",
                      "draft" if data.status == "draft" else "processed", "software")
@@ -1287,7 +1309,8 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         html_content = template.render(**context)
 
         # Save PDF to the company's sales folder
-        profile_dir = f"/opt/bginvoices/data/profiles/{data.profile_id}"
+        # DATA_DIR is /opt/bginvoices/data (no 'profiles' subdirectory)
+        profile_dir = f"/opt/bginvoices/data/{data.profile_id}"
         sales_dir = os.path.join(profile_dir, company_name, "Фактури продажби")
         os.makedirs(sales_dir, exist_ok=True)
 
