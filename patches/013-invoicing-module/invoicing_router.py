@@ -195,11 +195,24 @@ def ensure_invoicing_tables():
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_inv_stubs_company ON inv_stubs(company_id)")
 
-                # Add source column to existing invoices table if not exists
+            conn.commit()
+        logger.info("[INVOICING] Invoicing tables ensured")
+    except Exception as e:
+        logger.error(f"[INVOICING] Error creating tables: {e}")
+
+    # Add source column to existing invoices table in a SEPARATE transaction
+    # so that if it fails (e.g. 'invoices' table doesn't exist), it doesn't
+    # roll back the invoicing table creation above.
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
                 cur.execute("""
                     DO $$
                     BEGIN
-                        IF NOT EXISTS (
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.tables
+                            WHERE table_name = 'invoices'
+                        ) AND NOT EXISTS (
                             SELECT 1 FROM information_schema.columns
                             WHERE table_name = 'invoices' AND column_name = 'source'
                         ) THEN
@@ -207,11 +220,10 @@ def ensure_invoicing_tables():
                         END IF;
                     END $$
                 """)
-
             conn.commit()
-        logger.info("[INVOICING] Tables ensured")
+        logger.info("[INVOICING] Source column ensured on invoices table")
     except Exception as e:
-        logger.error(f"[INVOICING] Error creating tables: {e}")
+        logger.warning(f"[INVOICING] Could not add source column to invoices table (non-fatal): {e}")
 
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────
@@ -941,20 +953,23 @@ def _get_next_invoice_number(company_id: str, profile_id: str, document_type: st
 
 def _atomic_next_invoice_number(cur, company_id: str, document_type: str) -> int:
     """Atomically get the next invoice number within an existing transaction.
-    Uses SELECT FOR UPDATE on individual rows to serialize concurrent access.
+    Uses advisory lock to serialize concurrent access even when no rows exist.
     The UNIQUE index on (company_id, document_type, invoice_number) is the
     ultimate safety net against duplicates."""
-    # Lock all existing rows for this company+doc_type to prevent concurrent reads
+    # Use advisory lock based on hash of company_id + document_type to serialize
+    # even when no rows exist (SELECT FOR UPDATE locks nothing on empty result)
+    lock_key = hash(f"{company_id}:{document_type}") % (2**31)
+    cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
     cur.execute(
         """SELECT invoice_number FROM inv_invoice_meta
            WHERE company_id = %s AND document_type = %s
            ORDER BY invoice_number DESC
-           FOR UPDATE""",
+           LIMIT 1""",
         (company_id, document_type)
     )
-    rows = cur.fetchall()
-    if rows and rows[0][0] is not None:
-        return rows[0][0] + 1
+    row = cur.fetchone()
+    if row and row[0] is not None:
+        return row[0] + 1
     return 1
 
 
