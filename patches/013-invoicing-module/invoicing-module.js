@@ -1546,7 +1546,16 @@
         const result = await api("POST", "/invoices", payload);
         toast(`Фактура ${result.invoice_number} е ${status === "issued" ? "издадена" : "запазена"}`);
         closeModal(overlay);
-        setTimeout(() => window.location.reload(), 500);
+        // Re-click the Фактури tab to refresh the file list without leaving the page
+        setTimeout(() => {
+          const tabs = document.querySelectorAll("button");
+          const fakturiTab = [...tabs].find(t => t.textContent.trim() === "Фактури" || t.textContent.trim().includes("Фактури"));
+          if (fakturiTab) {
+            fakturiTab.click();
+          } else {
+            window.location.href = "/admin";
+          }
+        }, 500);
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     }
 
