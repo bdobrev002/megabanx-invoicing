@@ -1081,6 +1081,7 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
         with get_db() as conn:
             with conn.cursor() as cur:
                 # Atomically generate invoice number within this transaction
+                stub_was_used = False
                 if data.invoice_number is None:
                     if data.stub_id:
                         # Use stub's next_number instead of global MAX+1
@@ -1094,6 +1095,7 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                         stub_row = cur.fetchone()
                         if stub_row:
                             data.invoice_number = stub_row[0]
+                            stub_was_used = True
                             if data.invoice_number < stub_row[1] or data.invoice_number > stub_row[2]:
                                 raise HTTPException(
                                     status_code=400,
@@ -1177,8 +1179,8 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                      "draft" if data.status == "draft" else "processed", "software")
                 )
 
-                # Advance stub next_number if a stub was used
-                if data.stub_id:
+                # Advance stub next_number only if it was used for auto-numbering
+                if data.stub_id and stub_was_used:
                     cur.execute(
                         "UPDATE inv_stubs SET next_number = %s, updated_at = NOW() WHERE id = %s",
                         (data.invoice_number + 1, data.stub_id)
@@ -1432,6 +1434,27 @@ async def get_invoice(invoice_id: str):
 
 
 # ── Check if counterparty exists in megabanx ──────────────────────────────
+
+@invoicing_router.post("/invoices/{invoice_id}/sync")
+async def sync_invoice(invoice_id: str):
+    """Mark an invoice as synced."""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE inv_invoice_meta SET sync_status = 'synced', updated_at = NOW() WHERE invoice_id = %s",
+                    (invoice_id,)
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Invoice not found")
+            conn.commit()
+        return {"status": "synced"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INVOICING] Error syncing invoice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @invoicing_router.get("/check-counterparty/{eik}")
 async def check_counterparty(eik: str):

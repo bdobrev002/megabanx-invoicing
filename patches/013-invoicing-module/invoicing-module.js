@@ -135,6 +135,14 @@
   .inv-bolt-red svg { fill: #ef4444; }
   .inv-bolt-blue svg { fill: #3b82f6; }
 
+  /* Inline action icons for Options column */
+  .inv-action-icon { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 2px; border-radius: 4px; transition: color .15s; }
+  .inv-action-icon svg { width: 16px; height: 16px; }
+  .inv-action-icon-sync { color: #f59e0b; }
+  .inv-action-icon-sync:hover { color: #d97706; }
+  .inv-action-icon-edit { color: #3b82f6; }
+  .inv-action-icon-edit:hover { color: #2563eb; }
+
   /* Sync settings */
   .inv-sync-section { margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
   .inv-sync-section h3 { font-size: 13px; font-weight: 600; color: #475569; margin: 0 0 8px; }
@@ -195,6 +203,8 @@
     sync: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+    syncSmall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    editSmall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
   };
 
   // ── Utility helpers ─────────────────────────────────────────────────────
@@ -584,16 +594,17 @@
   }
 
   // ── New Invoice Popup ───────────────────────────────────────────────────
-  function openNewInvoicePopup(companyId, profileId, companyName) {
+  function openNewInvoicePopup(companyId, profileId, companyName, editData) {
     let clients = [];
     let items = [];
     let stubs = [];
     let selectedClient = null;
     let defaultVatRate = "20.00";
     let lines = [emptyLine(), emptyLine(), emptyLine()];
-    let docType = "invoice";
+    let docType = editData ? (editData.document_type || "invoice") : "invoice";
     let priceWithVat = false; // toggle: false = price without VAT, true = price with VAT
     let overlay = null;
+    const isEditMode = !!editData;
 
     function emptyLine() {
       return { item_id: null, description: "", quantity: "1.00", unit: "бр.", unit_price: "0.00", vat_rate: defaultVatRate };
@@ -1543,7 +1554,76 @@
     modal.querySelector("[data-save-issue]").onclick = () => saveInvoice("issued");
 
     renderLines();
-    init();
+    init().then(() => {
+      // ── Edit mode: pre-populate form with existing invoice data ──
+      if (isEditMode && editData) {
+        const setField = (sel, val) => { const el = modal.querySelector(sel); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val || ''; } };
+        // Header
+        const headerH2 = modal.querySelector("h2");
+        if (headerH2) headerH2.innerHTML = `${ICONS.filetext} Редакция на фактура от <select data-company-switch style="font-size:16px;font-weight:700;color:#2563eb;border:none;background:transparent;cursor:pointer;padding:0 4px;max-width:300px;font-family:inherit"></select>`;
+
+        // Invoice number
+        setField('[data-f="invoice_number"]', editData.invoice_number ? String(editData.invoice_number).padStart(10, "0") : "");
+        // Dates
+        setField('[data-f="issue_date"]', editData.issue_date ? editData.issue_date.split("T")[0] : "");
+        setField('[data-f="tax_event_date"]', editData.tax_event_date ? editData.tax_event_date.split("T")[0] : "");
+        if (editData.due_date) {
+          setField('[data-f="show_due_date"]', true);
+          setField('[data-f="due_date"]', editData.due_date.split("T")[0]);
+          const dueDateInput = modal.querySelector('[data-f="due_date"]');
+          if (dueDateInput) dueDateInput.style.display = "";
+        }
+        // Payment method
+        setField('[data-f="payment_method"]', editData.payment_method);
+        // No VAT
+        if (editData.no_vat) {
+          setField('[data-f="no_vat"]', true);
+          setField('[data-f="no_vat_reason"]', editData.no_vat_reason);
+        }
+        // Discount
+        setField('[data-f="discount"]', editData.discount || "");
+        setField('[data-f="discount_type"]', editData.discount_type || "fixed");
+        // Notes
+        setField('[data-f="notes"]', editData.notes);
+        setField('[data-f="internal_notes"]', editData.internal_notes);
+        // Composed by
+        setField('[data-f="composed_by"]', editData.composed_by);
+        // Document type
+        if (editData.document_type) {
+          const radio = modal.querySelector(`[name="inv_doctype"][value="${editData.document_type}"]`);
+          if (radio) radio.checked = true;
+        }
+        // Client
+        if (editData.client_id) {
+          const client = clients.find(c => c.id === editData.client_id);
+          if (client) {
+            selectClient(client);
+          } else if (editData.client_name) {
+            // Fallback: set name display
+            const cs = modal.querySelector('[data-f="client_search"]');
+            if (cs) cs.value = editData.client_name;
+          }
+        }
+        // Lines
+        if (editData.lines && editData.lines.length > 0) {
+          lines = editData.lines.map(l => ({
+            item_id: l.item_id || null,
+            description: l.description || "",
+            quantity: String(l.quantity || 1),
+            unit: l.unit || "бр.",
+            unit_price: String(l.unit_price || 0),
+            vat_rate: String(Number(l.vat_rate || 20).toFixed(2)),
+          }));
+          renderLines();
+          renderTotals();
+        }
+        // Change save button text
+        const issueBtn = modal.querySelector("[data-save-issue]");
+        if (issueBtn) issueBtn.textContent = "Запази промените";
+        const draftBtn = modal.querySelector("[data-save-draft]");
+        if (draftBtn) draftBtn.textContent = "Запази като чернова";
+      }
+    });
   }
 
   // ── Settings Popup (bank account + stubs) ────────────────────────────────
@@ -1990,10 +2070,40 @@
     });
   }
 
+  // ── Open edit invoice popup (pre-populated with existing data) ──────────
+  async function openEditInvoicePopup(invoiceId, companyId, profileId, companyName) {
+    try {
+      const inv = await api("GET", `/invoices/${invoiceId}`);
+      if (!inv) { toast("Фактурата не е намерена", "error"); return; }
+      // Open the new invoice popup and pre-populate it
+      openNewInvoicePopup(companyId, profileId, companyName, inv);
+    } catch (e) {
+      toast("Грешка при зареждане: " + e.message, "error");
+    }
+  }
+
+  // ── Sync a single invoice ──────────────────────────────────────────────
+  async function syncSingleInvoice(invoiceId, companyId, profileId) {
+    try {
+      toast("Синхронизиране...");
+      await api("POST", `/invoices/${invoiceId}/sync`);
+      toast("Фактурата е синхронизирана");
+      setTimeout(() => location.reload(), 500);
+    } catch (e) {
+      toast("Грешка при синхронизация: " + e.message, "error");
+    }
+  }
+
   async function injectBoltsForCompany(companyId, profileId, containerEl) {
     try {
       const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`).catch(() => []);
       if (!invoices || invoices.length === 0) return;
+
+      // Get company name for edit popup
+      let companyName = "";
+      const folders = window.__invFolderData || [];
+      const folder = folders.find(f => f.company && f.company.id === companyId);
+      if (folder && folder.company) companyName = folder.company.name;
 
       for (const inv of invoices) {
         // Find the invoice row in the DOM by matching the filename from the joined invoices table
@@ -2015,7 +2125,6 @@
             let boltColor = "red";
             const isSynced = (inv.sync_status === "synced" || inv.sync_status === "accepted");
             if (!isSynced) {
-              // Not synced yet — red single bolt
               boltCount = 1;
               boltColor = "red";
             } else if (inv.client_eik) {
@@ -2033,12 +2142,54 @@
                 boltColor = "gray";
               }
             } else {
-              // Synced but no EIK to check — gray single
               boltCount = 1;
               boltColor = "gray";
             }
             const bolt = createBoltIcon(boltCount, boltColor);
             textEl.prepend(bolt);
+
+            // ── Inject sync + edit icons into the Options column ──
+            // Navigate up from the filename text to find the row container,
+            // then find the Options wrapper (last inline-flex span with ~90px width)
+            let rowEl = textEl;
+            for (let i = 0; i < 6; i++) {
+              if (!rowEl.parentElement) break;
+              rowEl = rowEl.parentElement;
+              // The row is typically a div with class containing "group" or has flex layout
+              if (rowEl.classList && (rowEl.classList.contains("group") || rowEl.getAttribute("style")?.includes("display"))) break;
+            }
+            // Find the options container - it's a span with width:90px (from our column layout patch)
+            const optionsSpans = rowEl.querySelectorAll("span");
+            let optionsContainer = null;
+            for (const sp of optionsSpans) {
+              const w = sp.style.width;
+              if (w === "90px" && !sp.querySelector(".inv-action-icon")) {
+                optionsContainer = sp;
+                break;
+              }
+            }
+
+            if (optionsContainer) {
+              // Add sync icon (only if not yet synced)
+              if (!isSynced) {
+                const syncIcon = el("span", {
+                  className: "inv-action-icon inv-action-icon-sync",
+                  innerHTML: ICONS.syncSmall,
+                  title: "Синхронизирай фактурата",
+                  onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
+                });
+                optionsContainer.prepend(syncIcon);
+              }
+              // Add edit icon
+              const editIcon = el("span", {
+                className: "inv-action-icon inv-action-icon-edit",
+                innerHTML: ICONS.editSmall,
+                title: "Редактирай фактурата",
+                onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
+              });
+              optionsContainer.prepend(editIcon);
+            }
+
             break;
           }
         }
