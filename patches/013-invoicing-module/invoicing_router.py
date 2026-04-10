@@ -1125,9 +1125,11 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                     company_name = row[0]
 
                 # Generate filename following megabanx naming convention
+                # Sales: YYYY.MM.DD XXXXXXXXXX - CLIENT_NAME.pdf
                 inv_num_str = str(data.invoice_number).zfill(10)
-                date_str = issue_date.replace("-", "")
-                new_filename = f"{doc_label} {inv_num_str} {client_name} {date_str}.pdf"
+                date_parts = issue_date.split("-")  # YYYY-MM-DD
+                date_formatted = f"{date_parts[0]}.{date_parts[1]}.{date_parts[2]}"
+                new_filename = f"{date_formatted} {inv_num_str} - {client_name}.pdf"
 
                 # Determine sync settings
                 sync_status = "pending"

@@ -2096,8 +2096,9 @@
 
   async function injectBoltsForCompany(companyId, profileId, containerEl) {
     try {
-      const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`).catch(() => []);
-      if (!invoices || invoices.length === 0) return;
+      const invoices = await api("GET", `/invoices?company_id=${companyId}&profile_id=${profileId}`);
+      if (!invoices || invoices.length === 0) { console.log("[INV] No invoices for", companyId); return; }
+      console.log(`[INV] Found ${invoices.length} invoices for bolts`);
 
       // Get company name for edit popup
       let companyName = "";
@@ -2105,105 +2106,127 @@
       const folder = folders.find(f => f.company && f.company.id === companyId);
       if (folder && folder.company) companyName = folder.company.name;
 
+      // Known DOM structure:
+      // ROW: DIV.flex.items-center.group (parent of filename span)
+      //   ├── SPAN.truncate.flex-1 (filename text)
+      //   ├── SPAN[style="width:80px"] (date column)
+      //   ├── SPAN[style="width:28px"] (status column - contains ✓ checkmark)
+      //   └── SPAN[style="width:90px"] (options column - contains download/delete)
+
       for (const inv of invoices) {
-        // Find the invoice row in the DOM by matching the filename from the joined invoices table
         const fname = inv.new_filename || inv.original_filename || "";
-        if (!fname) continue;
+        const invNum = inv.invoice_number ? String(inv.invoice_number).padStart(10, "0") : "";
+        if (!fname && !invNum) continue;
+        const fnameBase = fname ? fname.replace(".pdf", "") : "";
 
-        // Look for the filename text in the container
-        const allText = containerEl.querySelectorAll("span, div, p");
-        for (const textEl of allText) {
-          const trimmed = textEl.textContent.trim();
-          if (trimmed === fname || trimmed.includes(fname.replace(".pdf", ""))) {
-            if (textEl.querySelector(".inv-bolt")) continue;
-            // Determine bolt state:
-            // Red single bolt = not yet synced (before synchronization)
-            // Gray single bolt = synced, counterparty NOT in megabanx system
-            // Gray double bolt = synced, counterparty in megabanx but not approved
-            // Blue double bolt = counterparty approved the invoice
-            let boltCount = 1;
-            let boltColor = "red";
-            const isSynced = (inv.sync_status === "synced" || inv.sync_status === "accepted");
-            if (!isSynced) {
-              boltCount = 1;
-              boltColor = "red";
-            } else if (inv.client_eik) {
-              try {
-                const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
-                if (check && check.exists) {
-                  boltCount = 2;
-                  boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
-                } else {
-                  boltCount = 1;
-                  boltColor = "gray";
-                }
-              } catch (e) {
-                boltCount = 1;
-                boltColor = "gray";
-              }
+        // Find matching row by invoice number (most reliable) or filename
+        const rows = containerEl.querySelectorAll("div.group, div[class*='group']");
+        let matchedRow = null;
+        for (const row of rows) {
+          const filenameSpan = row.querySelector("span.truncate");
+          if (!filenameSpan) continue;
+          const rowText = filenameSpan.textContent.trim();
+          // Match by invoice number (always present in filename) or exact filename
+          if ((invNum && rowText.includes(invNum)) || (fnameBase && (rowText === fname || rowText.includes(fnameBase)))) {
+            matchedRow = row;
+            break;
+          }
+        }
+        if (!matchedRow) {
+          console.log("[INV] Row not found for inv#:", invNum, "fname:", fnameBase.substring(0, 40));
+          continue;
+        }
+        if (matchedRow.dataset.invBoltDone) continue;
+        matchedRow.dataset.invBoltDone = "1";
+
+        // Determine bolt state
+        let boltCount = 1;
+        let boltColor = "red";
+        const isSynced = (inv.sync_status === "synced" || inv.sync_status === "accepted");
+        if (!isSynced) {
+          boltCount = 1; boltColor = "red";
+        } else if (inv.client_eik) {
+          try {
+            const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
+            if (check && check.exists) {
+              boltCount = 2;
+              boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
             } else {
-              boltCount = 1;
-              boltColor = "gray";
+              boltCount = 1; boltColor = "gray";
             }
+          } catch (e) { boltCount = 1; boltColor = "gray"; }
+        } else {
+          boltCount = 1; boltColor = "gray";
+        }
+
+        // Replace the ✓ checkmark in the STATUS column (28px span) with our lightning bolt
+        const directChildren = matchedRow.querySelectorAll(":scope > span");
+        for (const sp of directChildren) {
+          if (sp.style.width === "28px") {
+            sp.innerHTML = "";
+            sp.style.width = "32px";
             const bolt = createBoltIcon(boltCount, boltColor);
-            textEl.prepend(bolt);
+            sp.appendChild(bolt);
+            break;
+          }
+        }
 
-            // ── Inject sync + edit icons into the Options column ──
-            // Navigate up from the filename text to find the row container,
-            // then find the Options wrapper (last inline-flex span with ~90px width)
-            let rowEl = textEl;
-            for (let i = 0; i < 6; i++) {
-              if (!rowEl.parentElement) break;
-              rowEl = rowEl.parentElement;
-              // The row is typically a div with class containing "group" or has flex layout
-              if (rowEl.classList && (rowEl.classList.contains("group") || rowEl.getAttribute("style")?.includes("display"))) break;
-            }
-            // Find the options container - it's a span with width:90px (from our column layout patch)
-            const optionsSpans = rowEl.querySelectorAll("span");
-            let optionsContainer = null;
-            for (const sp of optionsSpans) {
-              const w = sp.style.width;
-              if (w === "90px" && !sp.querySelector(".inv-action-icon")) {
-                optionsContainer = sp;
-                break;
-              }
-            }
-
-            if (optionsContainer) {
-              // Add sync icon (only if not yet synced)
-              if (!isSynced) {
-                const syncIcon = el("span", {
-                  className: "inv-action-icon inv-action-icon-sync",
-                  innerHTML: ICONS.syncSmall,
-                  title: "Синхронизирай фактурата",
-                  onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
-                });
-                optionsContainer.prepend(syncIcon);
-              }
-              // Add edit icon
-              const editIcon = el("span", {
-                className: "inv-action-icon inv-action-icon-edit",
-                innerHTML: ICONS.editSmall,
-                title: "Редактирай фактурата",
-                onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
+        // Inject sync + edit icons into the OPTIONS column (90px span)
+        for (const sp of directChildren) {
+          if (sp.style.width === "90px" && !sp.querySelector(".inv-action-icon")) {
+            // Add sync icon (only if not yet synced)
+            if (!isSynced) {
+              const syncIcon = el("span", {
+                className: "inv-action-icon inv-action-icon-sync",
+                innerHTML: ICONS.syncSmall,
+                title: "Синхронизирай фактурата",
+                onClick: (e) => { e.stopPropagation(); e.preventDefault(); syncSingleInvoice(inv.invoice_id, companyId, profileId); }
               });
-              optionsContainer.prepend(editIcon);
+              sp.prepend(syncIcon);
             }
-
+            // Add edit icon
+            const editIcon = el("span", {
+              className: "inv-action-icon inv-action-icon-edit",
+              innerHTML: ICONS.editSmall,
+              title: "Редактирай фактурата",
+              onClick: (e) => { e.stopPropagation(); e.preventDefault(); openEditInvoicePopup(inv.invoice_id, companyId, profileId, companyName); }
+            });
+            sp.prepend(editIcon);
             break;
           }
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.error("[INV] injectBoltsForCompany error:", e); }
+  }
+
+  // ── Try inject bolts for all visible expanded folders ──────────────────
+  function tryInjectBoltsAll() {
+    const folders = window.__invFolderData;
+    const profileId = window.__invProfileId;
+    if (!folders || !profileId) return;
+    // Check if there are any unprocessed invoice rows on the page
+    const allGroupRows = document.querySelectorAll("div.group, div[class*='group']");
+    const hasUnprocessed = [...allGroupRows].some(r => r.querySelector("span.truncate") && !r.dataset.invBoltDone);
+    if (!hasUnprocessed) return;
+    // Use document.body as container since we match by unique invoice number
+    folders.forEach(folder => {
+      const company = folder.company;
+      if (!company) return;
+      injectBoltsForCompany(company.id, profileId, document.body);
+    });
   }
 
   // ── DOM Observer for SPA changes ───────────────────────────────────────
   function startDOMObserver() {
     let debounceTimer = null;
+    let boltDebounceTimer = null;
     _observer = new MutationObserver(() => {
       if (!window.__invFolderData || !window.__invProfileId) return;
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => tryInjectButtons(), 300);
+      // Also try to inject bolts for expanded folders (separate debounce)
+      clearTimeout(boltDebounceTimer);
+      boltDebounceTimer = setTimeout(() => tryInjectBoltsAll(), 500);
     });
     _observer.observe(document.body, { childList: true, subtree: true });
   }
