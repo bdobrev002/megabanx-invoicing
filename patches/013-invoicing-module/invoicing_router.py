@@ -322,6 +322,7 @@ class InvoiceCreate(BaseModel):
     internal_notes: Optional[str] = None
     currency: str = "EUR"
     status: str = "issued"  # "draft" or "issued"
+    composed_by: Optional[str] = None
     lines: list[InvoiceLineCreate] = []
 
 class SyncSettingsUpdate(BaseModel):
@@ -1202,6 +1203,8 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
             "sync_status": sync_status,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[INVOICING] Error creating invoice: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1304,6 +1307,7 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
             "currency": data.currency,
             "logo_base64": None,
             "total_words": "",
+            "composed_by": data.composed_by or "",
         }
 
         html_content = template.render(**context)

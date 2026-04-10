@@ -128,7 +128,7 @@
   .inv-totals .inv-total-value { font-weight: 600; min-width: 100px; text-align: right; font-family: monospace; }
   .inv-totals .inv-grand-total { font-size: 16px; color: #1e293b; border-top: 2px solid #e2e8f0; padding-top: 6px; margin-top: 4px; }
 
-  /* Lightning bolt icons */
+  /* Checkmark icons */
   .inv-bolt { display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; }
   .inv-bolt svg { width: 14px; height: 14px; }
   .inv-bolt-gray svg { fill: #94a3b8; }
@@ -182,7 +182,7 @@
 
   // ── SVG Icons ───────────────────────────────────────────────────────────
   const ICONS = {
-    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 6L9 17l-5-5 1.41-1.41L9 14.17 18.59 4.59z"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
     search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
@@ -1518,6 +1518,7 @@
         currency: "EUR",
         status: status,
         stub_id: stubSelect ? (stubSelect.value || null) : null,
+        composed_by: modal.querySelector('[data-f="composed_by"]').value || null,
         lines: filledLines.map((l, i) => ({
           item_id: l.item_id,
           position: i,
@@ -1705,9 +1706,9 @@
     }
   }
 
-  // ── Lightning bolt icons ────────────────────────────────────────────────
+  // ── Checkmark icons ──────────────────────────────────────────────────────
   function createBoltIcon(count, color) {
-    const boltSvg = '<svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>';
+    const boltSvg = '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5 1.41-1.41L9 14.17 18.59 4.59z"/></svg>';
     const wrapper = el("span", { className: `inv-bolt inv-bolt-${color}` });
     for (let i = 0; i < count; i++) {
       const s = el("span", { innerHTML: boltSvg });
@@ -1821,7 +1822,7 @@
     });
   }
 
-  // ── Lightning bolt injection for software invoices ─────────────────────
+  // ── Checkmark injection for software invoices ───────────────────────
   function injectLightningBolts() {
     // Find invoice rows that have source="software"
     // These are identified by having a specific data attribute or class
@@ -1978,7 +1979,7 @@
             parentEl.appendChild(group);
             console.log(`[INV] Buttons injected for: ${companyName}`);
 
-            // Inject lightning bolts for software invoices
+            // Inject checkmarks for software invoices
             injectBoltsForCompany(companyId, profileId, container);
             break;
           }

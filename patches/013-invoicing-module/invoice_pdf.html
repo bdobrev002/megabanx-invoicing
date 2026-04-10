@@ -139,7 +139,6 @@
         <table>
             <tr><td>Данъчна основа:</td><td>{{ tax_base }} {{ currency }}</td></tr>
             {% if not no_vat %}
-            <tr><td>Процент ДДС:</td><td>{{ vat_rate }} %</td></tr>
             <tr><td>Начислен ДДС:</td><td>{{ vat_amount }} {{ currency }}</td></tr>
             {% else %}
             <tr><td>ДДС:</td><td>Не се начислява</td></tr>
@@ -163,7 +162,7 @@
 
 <div class="signatures">
     <div class="signature-box">Получател: <span class="sig-name">{{ client.mol or client.name }}</span></div>
-    <div class="signature-box">Съставил: <span class="sig-name">{{ company.mol or company.name }}</span></div>
+    <div class="signature-box">Съставил: <span class="sig-name">{{ composed_by or company.mol or company.name }}</span></div>
 </div>
 
 <div class="dashed-line"></div>
