@@ -66,15 +66,18 @@ def main():
     scp(os.path.join(PATCH_DIR, "invoicing-module.js"),
         "/opt/bginvoices/frontend/assets/invoicing-module.js")
 
-    # 4. Patch index.html to load the invoicing module
+    # 4. Patch index.html to load the invoicing module (with cache-busting)
     print("[4/6] Patching index.html to load invoicing module...")
     ssh(r"""
     INDEX_FILE="/opt/bginvoices/frontend/index.html"
+    CACHE_BUST="v=$(date +%s)"
     if ! grep -q 'invoicing-module.js' "$INDEX_FILE"; then
-        sed -i 's|</body>|<script src="/assets/invoicing-module.js"></script>\n</body>|' "$INDEX_FILE"
-        echo "index.html patched"
+        sed -i "s|</body>|<script src=\"/assets/invoicing-module.js?${CACHE_BUST}\"></script>\n</body>|" "$INDEX_FILE"
+        echo "index.html patched with cache-busting"
     else
-        echo "index.html already patched"
+        # Update cache-busting parameter on existing script tag
+        sed -i "s|invoicing-module\.js[^\"]*\"|invoicing-module.js?${CACHE_BUST}\"|" "$INDEX_FILE"
+        echo "index.html cache-bust updated"
     fi
     """)
 
