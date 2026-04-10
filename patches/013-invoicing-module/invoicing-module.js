@@ -44,6 +44,8 @@
   .inv-modal-sm { width: 480px; }
   .inv-modal-md { width: 600px; }
   .inv-modal-lg { width: 1100px; max-width: 95vw; }
+  .inv-modal-clients { width: 770px; max-width: 95vw; }
+  .inv-modal-items { width: 770px; max-width: 95vw; }
   .inv-modal-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
@@ -241,7 +243,7 @@
     let searchTerm = "";
     let overlay = null;
 
-    const modal = el("div", { className: "inv-modal inv-modal-lg" });
+    const modal = el("div", { className: "inv-modal inv-modal-clients" });
 
     async function loadClients() {
       try {
@@ -409,7 +411,7 @@
     let searchTerm = "";
     let overlay = null;
 
-    const modal = el("div", { className: "inv-modal inv-modal-lg" });
+    const modal = el("div", { className: "inv-modal inv-modal-items" });
 
     async function loadItems() {
       try {
@@ -519,13 +521,14 @@
     let items = [];
     let stubs = [];
     let selectedClient = null;
+    let defaultVatRate = "20.00";
     let lines = [emptyLine(), emptyLine(), emptyLine()];
     let docType = "invoice";
     let priceWithVat = false; // toggle: false = price without VAT, true = price with VAT
     let overlay = null;
 
     function emptyLine() {
-      return { item_id: null, description: "", quantity: "1.00", unit: "бр.", unit_price: "0.00", vat_rate: "20.00" };
+      return { item_id: null, description: "", quantity: "1.00", unit: "бр.", unit_price: "0.00", vat_rate: defaultVatRate };
     }
 
     async function init() {
@@ -541,6 +544,13 @@
         clients = c;
         items = it;
         stubs = st;
+        // Load default VAT rate from company settings
+        if (cs && cs.default_vat_rate != null) {
+          defaultVatRate = String(Number(cs.default_vat_rate).toFixed(2));
+          // Update existing lines to use default VAT rate
+          lines.forEach(l => { l.vat_rate = defaultVatRate; });
+          renderLines();
+        }
         const numInput = modal.querySelector('[data-f="invoice_number"]');
         if (numInput) numInput.value = String(nn.next_number).padStart(10, "0");
 
@@ -611,7 +621,7 @@
 
     modal.innerHTML = `
       <div class="inv-modal-header">
-        <h2>${ICONS.filetext} Нова фактура</h2>
+        <h2>${ICONS.filetext} Нова фактура от <select data-company-switch style="font-size:16px;font-weight:700;color:#2563eb;border:none;background:transparent;cursor:pointer;padding:0 4px;max-width:300px;font-family:inherit"></select></h2>
         <button class="inv-modal-close" data-close>${ICONS.x}</button>
       </div>
       <div class="inv-modal-body" style="padding:16px 20px">
@@ -716,6 +726,7 @@
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;border-right:1px solid #e2e8f0;min-width:220px">Артикул</th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:130px;border-right:1px solid #e2e8f0">Количество</th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:150px;border-right:1px solid #e2e8f0"><button style="display:inline-flex;align-items:center;gap:2px;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#334155" data-price-toggle><span data-price-label>Цена без ДДС</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></th>
+              <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:70px;border-right:1px solid #e2e8f0">ДДС %</th>
               <th style="text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:100px">Стойност</th>
             </tr></thead>
             <tbody data-lines></tbody>
@@ -747,7 +758,7 @@
                 <td style="text-align:right;font-size:13px;font-weight:600;padding:2px 0;width:120px" data-tax-base>0.00 EUR<div style="font-size:11px;color:#94a3b8;font-weight:400">0.00 лв.</div></td>
               </tr>
               <tr>
-                <td style="text-align:right;font-size:13px;color:#475569;padding:2px 12px 2px 0"><div style="display:flex;align-items:center;justify-content:flex-end;gap:6px"><span>ДДС</span><select data-f="vat_rate_display" style="height:22px;border:1px solid #cbd5e1;border-radius:6px;padding:0 2px;font-size:13px;background:#fff"><option value="20">20%</option><option value="9">9%</option><option value="0">0%</option></select></div></td>
+                <td style="text-align:right;font-size:13px;color:#475569;padding:2px 12px 2px 0">ДДС</td>
                 <td style="text-align:right;font-size:13px;font-weight:600;padding:2px 0" data-vat-amount>0.00 EUR<div style="font-size:11px;color:#94a3b8;font-weight:400">0.00 лв.</div></td>
               </tr>
             </tbody>
@@ -758,7 +769,6 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:6px 0">
           <span style="font-size:13px;font-weight:600;color:#334155">ДДС настройки:</span>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="no_vat" style="width:14px;height:14px;accent-color:#2563eb">Не начислявай ДДС по тази фактура</label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="vat_per_line" style="width:14px;height:14px;accent-color:#2563eb">ДДС на всеки ред</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="client_is_vat_invoice" style="width:14px;height:14px;accent-color:#2563eb" disabled>Регистрация по ЗДДС</label>
         </div>
         <!-- VAT reason dropdown (shown when "Не начислявай ДДС" is checked) -->
@@ -849,6 +859,37 @@
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
     const cancelBtn = modal.querySelector("[data-cancel]");
     if (cancelBtn) cancelBtn.onclick = () => closeModal(overlay);
+
+    // Populate company switch dropdown in header
+    const companySwitchSelect = modal.querySelector("[data-company-switch]");
+    if (companySwitchSelect) {
+      const folders = window.__invFolderData || [];
+      folders.forEach(f => {
+        if (!f.company) return;
+        const opt = document.createElement("option");
+        opt.value = f.company.id;
+        opt.textContent = f.company.name || "";
+        opt.dataset.profileId = f.profile_id || profileId;
+        if (f.company.id === companyId) opt.selected = true;
+        companySwitchSelect.appendChild(opt);
+      });
+      // If no folders data, at least show current company name
+      if (companySwitchSelect.options.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = companyId;
+        opt.textContent = companyName || "";
+        opt.selected = true;
+        companySwitchSelect.appendChild(opt);
+      }
+      companySwitchSelect.addEventListener("change", () => {
+        const newCompanyId = companySwitchSelect.value;
+        const selectedOpt = companySwitchSelect.options[companySwitchSelect.selectedIndex];
+        const newProfileId = selectedOpt.dataset.profileId || profileId;
+        const newCompanyName = selectedOpt.textContent;
+        closeModal(overlay);
+        openNewInvoicePopup(newCompanyId, newProfileId, newCompanyName);
+      });
+    }
 
     // Fix 8: Prevent mousedown on modal from bubbling and causing form to disappear
     modal.addEventListener("mousedown", (e) => e.stopPropagation());
@@ -1064,19 +1105,6 @@
 
     function renderLines() {
       linesBody.innerHTML = "";
-      // Dynamically add/remove ДДС% header column
-      const thead = modal.querySelector(".inv-line-table thead tr");
-      const existingVatTh = thead.querySelector("[data-vat-th]");
-      const showVatPerLine = vatPerLineCheckbox && vatPerLineCheckbox.checked;
-      if (showVatPerLine && !existingVatTh) {
-        const th = document.createElement("th");
-        th.setAttribute("data-vat-th", "1");
-        th.style.cssText = "text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:70px;border-left:1px solid #e2e8f0";
-        th.textContent = "ДДС %";
-        thead.appendChild(th);
-      } else if (!showVatPerLine && existingVatTh) {
-        existingVatTh.remove();
-      }
       lines.forEach((line, i) => {
         const tr = el("tr");
         tr.style.cssText = "border-bottom:1px solid #e2e8f0";
@@ -1122,7 +1150,7 @@
             </div>
           </td>
           <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
-          ${vatPerLineCheckbox && vatPerLineCheckbox.checked ? `<td style="padding:2px 2px;text-align:center;border-left:1px solid #e2e8f0"><select style="height:24px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;padding:0 2px;background:#fff" data-li="${i}" data-lf="vat_rate"><option value="20.00" ${line.vat_rate==="20.00"||line.vat_rate===20?"selected":""}>20%</option><option value="9.00" ${line.vat_rate==="9.00"||line.vat_rate===9?"selected":""}>9%</option><option value="0.00" ${line.vat_rate==="0.00"||line.vat_rate===0?"selected":""}>0%</option></select></td>` : ''}`;
+          <td style="padding:2px 2px;text-align:center;border-left:1px solid #e2e8f0"><select style="height:24px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;padding:0 2px;background:#fff" data-li="${i}" data-lf="vat_rate"><option value="20.00" ${line.vat_rate==="20.00"||line.vat_rate===20?"selected":""}>20%</option><option value="9.00" ${line.vat_rate==="9.00"||line.vat_rate===9?"selected":""}>9%</option><option value="0.00" ${line.vat_rate==="0.00"||line.vat_rate===0?"selected":""}>0%</option></select></td>`;
         linesBody.appendChild(tr);
       });
 
@@ -1267,15 +1295,6 @@
       });
     }
 
-    // "ДДС на всеки ред" checkbox — show/hide per-line VAT column
-    const vatPerLineCheckbox = modal.querySelector('[data-f="vat_per_line"]');
-    if (vatPerLineCheckbox) {
-      vatPerLineCheckbox.addEventListener("change", () => {
-        renderLines();
-        renderTotals();
-      });
-    }
-
     // Stub select — when user selects a stub, update invoice number
     const stubSelect = modal.querySelector('[data-f="stub_id"]');
     if (stubSelect) {
@@ -1313,17 +1332,6 @@
     // Discount inputs
     modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
-
-    // VAT rate display dropdown — changes all line VAT rates
-    const vatRateDisplaySelect = modal.querySelector('[data-f="vat_rate_display"]');
-    if (vatRateDisplaySelect) {
-      vatRateDisplaySelect.addEventListener("change", () => {
-        const newRate = vatRateDisplaySelect.value + ".00";
-        lines.forEach(l => { l.vat_rate = newRate; });
-        renderLines();
-        renderTotals();
-      });
-    }
 
     // Save handlers
     async function saveInvoice(status) {
@@ -1420,6 +1428,8 @@
         <div class="inv-field"><label>IBAN (Банкова сметка)</label><input class="inv-input" data-f="iban" placeholder="BG00XXXX00000000000000"></div>
         <div class="inv-field"><label>Име на банката</label><input class="inv-input" data-f="bank_name" placeholder="Банка ООД"></div>
         <div class="inv-field"><label>BIC код</label><input class="inv-input" data-f="bic" placeholder="XXXXBGSF"></div>
+        <h3 style="font-size:14px;font-weight:600;color:#334155;margin:16px 0 10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">ДДС по подразбиране</h3>
+        <div class="inv-field"><label>ДДС ставка по подразбиране (%)</label><select class="inv-input" data-f="default_vat_rate" style="height:34px"><option value="20">20%</option><option value="9">9%</option><option value="0">0%</option></select></div>
         <div style="margin-top:16px;margin-bottom:12px;border-top:1px solid #e2e8f0;padding-top:12px">
           <h3 style="font-size:14px;font-weight:600;color:#334155;margin-bottom:8px">Кочани (серии номера)</h3>
           <p style="font-size:12px;color:#64748b;margin-bottom:8px">Управлявайте кочаните за фактури с 10-цифрени номера.</p>
@@ -1447,6 +1457,7 @@
         if (settings.iban) modal.querySelector('[data-f="iban"]').value = settings.iban;
         if (settings.bank_name) modal.querySelector('[data-f="bank_name"]').value = settings.bank_name;
         if (settings.bic) modal.querySelector('[data-f="bic"]').value = settings.bic;
+        if (settings.default_vat_rate != null) modal.querySelector('[data-f="default_vat_rate"]').value = String(Math.round(Number(settings.default_vat_rate)));
       } catch (e) { /* ignore */ }
     })();
 
@@ -1454,8 +1465,9 @@
       const iban = modal.querySelector('[data-f="iban"]').value;
       const bankName = modal.querySelector('[data-f="bank_name"]').value;
       const bic = modal.querySelector('[data-f="bic"]').value;
+      const defaultVatRateVal = parseFloat(modal.querySelector('[data-f="default_vat_rate"]').value) || 20;
       try {
-        await api("PUT", `/company-settings/${companyId}?profile_id=${profileId}`, { iban, bank_name: bankName, bic });
+        await api("PUT", `/company-settings/${companyId}?profile_id=${profileId}`, { iban, bank_name: bankName, bic, default_vat_rate: defaultVatRateVal });
         toast("Настройките са запазени");
         closeModal(overlay);
       } catch (e) { toast("Грешка: " + e.message, "error"); }
@@ -1533,7 +1545,8 @@
       const endNum = parseInt(modal.querySelector("[data-new-stub-end]").value) || 5000000000;
       if (!name) { toast("Въведете име на кочана", "error"); return; }
       if (startNum >= endNum) { toast("Началният номер трябва да е по-малък от крайния", "error"); return; }
-      if (String(endNum).length > 10) { toast("Номерата трябва да са до 10 цифри", "error"); return; }
+      if (String(startNum).length > 10 || String(endNum).length > 10) { toast("Номерата трябва да са точно 10 цифри", "error"); return; }
+      if (startNum < 1 || endNum > 9999999999) { toast("Номерата трябва да са между 0000000001 и 9999999999", "error"); return; }
       try {
         await api("POST", "/stubs", { company_id: companyId, profile_id: profileId, name, start_number: startNum, end_number: endNum });
         toast("Кочанът е създаден");

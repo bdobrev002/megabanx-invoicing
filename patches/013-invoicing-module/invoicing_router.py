@@ -172,6 +172,7 @@ def ensure_invoicing_tables():
                         iban TEXT,
                         bank_name TEXT,
                         bic TEXT,
+                        default_vat_rate NUMERIC(5,2) DEFAULT 20.00,
                         created_at TIMESTAMP DEFAULT NOW(),
                         updated_at TIMESTAMP DEFAULT NOW()
                     )
@@ -224,6 +225,26 @@ def ensure_invoicing_tables():
         logger.info("[INVOICING] Source column ensured on invoices table")
     except Exception as e:
         logger.warning(f"[INVOICING] Could not add source column to invoices table (non-fatal): {e}")
+
+    # Add default_vat_rate column to inv_company_settings if it doesn't exist
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name = 'inv_company_settings' AND column_name = 'default_vat_rate'
+                        ) THEN
+                            ALTER TABLE inv_company_settings ADD COLUMN default_vat_rate NUMERIC(5,2) DEFAULT 20.00;
+                        END IF;
+                    END $$
+                """)
+            conn.commit()
+        logger.info("[INVOICING] default_vat_rate column ensured on inv_company_settings")
+    except Exception as e:
+        logger.warning(f"[INVOICING] Could not add default_vat_rate column (non-fatal): {e}")
 
 
 # ── Pydantic Schemas ──────────────────────────────────────────────────────
@@ -310,6 +331,7 @@ class CompanySettingsUpdate(BaseModel):
     iban: Optional[str] = None
     bank_name: Optional[str] = None
     bic: Optional[str] = None
+    default_vat_rate: Optional[float] = None
 
 class StubCreate(BaseModel):
     company_id: str
@@ -786,11 +808,14 @@ async def get_company_settings(company_id: str):
                 cur.execute("SELECT * FROM inv_company_settings WHERE company_id = %s", (company_id,))
                 row = cur.fetchone()
                 if not row:
-                    return {"company_id": company_id, "iban": "", "bank_name": "", "bic": ""}
-                return dict(row)
+                    return {"company_id": company_id, "iban": "", "bank_name": "", "bic": "", "default_vat_rate": 20.0}
+                result = dict(row)
+                if result.get("default_vat_rate") is None:
+                    result["default_vat_rate"] = 20.0
+                return result
     except Exception as e:
         logger.error(f"[INVOICING] Error getting company settings: {e}")
-        return {"company_id": company_id, "iban": "", "bank_name": "", "bic": ""}
+        return {"company_id": company_id, "iban": "", "bank_name": "", "bic": "", "default_vat_rate": 20.0}
 
 
 @invoicing_router.put("/company-settings/{company_id}")
@@ -802,14 +827,15 @@ async def update_company_settings(company_id: str, profile_id: str = Query(...),
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO inv_company_settings (id, company_id, profile_id, iban, bank_name, bic)
-                       VALUES (%s, %s, %s, %s, %s, %s)
+                    """INSERT INTO inv_company_settings (id, company_id, profile_id, iban, bank_name, bic, default_vat_rate)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (company_id) DO UPDATE SET
                        iban = EXCLUDED.iban,
                        bank_name = EXCLUDED.bank_name,
                        bic = EXCLUDED.bic,
+                       default_vat_rate = EXCLUDED.default_vat_rate,
                        updated_at = NOW()""",
-                    (setting_id, company_id, profile_id, data.iban, data.bank_name, data.bic)
+                    (setting_id, company_id, profile_id, data.iban, data.bank_name, data.bic, data.default_vat_rate)
                 )
             conn.commit()
         return {"status": "updated"}
