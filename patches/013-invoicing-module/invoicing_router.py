@@ -830,10 +830,10 @@ async def update_company_settings(company_id: str, profile_id: str = Query(...),
                     """INSERT INTO inv_company_settings (id, company_id, profile_id, iban, bank_name, bic, default_vat_rate)
                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (company_id) DO UPDATE SET
-                       iban = EXCLUDED.iban,
-                       bank_name = EXCLUDED.bank_name,
-                       bic = EXCLUDED.bic,
-                       default_vat_rate = EXCLUDED.default_vat_rate,
+                       iban = COALESCE(EXCLUDED.iban, inv_company_settings.iban),
+                       bank_name = COALESCE(EXCLUDED.bank_name, inv_company_settings.bank_name),
+                       bic = COALESCE(EXCLUDED.bic, inv_company_settings.bic),
+                       default_vat_rate = COALESCE(EXCLUDED.default_vat_rate, inv_company_settings.default_vat_rate),
                        updated_at = NOW()""",
                     (setting_id, company_id, profile_id, data.iban, data.bank_name, data.bic, data.default_vat_rate)
                 )
