@@ -634,7 +634,7 @@
               <div style="flex:1;display:flex;gap:3px">
                 <input class="inv-input" data-client-search placeholder="Търсене по име или ЕИК..." style="flex:1;height:30px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 10px">
                 <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-client-pick title="Избери от базата"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg></button>
-                <button style="height:30px;width:30px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" data-tr-invoice title="Търсене в ТР"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+                <button style="height:30px;padding:0 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;gap:3px;cursor:pointer;flex-shrink:0;font-size:12px;font-weight:600;color:#b45309" data-tr-invoice title="Търсене в Търговски регистър"><span>ТР</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
               </div>
               <div data-client-dropdown style="position:relative"></div>
             </div>
@@ -652,6 +652,7 @@
             <div style="display:flex;align-items:center;gap:10px">
               <div style="width:130px;flex-shrink:0"></div>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="client_is_vat" style="width:14px;height:14px" disabled>Регистрация по ЗДДС</label>
+              <input class="inv-input" data-f="client_vat" readonly style="height:24px;font-size:12px;border-radius:6px;border:1px solid #cbd5e1;padding:2px 8px;background:#f8fafc;color:#64748b;max-width:160px;display:none" placeholder="ДДС номер">
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <label style="font-size:13px;font-weight:600;color:#334155;width:130px;flex-shrink:0;text-align:right">МОЛ:</label>
@@ -677,8 +678,8 @@
           <div style="display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;align-items:center;gap:10px">
               <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Кочан:</label>
-              <button style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:underline;background:none;border:none;cursor:pointer" data-stub-link>кочан</button>
-              <select class="inv-select" data-f="stub_id" style="display:none"><option value="">—</option></select>
+              <select class="inv-select" data-f="stub_id" style="height:30px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px;background:#fff;min-width:180px"><option value="">— няма кочан —</option></select>
+              <button style="height:30px;padding:0 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;gap:3px;cursor:pointer;flex-shrink:0;font-size:12px;color:#2563eb;font-weight:500" data-stub-link title="Управление на кочани"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>кочан</span></button>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <label style="font-size:13px;font-weight:600;color:#334155;width:185px;flex-shrink:0;text-align:right">Фактура №:<br><span style="font-size:11px;font-weight:400;color:#94a3b8">следващият свободен №</span></label>
@@ -758,6 +759,7 @@
           <span style="font-size:13px;font-weight:600;color:#334155">ДДС настройки:</span>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="no_vat" style="width:14px;height:14px;accent-color:#2563eb">Не начислявай ДДС по тази фактура</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="vat_per_line" style="width:14px;height:14px;accent-color:#2563eb">ДДС на всеки ред</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px"><input type="checkbox" data-f="client_is_vat_invoice" style="width:14px;height:14px;accent-color:#2563eb" disabled>Регистрация по ЗДДС</label>
         </div>
         <!-- VAT reason dropdown (shown when "Не начислявай ДДС" is checked) -->
         <div data-no-vat-reason style="display:none;padding:8px 0">
@@ -853,16 +855,12 @@
     modal.addEventListener("selectstart", (e) => e.stopPropagation());
 
     // Price toggle (with/without VAT)
-    modal.querySelector("[data-price-toggle]").onclick = () => {
+    const priceToggleBtn = modal.querySelector("[data-price-toggle]");
+    priceToggleBtn.onclick = () => {
       priceWithVat = !priceWithVat;
-      const label = modal.querySelector("[data-price-label]");
-      const toggle = modal.querySelector("[data-price-toggle]");
-      if (priceWithVat) {
-        label.textContent = "Цена с ДДС";
-        toggle.textContent = "(без ДДС)";
-      } else {
-        label.textContent = "Цена без ДДС";
-        toggle.textContent = "(с ДДС)";
+      const label = priceToggleBtn.querySelector("[data-price-label]");
+      if (label) {
+        label.textContent = priceWithVat ? "Цена с ДДС" : "Цена без ДДС";
       }
       // Recalculate displayed prices
       renderLines();
@@ -943,7 +941,6 @@
       clientSearchInput.value = c.name;
       const setField = (sel, val) => { const el = modal.querySelector(sel); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val || ''; } };
       setField('[data-f="client_eik"]', c.eik);
-      setField('[data-f="client_vat"]', c.vat_number);
       setField('[data-f="client_is_vat"]', c.is_vat_registered);
       setField('[data-f="client_is_individual"]', c.is_individual);
       setField('[data-f="client_mol"]', c.mol);
@@ -952,6 +949,16 @@
       // Fix 3: Update EIK/EGN label based on individual status
       const eikLabel = modal.querySelector("[data-eik-label]");
       if (eikLabel) eikLabel.textContent = c.is_individual ? "ЕГН:" : "ЕИК/Булстат:";
+      // Show/hide VAT number and update ЗДДС checkboxes
+      const vatInput = modal.querySelector('[data-f="client_vat"]');
+      const vatCheckbox = modal.querySelector('[data-f="client_is_vat"]');
+      const vatCheckboxInvoice = modal.querySelector('[data-f="client_is_vat_invoice"]');
+      if (vatInput) {
+        vatInput.value = c.vat_number || "";
+        vatInput.style.display = c.is_vat_registered ? "block" : "none";
+      }
+      if (vatCheckbox) vatCheckbox.checked = !!c.is_vat_registered;
+      if (vatCheckboxInvoice) vatCheckboxInvoice.checked = !!c.is_vat_registered;
     }
 
     // TR lookup for invoice — opens a styled popup
@@ -1057,6 +1064,19 @@
 
     function renderLines() {
       linesBody.innerHTML = "";
+      // Dynamically add/remove ДДС% header column
+      const thead = modal.querySelector(".inv-line-table thead tr");
+      const existingVatTh = thead.querySelector("[data-vat-th]");
+      const showVatPerLine = vatPerLineCheckbox && vatPerLineCheckbox.checked;
+      if (showVatPerLine && !existingVatTh) {
+        const th = document.createElement("th");
+        th.setAttribute("data-vat-th", "1");
+        th.style.cssText = "text-align:center;font-size:13px;font-weight:600;color:#334155;padding:6px;width:70px;border-left:1px solid #e2e8f0";
+        th.textContent = "ДДС %";
+        thead.appendChild(th);
+      } else if (!showVatPerLine && existingVatTh) {
+        existingVatTh.remove();
+      }
       lines.forEach((line, i) => {
         const tr = el("tr");
         tr.style.cssText = "border-bottom:1px solid #e2e8f0";
@@ -1101,7 +1121,8 @@
               <span style="font-size:11px;color:#94a3b8;margin-left:2px;flex-shrink:0">EUR</span>
             </div>
           </td>
-          <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>`;
+          <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:500" data-line-total="${i}">${calcLineTotal(line)} EUR</td>
+          ${vatPerLineCheckbox && vatPerLineCheckbox.checked ? `<td style="padding:2px 2px;text-align:center;border-left:1px solid #e2e8f0"><select style="height:24px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;padding:0 2px;background:#fff" data-li="${i}" data-lf="vat_rate"><option value="20.00" ${line.vat_rate==="20.00"||line.vat_rate===20?"selected":""}>20%</option><option value="9.00" ${line.vat_rate==="9.00"||line.vat_rate===9?"selected":""}>9%</option><option value="0.00" ${line.vat_rate==="0.00"||line.vat_rate===0?"selected":""}>0%</option></select></td>` : ''}`;
         linesBody.appendChild(tr);
       });
 
@@ -1246,6 +1267,49 @@
       });
     }
 
+    // "ДДС на всеки ред" checkbox — show/hide per-line VAT column
+    const vatPerLineCheckbox = modal.querySelector('[data-f="vat_per_line"]');
+    if (vatPerLineCheckbox) {
+      vatPerLineCheckbox.addEventListener("change", () => {
+        renderLines();
+        renderTotals();
+      });
+    }
+
+    // Stub select — when user selects a stub, update invoice number
+    const stubSelect = modal.querySelector('[data-f="stub_id"]');
+    if (stubSelect) {
+      stubSelect.addEventListener("change", async () => {
+        const stubId = stubSelect.value;
+        if (!stubId) return;
+        const selectedStub = stubs.find(s => s.id === stubId);
+        if (selectedStub) {
+          const numInput = modal.querySelector('[data-f="invoice_number"]');
+          if (numInput) numInput.value = String(selectedStub.next_number).padStart(10, "0");
+        }
+      });
+    }
+
+    // Stub link button — opens stub management popup
+    const stubLinkBtn = modal.querySelector("[data-stub-link]");
+    if (stubLinkBtn) {
+      stubLinkBtn.onclick = () => openStubManagementPopup(companyId, profileId, async () => {
+        // After stub management closes, reload stubs and refresh dropdown
+        try {
+          const freshStubs = await api("GET", `/stubs?company_id=${companyId}&profile_id=${profileId}`);
+          stubs.length = 0;
+          freshStubs.forEach(s => stubs.push(s));
+          stubSelect.innerHTML = '<option value="">— няма кочан —</option>';
+          stubs.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${String(s.start_number).padStart(10,"0")} — ${String(s.end_number).padStart(10,"0")})`;
+            stubSelect.appendChild(opt);
+          });
+        } catch (e) { console.warn("Failed to reload stubs:", e); }
+      });
+    }
+
     // Discount inputs
     modal.querySelector('[data-f="discount"]').addEventListener("input", () => renderTotals());
     modal.querySelector('[data-f="discount_type"]').addEventListener("change", () => renderTotals());
@@ -1343,19 +1407,25 @@
     init();
   }
 
-  // ── Settings Popup (bank account) ───────────────────────────────────────
+  // ── Settings Popup (bank account + stubs) ────────────────────────────────
   function openSettingsPopup(companyId, profileId) {
-    const modal = el("div", { className: "inv-modal inv-modal-sm" });
+    const modal = el("div", { className: "inv-modal", style: "width:600px" });
     modal.innerHTML = `
       <div class="inv-modal-header">
         <h2>${ICONS.settings} Настройки</h2>
         <button class="inv-modal-close" data-close>${ICONS.x}</button>
       </div>
       <div class="inv-modal-body">
+        <h3 style="font-size:14px;font-weight:600;color:#334155;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">Банкови данни</h3>
         <div class="inv-field"><label>IBAN (Банкова сметка)</label><input class="inv-input" data-f="iban" placeholder="BG00XXXX00000000000000"></div>
         <div class="inv-field"><label>Име на банката</label><input class="inv-input" data-f="bank_name" placeholder="Банка ООД"></div>
         <div class="inv-field"><label>BIC код</label><input class="inv-input" data-f="bic" placeholder="XXXXBGSF"></div>
-        <div class="inv-actions">
+        <div style="margin-top:16px;margin-bottom:12px;border-top:1px solid #e2e8f0;padding-top:12px">
+          <h3 style="font-size:14px;font-weight:600;color:#334155;margin-bottom:8px">Кочани (серии номера)</h3>
+          <p style="font-size:12px;color:#64748b;margin-bottom:8px">Управлявайте кочаните за фактури с 10-цифрени номера.</p>
+          <button class="inv-btn inv-btn-primary" data-manage-stubs style="font-size:13px;padding:6px 16px">📋 Управление на кочани</button>
+        </div>
+        <div class="inv-actions" style="margin-top:12px">
           <button class="inv-btn" data-cancel>Отказ</button>
           <button class="inv-btn inv-btn-primary" data-save>Запази</button>
         </div>
@@ -1364,6 +1434,11 @@
     const overlay = createOverlay(modal);
     modal.querySelector("[data-close]").onclick = () => closeModal(overlay);
     modal.querySelector("[data-cancel]").onclick = () => closeModal(overlay);
+
+    // Manage stubs button
+    modal.querySelector("[data-manage-stubs]").onclick = () => {
+      openStubManagementPopup(companyId, profileId);
+    };
 
     // Load current settings
     (async () => {
@@ -1383,6 +1458,89 @@
         await api("PUT", `/company-settings/${companyId}?profile_id=${profileId}`, { iban, bank_name: bankName, bic });
         toast("Настройките са запазени");
         closeModal(overlay);
+      } catch (e) { toast("Грешка: " + e.message, "error"); }
+    };
+  }
+
+  // ── Stub Management Popup (кочани) ──────────────────────────────────────
+  function openStubManagementPopup(companyId, profileId, onClose) {
+    const modal = el("div", { className: "inv-modal", style: "width:650px;max-height:85vh" });
+    modal.innerHTML = `
+      <div class="inv-modal-header">
+        <h2>📋 Управление на кочани</h2>
+        <button class="inv-modal-close" data-close>${ICONS.x}</button>
+      </div>
+      <div class="inv-modal-body" style="max-height:65vh;overflow-y:auto">
+        <p style="font-size:13px;color:#475569;margin-bottom:12px">Кочаните определят диапазона от номера за фактури. Всеки кочан съдържа 10-цифрени номера.</p>
+        <div data-stubs-list style="margin-bottom:16px"></div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px;background:#f8fafc">
+          <h3 style="font-size:14px;font-weight:600;color:#334155;margin-bottom:10px">Нов кочан</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+            <div class="inv-field"><label style="font-size:12px;font-weight:600;color:#475569">Име на кочана</label><input class="inv-input" data-new-stub-name placeholder="напр. Основен кочан" style="height:32px;font-size:13px"></div>
+            <div class="inv-field"><label style="font-size:12px;font-weight:600;color:#475569">Начален номер</label><input class="inv-input" data-new-stub-start type="number" min="1" max="9999999999" value="1" style="height:32px;font-size:13px;font-family:monospace"></div>
+            <div class="inv-field"><label style="font-size:12px;font-weight:600;color:#475569">Краен номер</label><input class="inv-input" data-new-stub-end type="number" min="1" max="9999999999" value="5000000000" style="height:32px;font-size:13px;font-family:monospace"></div>
+          </div>
+          <button class="inv-btn inv-btn-primary" data-create-stub style="font-size:13px;padding:6px 20px">+ Създай кочан</button>
+        </div>
+      </div>`;
+
+    const overlay = createOverlay(modal);
+    modal.querySelector("[data-close]").onclick = () => { closeModal(overlay); if (onClose) onClose(); };
+
+    const stubsList = modal.querySelector("[data-stubs-list]");
+
+    async function loadAndRenderStubs() {
+      try {
+        const stubsData = await api("GET", `/stubs?company_id=${companyId}&profile_id=${profileId}`);
+        stubsList.innerHTML = "";
+        if (stubsData.length === 0) {
+          stubsList.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Няма създадени кочани</div>';
+          return;
+        }
+        stubsData.forEach(s => {
+          const row = el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px;background:#fff" });
+          row.innerHTML = `
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px;color:#334155">${esc(s.name)}</div>
+              <div style="font-size:12px;color:#64748b;font-family:monospace">${String(s.start_number).padStart(10,"0")} — ${String(s.end_number).padStart(10,"0")}</div>
+              <div style="font-size:11px;color:#94a3b8">Следващ №: <span style="font-weight:600;color:#2563eb">${String(s.next_number).padStart(10,"0")}</span></div>
+            </div>
+            <button class="inv-btn" style="color:#ef4444;border-color:#fecaca;font-size:12px;padding:4px 10px" data-delete-stub="${s.id}">Изтрий</button>`;
+          stubsList.appendChild(row);
+        });
+        // Bind delete buttons
+        stubsList.querySelectorAll("[data-delete-stub]").forEach(btn => {
+          btn.onclick = async () => {
+            if (!confirm("Сигурни ли сте, че искате да изтриете този кочан?")) return;
+            try {
+              await api("DELETE", `/stubs/${btn.dataset.deleteStub}`);
+              toast("Кочанът е изтрит");
+              loadAndRenderStubs();
+            } catch (e) { toast("Грешка: " + e.message, "error"); }
+          };
+        });
+      } catch (e) {
+        stubsList.innerHTML = '<div style="color:#ef4444;padding:10px;font-size:13px">Грешка при зареждане на кочаните</div>';
+      }
+    }
+
+    loadAndRenderStubs();
+
+    // Create new stub
+    modal.querySelector("[data-create-stub]").onclick = async () => {
+      const name = modal.querySelector("[data-new-stub-name]").value.trim();
+      const startNum = parseInt(modal.querySelector("[data-new-stub-start]").value) || 1;
+      const endNum = parseInt(modal.querySelector("[data-new-stub-end]").value) || 5000000000;
+      if (!name) { toast("Въведете име на кочана", "error"); return; }
+      if (startNum >= endNum) { toast("Началният номер трябва да е по-малък от крайния", "error"); return; }
+      if (String(endNum).length > 10) { toast("Номерата трябва да са до 10 цифри", "error"); return; }
+      try {
+        await api("POST", "/stubs", { company_id: companyId, profile_id: profileId, name, start_number: startNum, end_number: endNum });
+        toast("Кочанът е създаден");
+        modal.querySelector("[data-new-stub-name]").value = "";
+        modal.querySelector("[data-new-stub-start]").value = "1";
+        modal.querySelector("[data-new-stub-end]").value = "5000000000";
+        loadAndRenderStubs();
       } catch (e) { toast("Грешка: " + e.message, "error"); }
     };
   }
