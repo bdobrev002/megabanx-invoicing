@@ -2007,20 +2007,35 @@
           if (trimmed === fname || trimmed.includes(fname.replace(".pdf", ""))) {
             if (textEl.querySelector(".inv-bolt")) continue;
             // Determine bolt state:
-            // 1 gray bolt = counterparty not in megabanx system
-            // 2 gray bolts = counterparty exists in megabanx
-            // 2 blue bolts = invoice accepted by counterparty
+            // Red single bolt = not yet synced (before synchronization)
+            // Gray single bolt = synced, counterparty NOT in megabanx system
+            // Gray double bolt = synced, counterparty in megabanx but not approved
+            // Blue double bolt = counterparty approved the invoice
             let boltCount = 1;
-            let boltColor = (inv.sync_status === "synced" || inv.sync_status === "accepted") ? "blue" : "red";
-            if (inv.client_eik) {
+            let boltColor = "red";
+            const isSynced = (inv.sync_status === "synced" || inv.sync_status === "accepted");
+            if (!isSynced) {
+              // Not synced yet — red single bolt
+              boltCount = 1;
+              boltColor = "red";
+            } else if (inv.client_eik) {
               try {
                 const check = await api("GET", `/check-counterparty/${inv.client_eik}`).catch(() => null);
                 if (check && check.exists) {
                   boltCount = 2;
-                  // Check sync_status for acceptance
-                  boltColor = (inv.sync_status === "accepted") ? "blue" : "red";
+                  boltColor = (inv.sync_status === "accepted") ? "blue" : "gray";
+                } else {
+                  boltCount = 1;
+                  boltColor = "gray";
                 }
-              } catch (e) { /* ignore */ }
+              } catch (e) {
+                boltCount = 1;
+                boltColor = "gray";
+              }
+            } else {
+              // Synced but no EIK to check — gray single
+              boltCount = 1;
+              boltColor = "gray";
             }
             const bolt = createBoltIcon(boltCount, boltColor);
             textEl.prepend(bolt);
