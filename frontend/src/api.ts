@@ -353,6 +353,26 @@ export const invUpdateStub = (stubId: string, data: Record<string, unknown>) =>
 export const invDeleteStub = (stubId: string) =>
   request(`/api/invoicing/stubs/${stubId}`, { method: 'DELETE' });
 
+// Delete invoice
+export const invDeleteInvoice = (invoiceId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}`, { method: 'DELETE' });
+
+// Check if invoice is editable (not synced/approved)
+export const invCheckEditable = (invoiceId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}/editable`);
+
+// Get client emails (all_emails + notify_emails)
+export const invGetClientEmails = (clientId: string) =>
+  request(`/api/invoicing/client-emails/${clientId}`);
+
 // Sync invoices to megabanx folder
 export const invSyncInvoices = (companyId: string, profileId: string) =>
   request(`/api/invoicing/sync/${companyId}?profile_id=${profileId}`, { method: 'POST' });
+
+// Batch sync all pending software invoices
+export const batchSyncInvoices = (profileId: string) =>
+  request(`/api/profiles/${profileId}/batch-sync`, { method: 'POST' });
+
+// Send invoice email to recipients
+export const sendInvoiceEmail = (profileId: string, data: Record<string, unknown>) =>
+  request(`/api/profiles/${profileId}/send-invoice-email-to-recipients`, { method: 'POST', body: JSON.stringify(data) });

@@ -28,7 +28,8 @@ import {
   invGetCompanySettings, invUpdateCompanySettings,
   invGetSyncSettings, invUpdateSyncSettings,
   invListStubs, invCreateStub, invUpdateStub, invDeleteStub,
-  invSyncInvoices,
+  invSyncInvoices, invDeleteInvoice, invCheckEditable,
+  sendInvoiceEmail,
 } from './api';
 import {
   Users, Plus, Building2, Upload, FileText, FolderOpen,
@@ -367,13 +368,23 @@ function App() {
     } finally { setContactSubmitting(false); }
   };
 
-  // Check session on load
+  // Check session on load + auto-login from email links
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const autoLogin = params.get('login');
+    const autoEmail = params.get('email');
     authMe().then(user => {
       setCurrentUser(user);
       setAuthScreen('landing');
     }).catch(() => {
-      setAuthScreen('landing');
+      if (autoLogin === '1' && autoEmail) {
+        setAuthEmail(autoEmail);
+        setAuthScreen('login');
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+      } else {
+        setAuthScreen('landing');
+      }
     });
   }, []);
 
@@ -648,7 +659,14 @@ function App() {
   const handleDeleteFile = async (companyName: string, folderType: string, filename: string) => {
     if (!activeProfile || !confirm('Изтриване на ' + filename + '?')) return; clearMsg();
     try { await deleteFile(activeProfile.id, companyName, folderType, filename); ok('Файлът е изтрит'); loadProfileData(activeProfile.id); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error'); }
+    catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error';
+      if (msg.includes('одобрена') || msg.includes('approved') || msg.includes('защитен') || msg.includes('protected')) {
+        alert(msg);
+      } else {
+        setError(msg);
+      }
+    }
   };
 
   const handleDeleteNotif = async (notifId: string) => {
@@ -837,9 +855,23 @@ function App() {
   const handleDeleteSelected = async () => {
     if (!activeProfile || !selectedFiles.length || !confirm(`Изтриване на ${selectedFiles.length} файла?`)) return; clearMsg();
     try {
-      await deleteBatch(activeProfile.id, selectedFiles);
-      ok(`${selectedFiles.length} файла са изтрити`); setSelectedFiles([]); loadProfileData(activeProfile.id);
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error'); }
+      const result = await deleteBatch(activeProfile.id, selectedFiles);
+      if (result && result.blocked && result.blocked.length > 0) {
+        const blockedNames = result.blocked.map((b: Record<string, string>) => b.filename || b.name).join(', ');
+        alert(`${result.blocked.length} файл(а) не могат да бъдат изтрити (одобрени от контрагента): ${blockedNames}`);
+        if (result.deleted > 0) ok(`${result.deleted} файла са изтрити`);
+      } else {
+        ok(`${selectedFiles.length} файла са изтрити`);
+      }
+      setSelectedFiles([]); loadProfileData(activeProfile.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error';
+      if (msg.includes('одобрена') || msg.includes('approved') || msg.includes('защитен') || msg.includes('protected')) {
+        alert(msg);
+      } else {
+        setError(msg);
+      }
+    }
   };
 
   const handleSubscribe = async (plan: string) => {
@@ -1012,6 +1044,16 @@ function App() {
   };
 
   const invOpenInvoice = async (companyId: string, profileId: string, companyName: string, editData?: Record<string, unknown>) => {
+    // Edit protection: check if invoice is editable (not synced/approved by counterparty)
+    if (editData?.invoice_id) {
+      try {
+        const check = await invCheckEditable(editData.invoice_id as string);
+        if (check && !check.editable) {
+          alert(check.reason || 'Тази фактура не може да бъде редактирана — одобрена е от контрагента.');
+          return;
+        }
+      } catch { /* endpoint may not exist yet, proceed */ }
+    }
     setInvCompanyId(companyId); setInvProfileId(profileId); setInvCompanyName(companyName);
     setInvModal('invoice'); setInvSaving(false);
     // Reset form
@@ -1122,6 +1164,22 @@ function App() {
       if (activeProfile) loadProfileData(activeProfile.id);
     } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); }
     finally { setInvSaving(false); }
+  };
+
+  const invHandleDelete = async (invoiceId: string, invoiceNumber: string) => {
+    if (!confirm(`Изтриване на фактура ${invoiceNumber}?`)) return;
+    try {
+      await invDeleteInvoice(invoiceId);
+      invToastShow(`Фактура ${invoiceNumber} е изтрита`);
+      if (activeProfile) loadProfileData(activeProfile.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Грешка';
+      if (msg.includes('одобрена') || msg.includes('approved') || msg.includes('защитен') || msg.includes('protected')) {
+        alert(msg);
+      } else {
+        invToastShow('Грешка: ' + msg, 'error');
+      }
+    }
   };
 
   const invHandleSync = async (companyId: string, profileId: string) => {
@@ -2720,11 +2778,11 @@ function App() {
                 { key: 'screenshots' as const, label: 'ScreenShots', icon: Camera },
                 { key: 'security' as const, label: 'Сигурност', icon: Shield },
                 { key: 'pricing' as const, label: 'Планове и цени', icon: CreditCard },
-                { key: 'faq' as const, label: 'Чести въпроси', icon: HelpCircle },
-                { key: 'about_us' as const, label: 'Кои сме ние', icon: Users2 },
-                { key: 'contact' as const, label: 'Контакти', icon: MessageSquare },
-              ]).map(item => (
-                <button key={item.key} onClick={() => { setAuthScreen('landing'); setLandingSection(item.key); setMobileMenuOpen(false); }}
+                              { key: 'faq' as const, label: 'Често задавани въпроси', icon: HelpCircle },
+                              { key: 'about_us' as const, label: 'Кои сме ние', icon: Users2 },
+                              { key: 'contact' as const, label: 'Контакти', icon: MessageSquare },
+                            ]).map(item => (
+                              <button key={item.key} onClick={() => { setAuthScreen('landing'); setLandingSection(item.key); setMobileMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-200 hover:text-gray-900">
                   <item.icon className="w-4 h-4 flex-shrink-0" /> {item.label}
                 </button>
@@ -2749,13 +2807,13 @@ function App() {
             { key: 'screenshots' as const, label: 'ScreenShots', icon: Camera },
             { key: 'security' as const, label: 'Сигурност', icon: Shield },
             { key: 'pricing' as const, label: 'Планове и цени', icon: CreditCard },
-            { key: 'faq' as const, label: 'Чести въпроси', icon: HelpCircle },
-            { key: 'about_us' as const, label: 'Кои сме ние', icon: Users2 },
-            { key: 'contact' as const, label: 'Контакти', icon: MessageSquare },
-          ]).map(item => (
-            <button
-              key={item.key}
-              onClick={() => { setAuthScreen('landing'); setLandingSection(item.key); }}
+                      { key: 'faq' as const, label: 'Често задавани въпроси', icon: HelpCircle },
+                      { key: 'about_us' as const, label: 'Кои сме ние', icon: Users2 },
+                      { key: 'contact' as const, label: 'Контакти', icon: MessageSquare },
+                    ]).map(item => (
+                      <button
+                        key={item.key}
+                        onClick={() => { setAuthScreen('landing'); setLandingSection(item.key); }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-200 hover:text-gray-900"
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
