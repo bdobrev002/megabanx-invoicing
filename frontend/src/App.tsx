@@ -308,7 +308,7 @@ function App() {
   const [invPickerSearch, setInvPickerSearch] = useState('');
   const [invSyncing, setInvSyncing] = useState<Record<string, boolean>>({});
   const [invClientSearch, setInvClientSearch] = useState('');
-  const [invVatPerLine, setInvVatPerLine] = useState(false);
+  const [invVatPerLine, setInvVatPerLine] = useState(true);
   const [invPickerLineIdx, setInvPickerLineIdx] = useState(0);
   const EUR_TO_BGN = 1.95583;
 
@@ -1092,7 +1092,7 @@ function App() {
     setInvDiscount(''); setInvDiscountType('EUR');
     setInvNotes(''); setInvInternalNotes(''); setInvComposedBy('');
     setInvShowDueDate(false); setInvDueDate(''); setInvPaymentMethod('');
-    setInvPriceWithVat(false); setInvSyncMode('manual'); setInvDelayMinutes('30'); setInvClientSearch(''); setInvVatPerLine(false);
+    setInvPriceWithVat(false); setInvSyncMode('manual'); setInvDelayMinutes('30'); setInvClientSearch(''); setInvVatPerLine(true);
     setInvEditInvoiceId(editData?.invoice_id as string || null);
     // Load data
     try {
@@ -1104,6 +1104,33 @@ function App() {
       ]);
       setInvClients(c); setInvItems(it); setInvStubs(st); setInvSettings(cs);
       const defVat = String(Number(cs.default_vat_rate || 20).toFixed(2));
+      // Auto-fill composed_by from company MOL
+      if (!editData) {
+        const folder = (window as unknown as Record<string, unknown>).__invFolderData as Array<Record<string, Record<string, unknown>>> | undefined;
+        let mol = '';
+        let managers: Array<Record<string, string>> = [];
+        if (folder) {
+          const f = folder.find((fd: Record<string, Record<string, unknown>>) => fd.company && fd.company.id === companyId);
+          if (f && f.company) {
+            mol = (f.company.mol as string) || '';
+            if (Array.isArray(f.company.managers)) managers = f.company.managers as Array<Record<string, string>>;
+          }
+        }
+        if (!mol && managers.length > 0) mol = managers[0].name || '';
+        // Fallback: fetch company data from API
+        if (!mol) {
+          try {
+            const co = companies.find(cx => cx.id === companyId);
+            if (co) mol = (co as unknown as Record<string, unknown>).mol as string || '';
+          } catch { /* ignore */ }
+        }
+        if (mol) setInvComposedBy(mol);
+        // Restore last no-vat reason from localStorage
+        try {
+          const lastReason = localStorage.getItem('inv_last_no_vat_reason');
+          if (lastReason) setInvNoVatReason(lastReason);
+        } catch { /* ignore */ }
+      }
       // Set next number
       const docType = editData?.document_type as string || 'invoice';
       if (!editData) {
@@ -1162,6 +1189,8 @@ function App() {
     // Save sync settings
     try { await invUpdateSyncSettings(invCompanyId, invProfileId, { sync_mode: invSyncMode, delay_minutes: parseInt(invDelayMinutes) || 30 }); } catch { /* ignore */ }
     const noVatReason = invNoVat ? (invNoVatReason === 'other' ? invNoVatReasonCustom : invNoVatReason) : '';
+    // Remember last no-vat reason in localStorage
+    if (invNoVat && invNoVatReason) { try { localStorage.setItem('inv_last_no_vat_reason', invNoVatReason); } catch { /* ignore */ } }
     const payload = {
       company_id: invCompanyId, profile_id: invProfileId,
       client_id: invSelectedClient.id, document_type: invDocType,
@@ -4890,8 +4919,8 @@ function App() {
                       <button onClick={() => { setInvPickerSearch(''); setInvModal('clientPicker'); }} style={{height:'30px',width:'30px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Избери от базата">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
                       </button>
-                      <button onClick={() => { setInvTrEik(''); setInvTrResult(null); setInvModal('trLookup'); }} style={{height:'30px',width:'30px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Търсене в ТР">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      <button onClick={() => { setInvTrEik(''); setInvTrResult(null); setInvModal('trLookup'); }} style={{height:'30px',padding:'0 8px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',gap:'3px',cursor:'pointer',flexShrink:0,fontSize:'12px',fontWeight:600,color:'#b45309'}} title="Търсене в Търговски регистър">
+                        <span>ТР</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                       </button>
                       {/* Inline dropdown */}
                       {invClientSearch && invClientSearch.length > 0 && (() => { const filtered = invClients.filter(c => c.name.toLowerCase().includes(invClientSearch.toLowerCase()) || (c.eik && c.eik.includes(invClientSearch))); return filtered.length > 0 ? (
@@ -4991,12 +5020,12 @@ function App() {
                     <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',borderRight:'1px solid #e2e8f0',minWidth:'220px'}}>Артикул</th>
                     <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'130px',borderRight:'1px solid #e2e8f0'}}>Количество</th>
                     <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'150px',borderRight:'1px solid #e2e8f0'}}>
-                      <button onClick={() => setInvPriceWithVat(!invPriceWithVat)} style={{display:'inline-flex',alignItems:'center',gap:'2px',background:'none',border:'none',cursor:'pointer',fontSize:'13px',fontWeight:600,color:'#334155'}}>
-                        <span>{invPriceWithVat ? 'Цена с ДДС' : 'Цена без ДДС'}</span>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
-                      </button>
+                      <select value={invPriceWithVat ? '1' : '0'} onChange={e => setInvPriceWithVat(e.target.value === '1')} style={{fontSize:'13px',fontWeight:600,color:'#334155',border:'none',background:'transparent',cursor:'pointer',textAlign:'center'}}>
+                        <option value="0">Цена без ДДС</option>
+                        <option value="1">Цена с ДДС</option>
+                      </select>
                     </th>
-                    {invVatPerLine && <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'80px',borderRight:'1px solid #e2e8f0'}}>ДДС %</th>}
+                    <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'80px',borderRight:'1px solid #e2e8f0'}}>ДДС %</th>
                     <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'100px'}}>Стойност</th>
                   </tr></thead>
                   <tbody>
@@ -5039,11 +5068,11 @@ function App() {
                               <span style={{fontSize:'11px',color:'#94a3b8',marginLeft:'2px',flexShrink:0}}>EUR</span>
                             </div>
                           </td>
-                          {invVatPerLine && <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
-                            <select value={String(Math.round(parseFloat(line.vat_rate) || 20))} onChange={e => invUpdateLine(idx,'vat_rate',e.target.value+'.00')} style={{height:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff',width:'100%'}}>
+                          <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
+                            <select value={String(Math.round(parseFloat(line.vat_rate) || 20))} onChange={e => invUpdateLine(idx,'vat_rate',e.target.value+'.00')} style={{height:'24px',border:'1px solid #cbd5e1',borderRadius:'4px',fontSize:'12px',padding:'0 2px',background:'#fff',width:'100%'}}>
                               <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
                             </select>
-                          </td>}
+                          </td>
                           <td style={{padding:'4px 6px',textAlign:'right',fontSize:'13px',fontWeight:500}}>{invCalcLineTotal(line).toFixed(2)} EUR</td>
                         </tr>
                       );
@@ -5084,9 +5113,6 @@ function App() {
                         <td style={{textAlign:'right',fontSize:'13px',color:'#475569',padding:'2px 12px 2px 0'}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'6px'}}>
                             <span>ДДС</span>
-                            {!invVatPerLine && <select value={invLines.length > 0 ? String(Math.round(parseFloat(invLines[0].vat_rate) || 20)) : '20'} onChange={e => { const r = e.target.value + '.00'; setInvLines(prev => prev.map(l => ({...l, vat_rate: r}))); }} style={{height:'22px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff'}}>
-                              <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
-                            </select>}
                           </div>
                         </td>
                         <td style={{textAlign:'right',fontSize:'13px',fontWeight:600,padding:'2px 0'}}>{totalVat.toFixed(2)} EUR<div style={{fontSize:'11px',color:'#94a3b8',fontWeight:400}}>{(totalVat * EUR_TO_BGN).toFixed(2)} лв.</div></td>
@@ -5100,7 +5126,6 @@ function App() {
               <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'2px',borderTop:'1px solid #e2e8f0',borderBottom:'1px solid #e2e8f0',padding:'6px 0'}}>
                 <span style={{fontSize:'13px',fontWeight:600,color:'#334155'}}>ДДС настройки:</span>
                 <label style={{display:'flex',alignItems:'center',gap:'5px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invNoVat} onChange={e => { setInvNoVat(e.target.checked); if (e.target.checked) { setInvLines(prev => prev.map(l => ({...l, vat_rate:'0.00'}))); } else { setInvLines(prev => prev.map(l => ({...l, vat_rate:'20.00'}))); }}} style={{width:'14px',height:'14px',accentColor:'#2563eb'}} />Не начислявай ДДС по тази фактура</label>
-                <label style={{display:'flex',alignItems:'center',gap:'5px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invVatPerLine} onChange={e => setInvVatPerLine(e.target.checked)} style={{width:'14px',height:'14px',accentColor:'#2563eb'}} />ДДС на всеки ред</label>
               </div>
               {/* VAT reason dropdown */}
               {invNoVat && (
@@ -5227,17 +5252,16 @@ function App() {
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
                 <thead><tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
                   <th style={{textAlign:'left',padding:'6px 10px',fontWeight:600,color:'#334155'}}>Артикул</th>
+                  <th style={{textAlign:'left',padding:'6px 10px',fontWeight:600,color:'#334155',width:'60px'}}>Мярка</th>
                   <th style={{textAlign:'right',padding:'6px 10px',fontWeight:600,color:'#334155',width:'80px'}}>Цена</th>
-                  <th style={{textAlign:'center',padding:'6px 10px',fontWeight:600,color:'#334155',width:'60px'}}>ДДС</th>
-                  <th style={{width:'60px'}}></th>
+                  <th style={{textAlign:'center',padding:'6px 10px',fontWeight:600,color:'#334155',width:'60px'}}>ДДС %</th>
                 </tr></thead>
                 <tbody>
                   {invItems.filter(it => !invPickerSearch || it.name.toLowerCase().includes(invPickerSearch.toLowerCase())).map(item => (
-                    <tr key={item.id} style={{borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'6px 10px'}}>{item.name}<div style={{fontSize:'11px',color:'#94a3b8'}}>{item.unit}</div></td>
-                      <td style={{padding:'6px 10px',textAlign:'right'}}>{Number(item.default_price).toFixed(2)}</td>
-                      <td style={{padding:'6px 10px',textAlign:'center'}}>{Number(item.vat_rate)}%</td>
-                      <td style={{padding:'6px 10px',textAlign:'center'}}><button onClick={() => invSelectItem(item, invPickerLineIdx)} style={{padding:'3px 10px',fontSize:'12px',background:'#2563eb',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer'}}>Избери</button></td>
+                    <tr key={item.id} onClick={() => invSelectItem(item, invPickerLineIdx)} style={{borderBottom:'1px solid #f1f5f9',cursor:'pointer'}} onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                      <td style={{padding:'8px 10px',fontWeight:500}}>{item.name}<div style={{fontSize:'11px',color:'#94a3b8'}}>{item.unit}</div></td>
+                      <td style={{padding:'8px 10px',textAlign:'right',fontFamily:'monospace'}}>{Number(item.default_price).toFixed(2)} EUR</td>
+                      <td style={{padding:'8px 10px',textAlign:'center',color:'#64748b'}}>{Number(item.vat_rate)}%</td>
                     </tr>
                   ))}
                   {invItems.filter(it => !invPickerSearch || it.name.toLowerCase().includes(invPickerSearch.toLowerCase())).length === 0 && (
@@ -5260,7 +5284,7 @@ function App() {
             </div>
             <div className="p-4 space-y-3">
               <div className="flex gap-2">
-                <input className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Въведете ЕИК..." value={invTrEik} onChange={e => setInvTrEik(e.target.value)} />
+                <input className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Въведете ЕИК..." value={invTrEik} onChange={e => setInvTrEik(e.target.value)} onKeyDown={async e => { if (e.key === 'Enter' && invTrEik) { setInvTrLoading(true); setInvTrResult(null); try { const r = await invRegistryLookup(invTrEik); setInvTrResult(r); } catch (err) { invToastShow('Грешка: ' + (err instanceof Error ? err.message : ''), 'error'); } finally { setInvTrLoading(false); } }}} />
                 <button onClick={async () => {
                   if (!invTrEik) return;
                   setInvTrLoading(true); setInvTrResult(null);
