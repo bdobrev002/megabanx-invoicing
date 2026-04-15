@@ -15,7 +15,7 @@ import {
   invGetCompanySettings, invUpdateCompanySettings,
   invGetSyncSettings, invUpdateSyncSettings,
   invListStubs, invCreateStub, invUpdateStub, invDeleteStub,
-  invSyncInvoices, invDeleteInvoice, invCheckEditable,
+  invDeleteInvoice, invCheckEditable,
   invSyncSingle,
   sendInvoiceEmail,
 } from './api';
@@ -352,21 +352,32 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
   const invHandleSync = async (companyId: string, profileId: string) => {
     setInvSyncing(prev => ({ ...prev, [companyId]: true }));
     try {
-      const result = await invSyncInvoices(companyId, profileId);
-      const syncCount = result?.synced_count || 0;
-      if (syncCount > 0) {
-        invToastShow(`Синхронизирани фактури: ${syncCount}`);
+      // List all invoices, filter unsynced ones, and sync each individually
+      // (no batch sync endpoint exists on backend)
+      const invoices = await invListInvoices(companyId, profileId) as Array<Record<string, unknown>>;
+      const unsynced = invoices.filter((inv: Record<string, unknown>) =>
+        inv.sync_status !== 'synced' && inv.sync_status !== 'accepted' && inv.invoice_status === 'processed'
+      );
+      if (unsynced.length === 0) {
+        invToastShow('Няма неизпратени фактури');
       } else {
-        invToastShow('Всички фактури вече са синхронизирани');
+        let syncedCount = 0;
+        for (const inv of unsynced) {
+          try {
+            await invSyncSingle(inv.invoice_id as string, profileId, companyId);
+            syncedCount++;
+          } catch { /* skip failed individual syncs */ }
+        }
+        if (syncedCount > 0) {
+          invToastShow(`Синхронизирани фактури: ${syncedCount}`);
+        } else {
+          invToastShow('Всички фактури вече са синхронизирани');
+        }
       }
       if (activeProfileId) loadProfileData(activeProfileId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      if (msg.includes('вече') || msg.includes('already')) {
-        invToastShow('Всички фактури вече са синхронизирани');
-      } else {
-        invToastShow('Грешка при синхронизация: ' + msg, 'error');
-      }
+      invToastShow('Грешка при синхронизация: ' + msg, 'error');
     }
     finally { setInvSyncing(prev => ({ ...prev, [companyId]: false })); }
   };
