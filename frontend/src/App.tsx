@@ -3006,8 +3006,8 @@ function App() {
               );
             })()}
             {showCompanyForm && (
-              <div className="border rounded-lg p-4 mb-4 bg-gray-50">
-                <h3 className="font-medium mb-3">{editingCompany ? 'Редактиране на фирма' : 'Нова фирма'}</h3>
+                            <div className="rounded-lg p-4 mb-4 bg-gray-50 shadow-sm">
+                              <h3 className="font-medium mb-3">{editingCompany ? 'Редактиране на фирма' : 'Нова фирма'}</h3>
                 {editingCompany && (
                   <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
                     <AlertCircle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
@@ -3172,7 +3172,7 @@ function App() {
 
             {/* Shared companies section */}
             {sharedCompanies.length > 0 && (
-              <div className="mt-6 border-t pt-4">
+              <div className="mt-6 pt-4">
                 <h3 className="text-base font-semibold text-gray-700 mb-3 flex items-center gap-2"><Share2 className="w-4 h-4 text-green-600" /> Споделени с мен фирми</h3>
                 <div className="space-y-3">
                   {sharedCompanies.map(sc => {
@@ -3831,12 +3831,12 @@ function App() {
                 </div>
                 {subscription.usage && (
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="bg-white rounded-lg p-2 border">
-                      <div className="text-xs text-gray-500">Фирми</div>
+                                        <div className="bg-white rounded-lg p-2 shadow-sm">
+                                          <div className="text-xs text-gray-500">Фирми</div>
                       <div className="font-bold text-sm">{subscription.usage.companies} / {subscription.max_companies >= 999999 ? '∞' : subscription.max_companies}</div>
                     </div>
-                    <div className="bg-white rounded-lg p-2 border">
-                      <div className="text-xs text-gray-500">Фактури</div>
+                                        <div className="bg-white rounded-lg p-2 shadow-sm">
+                                          <div className="text-xs text-gray-500">Фактури</div>
                       <div className="font-bold text-sm">{subscription.usage.invoices} / {subscription.max_invoices >= 999999 ? '∞' : subscription.max_invoices}</div>
                     </div>
                   </div>
@@ -3995,7 +3995,7 @@ function App() {
                 ) : (
                   <div className="space-y-3">
                     {billingPayments.filter(p => p.status === 'paid').map(p => (
-                      <div key={p.id} className="border rounded-lg p-3 hover:bg-gray-50 transition">
+                      <div key={p.id} className="rounded-lg p-3 hover:bg-gray-50 transition shadow-sm">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-sm">{p.number || 'Фактура'}</div>
@@ -4494,8 +4494,8 @@ function App() {
             </div>
 
             {/* Add new share */}
-            <div className="border rounded-lg p-4 mb-4 bg-gray-50">
-              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1"><UserPlus className="w-4 h-4" /> Добави сътрудник</h4>
+                        <div className="rounded-lg p-4 mb-4 bg-gray-50 shadow-sm">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1"><UserPlus className="w-4 h-4" /> Добави сътрудник</h4>
               <div className="flex gap-2 mb-2">
                 <input type="email" value={shareEmail} onChange={e => setShareEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleShareCompany()} placeholder="Имейл на сътрудника" className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                 <button onClick={handleShareCompany} disabled={shareLoading || !shareEmail.trim()} className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">
@@ -4516,7 +4516,7 @@ function App() {
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Споделена с ({companyShares.length})</h4>
                 <div className="space-y-2">
                   {companyShares.map(s => (
-                    <div key={s.id} className="bg-white border rounded-lg p-3">
+                    <div key={s.id} className="bg-white rounded-lg p-3 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-sm font-medium text-gray-900">{s.shared_with_email}</div>
@@ -4793,7 +4793,7 @@ function App() {
               {invStubs.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {invStubs.map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                    <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg shadow-sm">
                       <div>
                         <div className="font-medium text-sm">{s.name}</div>
                         <div className="text-xs text-gray-500">{String(s.start_number).padStart(10, '0')} — {String(s.end_number).padStart(10, '0')} <span className="text-gray-400">(следващият свободен №)</span></div>
@@ -4803,8 +4803,8 @@ function App() {
                   ))}
                 </div>
               )}
-              <div className="border rounded-lg p-3 bg-gray-50">
-                <h3 className="text-sm font-semibold mb-2">Нов кочан</h3>
+                            <div className="rounded-lg p-3 bg-gray-50 shadow-sm">
+                              <h3 className="text-sm font-semibold mb-2">Нов кочан</h3>
                 <div className="space-y-2">
                   <input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Име на кочана" value={invStubForm.name} onChange={e => setInvStubForm(p => ({ ...p, name: e.target.value }))} />
                   <div className="grid grid-cols-2 gap-2">
@@ -4860,9 +4860,9 @@ function App() {
                 </div>
               )}
               {/* Client */}
-              <div className="border rounded-lg p-3 bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">Клиент</span>
+                            <div className="rounded-lg p-3 bg-gray-50 shadow-sm">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-gray-700">Клиент</span>
                   <div className="flex gap-2">
                     <button onClick={() => { setInvPickerSearch(''); setInvModal('clientPicker'); }} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Избери клиент</button>
                     <button onClick={() => { setInvTrEik(''); setInvTrResult(null); setInvModal('trLookup'); }} className="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 flex items-center gap-1"><Search className="w-3 h-3" /> ТР</button>
@@ -4948,8 +4948,8 @@ function App() {
               </div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Съставил</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invComposedBy} onChange={e => setInvComposedBy(e.target.value)} /></div>
               {/* Sync settings */}
-              <div className="border rounded-lg p-3 bg-gray-50">
-                <span className="text-sm font-semibold text-gray-700">Синхронизация</span>
+                            <div className="rounded-lg p-3 bg-gray-50 shadow-sm">
+                              <span className="text-sm font-semibold text-gray-700">Синхронизация</span>
                 <div className="flex items-center gap-4 mt-2">
                   {[{v: 'manual', l: 'Ръчно'}, {v: 'auto', l: 'Автоматично'}, {v: 'delayed', l: 'С отложение'}].map(m => (
                     <label key={m.v} className="flex items-center gap-1 text-sm"><input type="radio" name="invSync" value={m.v} checked={invSyncMode === m.v} onChange={() => setInvSyncMode(m.v)} /> {m.l}</label>
@@ -5011,7 +5011,7 @@ function App() {
                 }} disabled={invTrLoading} className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">{invTrLoading ? 'Търсене...' : 'Търси'}</button>
               </div>
               {invTrResult && (
-                <div className="border rounded-lg p-3 bg-gray-50 text-sm space-y-1">
+                <div className="rounded-lg p-3 bg-gray-50 shadow-sm text-sm space-y-1">
                   <div><span className="text-gray-500">Име:</span> <strong>{invTrResult.name}</strong></div>
                   <div><span className="text-gray-500">ЕИК:</span> {invTrResult.eik}</div>
                   {invTrResult.vat_number && <div><span className="text-gray-500">ДДС:</span> {invTrResult.vat_number}</div>}

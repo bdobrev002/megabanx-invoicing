@@ -57,6 +57,9 @@ def get_db():
     conn.autocommit = False
     try:
         yield conn
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
