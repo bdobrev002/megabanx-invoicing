@@ -396,6 +396,16 @@ import re as _re
 TR_API_BASE = "https://portal.registryagency.bg/CR/api/Deeds"
 
 
+def _sanitize_path_component(name: str) -> str:
+    """Sanitize a string for safe use as a file/directory name component.
+    Strips path separators and traversal sequences to prevent path traversal."""
+    name = name.replace('/', '_').replace('\\', '_').replace('\0', '')
+    # Remove any ".." sequences that could traverse directories
+    while '..' in name:
+        name = name.replace('..', '_')
+    return name.strip()
+
+
 def _extract_text_from_html(html: str) -> str:
     """Strip HTML tags and collapse whitespace."""
     text = _re.sub(r'<[^>]+>', ' ', html)
@@ -1169,13 +1179,17 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                 if row:
                     company_name = row[0]
 
+                # Sanitize names for safe use in file paths
+                safe_company_name = _sanitize_path_component(company_name)
+                safe_client_name = _sanitize_path_component(client_name)
+
                 # Generate filename following megabanx naming convention
                 # Format: YYYY.MM.DD XXXXXXXXXX - CLIENT_NAME.pdf
                 # Example: 2023.01.02 0000000482 - ВТА СЕКЮРИТИ СЪРВИЗ ЕООД.pdf
                 inv_num_str = str(data.invoice_number).zfill(10)
                 date_parts = issue_date.split("-")  # YYYY-MM-DD
                 date_formatted = f"{date_parts[0]}.{date_parts[1]}.{date_parts[2]}"
-                new_filename = f"{date_formatted} {inv_num_str} - {client_name}.pdf"
+                new_filename = f"{date_formatted} {inv_num_str} - {safe_client_name}.pdf"
 
                 # Determine sync settings
                 sync_status = "pending"
@@ -1371,14 +1385,17 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
 
         # Save PDF to the company's sales folder
         # DATA_DIR is /opt/bginvoices/data (no 'profiles' subdirectory)
+        # Sanitize names to prevent path traversal
+        safe_company = _sanitize_path_component(company_name)
+        safe_client = _sanitize_path_component(client_name)
         profile_dir = f"/opt/bginvoices/data/{data.profile_id}"
-        sales_dir = os.path.join(profile_dir, company_name, "Фактури продажби")
+        sales_dir = os.path.join(profile_dir, safe_company, "Фактури продажби")
         os.makedirs(sales_dir, exist_ok=True)
 
         inv_num_str = str(data.invoice_number).zfill(10)
         date_parts = issue_date.split("-")
         date_formatted = f"{date_parts[0]}.{date_parts[1]}.{date_parts[2]}"
-        pdf_filename = f"{date_formatted} {inv_num_str} - {client_name}.pdf"
+        pdf_filename = f"{date_formatted} {inv_num_str} - {safe_client}.pdf"
         pdf_path = os.path.join(sales_dir, pdf_filename)
 
         HTML(string=html_content).write_pdf(pdf_path)
@@ -1489,12 +1506,15 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
                 if row:
                     company_name = row["name"]
 
+                # Sanitize names for safe use in file paths
+                safe_client_name = _sanitize_path_component(client_name)
+
                 # Generate filename following megabanx naming convention
                 # Format: YYYY.MM.DD XXXXXXXXXX - CLIENT_NAME.pdf
                 inv_num_str = str(data.invoice_number).zfill(10)
                 date_parts = issue_date.split("-")
                 date_formatted = f"{date_parts[0]}.{date_parts[1]}.{date_parts[2]}"
-                new_filename = f"{date_formatted} {inv_num_str} - {client_name}.pdf"
+                new_filename = f"{date_formatted} {inv_num_str} - {safe_client_name}.pdf"
 
                 # Update inv_invoice_meta
                 cur.execute(
