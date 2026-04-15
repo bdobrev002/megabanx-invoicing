@@ -309,6 +309,7 @@ function App() {
   const [invSyncing, setInvSyncing] = useState<Record<string, boolean>>({});
   const [invClientSearch, setInvClientSearch] = useState('');
   const [invVatPerLine, setInvVatPerLine] = useState(false);
+  const [invPickerLineIdx, setInvPickerLineIdx] = useState(0);
   const EUR_TO_BGN = 1.95583;
 
   const loadMonthlyUsage = useCallback(async () => {
@@ -1239,24 +1240,25 @@ function App() {
   };
 
   const invCalcTotals = () => {
-    const filled = invLines.filter(l => l.description.trim());
-    let subtotal = 0;
-    let totalVat = 0;
-    filled.forEach(l => {
-      const lineTotal = invCalcLineTotal(l);
-      const vatRate = parseFloat(l.vat_rate) || 0;
-      subtotal += lineTotal;
-      if (!invNoVat) totalVat += lineTotal * vatRate / 100;
-    });
-    let discountAmount = 0;
+    let subtotalRaw = 0;
+    invLines.forEach(l => { subtotalRaw += invCalcLineTotal(l); });
     const discountVal = parseFloat(invDiscount) || 0;
+    let discountAmount = 0;
     if (discountVal > 0) {
-      discountAmount = invDiscountType === '%' ? subtotal * discountVal / 100 : discountVal;
+      discountAmount = invDiscountType === '%' ? subtotalRaw * discountVal / 100 : discountVal;
     }
-    const afterDiscount = subtotal - discountAmount;
-    const vatOnDiscount = invNoVat ? 0 : totalVat * (afterDiscount / (subtotal || 1));
-    const total = afterDiscount + vatOnDiscount;
-    return { subtotal, totalVat: vatOnDiscount, discountAmount, total };
+    const taxBase = subtotalRaw - discountAmount;
+    let totalVat = 0;
+    if (!invNoVat) {
+      invLines.forEach(l => {
+        const lineTotal = invCalcLineTotal(l);
+        const lineShare = subtotalRaw > 0 ? (lineTotal / subtotalRaw) * taxBase : 0;
+        const lineVatRate = parseFloat(l.vat_rate) || 0;
+        totalVat += lineShare * (lineVatRate / 100);
+      });
+    }
+    const total = taxBase + totalVat;
+    return { subtotal: subtotalRaw, totalVat, discountAmount, taxBase, total };
   };
 
   const invUpdateLine = (idx: number, field: keyof InvLine, value: string) => {
@@ -1284,6 +1286,13 @@ function App() {
       vat_rate: Number(item.vat_rate).toFixed(2),
     } : l));
     setInvModal('invoice');
+  };
+
+  const invOpenItemPicker = (lineIdx: number) => {
+    if (invItems.length === 0) { invToastShow('Няма добавени артикули', 'error'); return; }
+    setInvPickerLineIdx(lineIdx);
+    setInvPickerSearch('');
+    setInvModal('itemPicker');
   };
 
   // WebSocket connection for real-time updates (no polling)
@@ -4987,6 +4996,7 @@ function App() {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
                       </button>
                     </th>
+                    {invVatPerLine && <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'80px',borderRight:'1px solid #e2e8f0'}}>ДДС %</th>}
                     <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'100px'}}>Стойност</th>
                   </tr></thead>
                   <tbody>
@@ -5010,9 +5020,9 @@ function App() {
                           <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
                             <div style={{display:'flex',gap:'2px',alignItems:'center'}}>
                               <input value={line.description} onChange={e => invUpdateLine(idx,'description',e.target.value)} placeholder="" style={{flex:1,height:'26px',fontSize:'13px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 8px'}} />
-                              {invItems.length > 0 && <button onClick={() => invSelectItem(invItems[0], idx)} style={{height:'26px',width:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Избери от каталога">
+                              <button onClick={() => invOpenItemPicker(idx)} style={{height:'26px',width:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Избери от каталога">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
-                              </button>}
+                              </button>
                             </div>
                           </td>
                           <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
@@ -5029,6 +5039,11 @@ function App() {
                               <span style={{fontSize:'11px',color:'#94a3b8',marginLeft:'2px',flexShrink:0}}>EUR</span>
                             </div>
                           </td>
+                          {invVatPerLine && <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
+                            <select value={String(Math.round(parseFloat(line.vat_rate) || 20))} onChange={e => invUpdateLine(idx,'vat_rate',e.target.value+'.00')} style={{height:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff',width:'100%'}}>
+                              <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
+                            </select>
+                          </td>}
                           <td style={{padding:'4px 6px',textAlign:'right',fontSize:'13px',fontWeight:500}}>{invCalcLineTotal(line).toFixed(2)} EUR</td>
                         </tr>
                       );
@@ -5050,7 +5065,7 @@ function App() {
               </div>
 
               {/* SEC 5: Totals */}
-              {(() => { const t = invCalcTotals(); const taxBase = t.subtotal - t.discountAmount; const totalVat = invNoVat ? 0 : t.totalVat; const total = taxBase + totalVat; return (
+              {(() => { const t = invCalcTotals(); const taxBase = t.taxBase; const totalVat = t.totalVat; const total = t.total; return (
                 <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',marginBottom:'2px'}}>
                   <table style={{borderCollapse:'collapse'}}>
                     <tbody>
@@ -5069,9 +5084,9 @@ function App() {
                         <td style={{textAlign:'right',fontSize:'13px',color:'#475569',padding:'2px 12px 2px 0'}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'6px'}}>
                             <span>ДДС</span>
-                            <select value={invLines.length > 0 ? String(Math.round(parseFloat(invLines[0].vat_rate) || 20)) : '20'} onChange={e => { const r = e.target.value + '.00'; setInvLines(prev => prev.map(l => ({...l, vat_rate: r}))); }} style={{height:'22px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff'}}>
+                            {!invVatPerLine && <select value={invLines.length > 0 ? String(Math.round(parseFloat(invLines[0].vat_rate) || 20)) : '20'} onChange={e => { const r = e.target.value + '.00'; setInvLines(prev => prev.map(l => ({...l, vat_rate: r}))); }} style={{height:'22px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff'}}>
                               <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
-                            </select>
+                            </select>}
                           </div>
                         </td>
                         <td style={{textAlign:'right',fontSize:'13px',fontWeight:600,padding:'2px 0'}}>{totalVat.toFixed(2)} EUR<div style={{fontSize:'11px',color:'#94a3b8',fontWeight:400}}>{(totalVat * EUR_TO_BGN).toFixed(2)} лв.</div></td>
@@ -5107,7 +5122,7 @@ function App() {
               )}
 
               {/* SEC 7: Съставил + Сума за плащане */}
-              {(() => { const t = invCalcTotals(); const taxBase = t.subtotal - t.discountAmount; const totalVat = invNoVat ? 0 : t.totalVat; const total = taxBase + totalVat; return (
+              {(() => { const t = invCalcTotals(); const total = t.total; return (
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px',borderBottom:'1px solid #e2e8f0',paddingBottom:'6px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                     <label style={{fontSize:'13px',color:'#475569'}}>Съставил</label>
@@ -5192,6 +5207,44 @@ function App() {
                 </button>
               ))}
               {invClients.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">Няма клиенти</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Item Picker Modal ── */}
+      {invModal === 'itemPicker' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setInvModal('invoice')}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-base font-semibold">Избери артикул</h2>
+              <button onClick={() => setInvModal('invoice')} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-3 border-b">
+              <input className="w-full text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Търсене..." value={invPickerSearch} onChange={e => setInvPickerSearch(e.target.value)} />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+                <thead><tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+                  <th style={{textAlign:'left',padding:'6px 10px',fontWeight:600,color:'#334155'}}>Артикул</th>
+                  <th style={{textAlign:'right',padding:'6px 10px',fontWeight:600,color:'#334155',width:'80px'}}>Цена</th>
+                  <th style={{textAlign:'center',padding:'6px 10px',fontWeight:600,color:'#334155',width:'60px'}}>ДДС</th>
+                  <th style={{width:'60px'}}></th>
+                </tr></thead>
+                <tbody>
+                  {invItems.filter(it => !invPickerSearch || it.name.toLowerCase().includes(invPickerSearch.toLowerCase())).map(item => (
+                    <tr key={item.id} style={{borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'6px 10px'}}>{item.name}<div style={{fontSize:'11px',color:'#94a3b8'}}>{item.unit}</div></td>
+                      <td style={{padding:'6px 10px',textAlign:'right'}}>{Number(item.default_price).toFixed(2)}</td>
+                      <td style={{padding:'6px 10px',textAlign:'center'}}>{Number(item.vat_rate)}%</td>
+                      <td style={{padding:'6px 10px',textAlign:'center'}}><button onClick={() => invSelectItem(item, invPickerLineIdx)} style={{padding:'3px 10px',fontSize:'12px',background:'#2563eb',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer'}}>Избери</button></td>
+                    </tr>
+                  ))}
+                  {invItems.filter(it => !invPickerSearch || it.name.toLowerCase().includes(invPickerSearch.toLowerCase())).length === 0 && (
+                    <tr><td colSpan={4} style={{textAlign:'center',padding:'16px',color:'#94a3b8',fontSize:'13px'}}>Няма намерени артикули</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
