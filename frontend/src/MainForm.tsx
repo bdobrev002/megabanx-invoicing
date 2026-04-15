@@ -281,7 +281,7 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
             quantity: String(l.quantity || 1),
             unit: l.unit as string || 'бр.',
             unit_price: String(l.unit_price || 0),
-            vat_rate: String(Number(l.vat_rate || 20).toFixed(2)),
+            vat_rate: String((l.vat_rate != null && !isNaN(Number(l.vat_rate)) ? Number(l.vat_rate) : 20).toFixed(2)),
           })));
         }
       }
@@ -293,7 +293,7 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
     const filledLines = invLines.filter(l => l.description.trim());
     if (filledLines.length === 0) { invToastShow('Добавете поне един ред', 'error'); return; }
     setInvSaving(true);
-    const lineVatRates = filledLines.map(l => parseFloat(l.vat_rate) || 20);
+    const lineVatRates = filledLines.map(l => !isNaN(parseFloat(l.vat_rate)) ? parseFloat(l.vat_rate) : 20);
     const dominantVatRate = lineVatRates.length > 0 ? lineVatRates[0] : 20;
     // Save sync settings
     try { await invUpdateSyncSettings(invCompanyId, invProfileId, { sync_mode: invSyncMode, delay_minutes: parseInt(invDelayMinutes) || 30 }); } catch { /* ignore */ }
@@ -315,7 +315,7 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
       lines: filledLines.map((l, i) => ({
         item_id: l.item_id, position: i, description: l.description,
         quantity: parseFloat(l.quantity) || 1, unit: l.unit,
-        unit_price: parseFloat(l.unit_price) || 0, vat_rate: parseFloat(l.vat_rate) || 20,
+        unit_price: parseFloat(l.unit_price) || 0, vat_rate: !isNaN(parseFloat(l.vat_rate)) ? parseFloat(l.vat_rate) : 20,
       })),
     };
     try {
