@@ -2927,14 +2927,14 @@ function App() {
           </div>
 
           <div className="max-w-7xl mx-auto px-2 md:px-4 mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
-            <div className="bg-white rounded-lg p-3 border"><div className="text-2xl font-bold text-indigo-600">{companies.length}</div><div className="text-xs text-gray-500">Фирми</div></div>
-            <div className="bg-white rounded-lg p-3 border"><div className="text-2xl font-bold text-green-600">{totalFiles}</div><div className="text-xs text-gray-500">Фактури</div></div>
-            <div className="bg-white rounded-lg p-3 border"><div className="text-2xl font-bold text-orange-600">{inboxFiles.length}</div><div className="text-xs text-gray-500">За обработка</div></div>
-            <div className="bg-white rounded-lg p-3 border"><div className="text-2xl font-bold text-red-600">{unreadNotifs}</div><div className="text-xs text-gray-500">Известия</div></div>
+                        <div className="bg-white rounded-lg p-3 shadow-sm"><div className="text-2xl font-bold text-indigo-600">{companies.length}</div><div className="text-xs text-gray-500">Фирми</div></div>
+                        <div className="bg-white rounded-lg p-3 shadow-sm"><div className="text-2xl font-bold text-green-600">{totalFiles}</div><div className="text-xs text-gray-500">Фактури</div></div>
+                        <div className="bg-white rounded-lg p-3 shadow-sm"><div className="text-2xl font-bold text-orange-600">{inboxFiles.length}</div><div className="text-xs text-gray-500">За обработка</div></div>
+                        <div className="bg-white rounded-lg p-3 shadow-sm"><div className="text-2xl font-bold text-red-600">{unreadNotifs}</div><div className="text-xs text-gray-500">Известия</div></div>
           </div>
 
           <div className="max-w-7xl mx-auto px-2 md:px-4 mt-3 md:mt-4 pb-3">
-            <div className="flex gap-1 bg-white rounded-lg p-1 border overflow-x-auto">
+            <div className="flex gap-1 bg-white rounded-lg p-1 shadow-sm overflow-x-auto">
               {([
                 { key: 'companies' as const, label: 'Фирми', icon: Building2, color: 'text-indigo-500' },
                 { key: 'upload' as const, label: 'Качване', icon: Upload, color: 'text-green-500' },
@@ -2943,7 +2943,7 @@ function App() {
                 { key: 'notifications' as const, label: 'Известия' + (unreadNotifs ? ' (' + unreadNotifs + ')' : ''), icon: Bell, color: 'text-rose-500' },
                 { key: 'billing' as const, label: 'Абонамент', icon: CreditCard, color: 'text-purple-500' },
               ]).map(tab => (
-                <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={'flex-1 min-w-0 flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-2 text-xs md:text-sm rounded-md transition whitespace-nowrap ' + (activeTab === tab.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100')}>
+                <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={'flex-1 min-w-0 flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-2 text-xs md:text-sm rounded-md transition whitespace-nowrap cursor-pointer ' + (activeTab === tab.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100')}>
                   <tab.icon className={'w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0' + (activeTab === tab.key ? '' : ' ' + tab.color)} /><span className="hidden sm:inline">{tab.label}</span>
                 </button>
               ))}
@@ -3652,9 +3652,15 @@ function App() {
                                   <FileText className="w-3.5 h-3.5 text-orange-400" />
                                   <span className="truncate flex-1">{f.name}</span>
                                   {f.uploaded_at && <span className="text-xs text-gray-400 whitespace-nowrap">{f.uploaded_at}</span>}
-                                  {!item._shared && <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />}
-                                  <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'proformas', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'proformas', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
-                                  {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'proformas', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  {!item._shared && (fileStatuses[`${item.company.id}|${f.name}`] ? <SyncBadge count={fileStatuses[`${item.company.id}|${f.name}`].count} color={fileStatuses[`${item.company.id}|${f.name}`].color} /> : <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />)}
+                                  <span className="flex items-center gap-1" style={{ width: '90px', justifyContent: 'center' }}>
+                                    {!item._shared && fileStatuses[`${item.company.id}|${f.name}`] && (<>
+                                      <span className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Редактирай фактурата" onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.invoice_id) return; invCheckEditable(fs.invoice_id).then((d: Record<string, unknown>) => { if (d.editable === false) { showEditProtectModal(); } else if (activeProfile) { invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); } }).catch(() => { if (activeProfile) invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); }); }}><Edit3 className="w-4 h-4" /></span>
+                                      <span className={(fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'text-green-500 hover:text-green-700' : 'text-amber-500 hover:text-amber-700') + ' cursor-pointer'} title={fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'Синхронизирана' : 'Синхронизирай фактурата'} onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.is_synced && fs?.invoice_id && activeProfile) { invSyncSingle(fs.invoice_id, activeProfile.id).then(() => { if (activeProfile) loadProfileData(activeProfile.id); }).catch(() => { if (activeProfile) invSyncInvoices(item.company.id, activeProfile.id); }); } }}><RefreshCw className="w-4 h-4" /></span>
+                                    </>)}
+                                    <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'proformas', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'proformas', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
+                                    {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'proformas', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  </span>
                                 </div>
                               ))}
                             </div>
