@@ -4493,7 +4493,7 @@ function App() {
                         <td className="py-2 text-right">
                           <div className="flex gap-1 justify-end">
                             <button onClick={() => { setInvEditClient(c); setInvClientForm({ name: c.name || '', eik: c.eik || '', vat_number: c.vat_number || '', mol: c.mol || '', city: c.city || '', address: c.address || '', email: c.email || '', phone: c.phone || '', is_vat_registered: c.is_vat_registered ? 'true' : 'false', is_individual: c.is_individual ? 'true' : 'false' }); setInvModal('clientForm'); }} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Редактирай"><FileText className="w-3.5 h-3.5" /></button>
-                            <button onClick={async () => { if (!confirm('Изтриване на клиент ' + c.name + '?')) return; try { await invDeleteClient(c.id); invToastShow('Клиентът е изтрит'); const list = await invListClients(invCompanyId, invProfileId); setInvClients(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Изтрий"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={async () => { if (!confirm('Изтриване на клиент ' + c.name + '?')) return; try { await invDeleteClient(c.id, invCompanyId, invProfileId); invToastShow('Клиентът е изтрит'); const list = await invListClients(invCompanyId, invProfileId); setInvClients(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Изтрий"><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                         </td>
                       </tr>
@@ -4541,7 +4541,7 @@ function App() {
                   if (!invClientForm.name) { invToastShow('Въведете име', 'error'); return; }
                   const data = { ...invClientForm, company_id: invCompanyId, profile_id: invProfileId, is_vat_registered: invClientForm.is_vat_registered === 'true', is_individual: invClientForm.is_individual === 'true' };
                   try {
-                    if (invEditClient) { await invUpdateClient(invEditClient.id, data); invToastShow('Клиентът е обновен'); }
+                    if (invEditClient) { await invUpdateClient(invEditClient.id, data, invCompanyId, invProfileId); invToastShow('Клиентът е обновен'); }
                     else { await invCreateClient(data); invToastShow('Клиентът е създаден'); }
                     const list = await invListClients(invCompanyId, invProfileId); setInvClients(list); setInvModal('clients');
                   } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); }
@@ -4586,7 +4586,7 @@ function App() {
                         <td className="py-2 text-right">
                           <div className="flex gap-1 justify-end">
                             <button onClick={() => { setInvEditItem(it); setInvItemForm({ name: it.name, unit: it.unit, default_price: Number(it.default_price).toFixed(2), vat_rate: Number(it.vat_rate).toFixed(2), description: it.description || '' }); setInvModal('itemForm'); }} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Редактирай"><FileText className="w-3.5 h-3.5" /></button>
-                            <button onClick={async () => { if (!confirm('Изтриване на артикул ' + it.name + '?')) return; try { await invDeleteItem(it.id); invToastShow('Артикулът е изтрит'); const list = await invListItems(invCompanyId, invProfileId); setInvItems(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Изтрий"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={async () => { if (!confirm('Изтриване на артикул ' + it.name + '?')) return; try { await invDeleteItem(it.id, invCompanyId, invProfileId); invToastShow('Артикулът е изтрит'); const list = await invListItems(invCompanyId, invProfileId); setInvItems(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Изтрий"><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                         </td>
                       </tr>
@@ -4622,7 +4622,7 @@ function App() {
                   if (!invItemForm.name) { invToastShow('Въведете име', 'error'); return; }
                   const vals = { name: invItemForm.name, unit: invItemForm.unit || 'бр.', default_price: parseFloat(invItemForm.default_price) || 0, vat_rate: parseFloat(invItemForm.vat_rate) || 20, description: invItemForm.description || '', company_id: invCompanyId, profile_id: invProfileId };
                   try {
-                    if (invEditItem) { await invUpdateItem(invEditItem.id, vals); invToastShow('Артикулът е обновен'); }
+                    if (invEditItem) { await invUpdateItem(invEditItem.id, vals, invCompanyId, invProfileId); invToastShow('Артикулът е обновен'); }
                     else { await invCreateItem(vals); invToastShow('Артикулът е създаден'); }
                     const list = await invListItems(invCompanyId, invProfileId); setInvItems(list); setInvModal('items');
                   } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); }
