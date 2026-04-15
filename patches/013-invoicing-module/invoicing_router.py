@@ -1237,7 +1237,7 @@ async def create_invoice(data: InvoiceCreate, background_tasks: BackgroundTasks)
                     (invoice_id, data.profile_id, new_filename, new_filename,
                      "sale", data.company_id, company_name,
                      issue_date, company_name, client_name,
-                     str(data.invoice_number), f"{company_name}/Фактури продажби/{new_filename}",
+                     str(data.invoice_number), f"{safe_company_name}/Фактури продажби/{new_filename}",
                      "draft" if data.status == "draft" else "processed", "software")
                 )
 
@@ -1508,6 +1508,7 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
 
                 # Sanitize names for safe use in file paths
                 safe_client_name = _sanitize_path_component(client_name)
+                safe_company_name = _sanitize_path_component(company_name)
 
                 # Generate filename following megabanx naming convention
                 # Format: YYYY.MM.DD XXXXXXXXXX - CLIENT_NAME.pdf
@@ -1558,7 +1559,7 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
                     (new_filename, new_filename,
                      issue_date, company_name, client_name,
                      str(data.invoice_number),
-                     f"{company_name}/Фактури продажби/{new_filename}",
+                     f"{safe_company_name}/Фактури продажби/{new_filename}",
                      "draft" if data.status == "draft" else "processed",
                      invoice_id)
                 )
