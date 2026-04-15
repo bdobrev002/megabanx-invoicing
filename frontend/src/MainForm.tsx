@@ -182,6 +182,15 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
           return;
         }
       } catch { /* endpoint may not exist yet, proceed */ }
+      // If editData has only invoice_id (no full data), fetch full invoice from API
+      if (!editData.lines) {
+        try {
+          const fullInvoice = await invGetInvoice(editData.invoice_id as string, companyId, profileId);
+          if (fullInvoice) {
+            editData = { ...fullInvoice, invoice_id: editData.invoice_id };
+          }
+        } catch (e) { invToastShow('Грешка при зареждане на фактурата: ' + (e instanceof Error ? e.message : ''), 'error'); return; }
+      }
     }
     setInvCompanyId(companyId); setInvProfileId(profileId); setInvCompanyName(companyName);
     setInvModal('invoice'); setInvSaving(false);
@@ -376,7 +385,7 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
     if (discountVal > 0) {
       discountAmount = invDiscountType === '%' ? subtotalRaw * discountVal / 100 : discountVal;
     }
-    const taxBase = subtotalRaw - discountAmount;
+    const taxBase = Math.max(0, subtotalRaw - discountAmount);
     let totalVat = 0;
     if (!invNoVat) {
       invLines.forEach(l => {
