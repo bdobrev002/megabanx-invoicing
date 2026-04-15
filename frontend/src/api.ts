@@ -370,8 +370,8 @@ export const invSyncInvoices = (companyId: string, profileId: string) =>
   request(`/api/invoicing/sync/${companyId}?profile_id=${profileId}`, { method: 'POST' });
 
 // Sync a single invoice
-export const invSyncSingle = (invoiceId: string, profileId: string) =>
-  request(`/api/invoicing/sync-single/${invoiceId}?profile_id=${profileId}`, { method: 'POST' });
+export const invSyncSingle = (invoiceId: string, profileId: string, companyId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}/sync?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`, { method: 'POST' });
 
 // Batch sync all pending software invoices
 export const batchSyncInvoices = (profileId: string) =>
