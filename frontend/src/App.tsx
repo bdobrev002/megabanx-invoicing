@@ -29,6 +29,7 @@ import {
   invGetSyncSettings, invUpdateSyncSettings,
   invListStubs, invCreateStub, invUpdateStub, invDeleteStub,
   invSyncInvoices, invDeleteInvoice, invCheckEditable,
+  invSyncSingle,
   sendInvoiceEmail,
 } from './api';
 import {
@@ -139,6 +140,7 @@ function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [folderStructure, setFolderStructure] = useState<FolderItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [fileStatuses, setFileStatuses] = useState<Record<string, { count: number; color: string; invoice_id: string; is_synced: boolean; cross_copy_status: string }>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [inboxFiles, setInboxFiles] = useState<Array<{filename: string; size: number}>>([]);
   const [activeTab, setActiveTab] = useState<'companies' | 'upload' | 'files' | 'history' | 'notifications' | 'billing'>('companies');
@@ -488,6 +490,29 @@ function App() {
         } catch { counts[c.id] = 0; }
       }
       setCompanyShareCounts(counts);
+      // Build file status map from invoices per company
+      const fStatus: Record<string, { count: number; color: string; invoice_id: string; is_synced: boolean; cross_copy_status: string }> = {};
+      for (const c of co) {
+        try {
+          const companyInvoices = await invListInvoices(c.id, profileId);
+          for (const e of companyInvoices) {
+            const fname = (e as Record<string, string>).new_filename || (e as Record<string, string>).original_filename || '';
+            if (!fname) continue;
+            const syncStatus = (e as Record<string, string>).sync_status;
+            const isSynced = syncStatus === 'synced' || syncStatus === 'accepted';
+            const crossCopy = (e as Record<string, string>).cross_copy_status || 'none';
+            let count = 1;
+            let color = 'red';
+            if (isSynced) {
+              if (crossCopy === 'approved') { count = 2; color = 'blue'; }
+              else if (crossCopy === 'pending') { count = 2; color = 'gray'; }
+              else { count = 1; color = 'gray'; }
+            } else { count = 1; color = 'red'; }
+            fStatus[`${c.id}|${fname}`] = { count, color, invoice_id: (e as Record<string, string>).invoice_id || (e as Record<string, string>).id, is_synced: isSynced, cross_copy_status: crossCopy };
+          }
+        } catch { /* ignore */ }
+      }
+      setFileStatuses(fStatus);
     } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error'); }
   }, []);
 
@@ -1363,6 +1388,55 @@ function App() {
       return <span className="inline-flex items-center" title="Обработена"><span className="text-gray-400 text-xs font-bold">&#10003;</span></span>;
     }
     return null;
+  };
+
+  // Sync status badge component - lightning bolt SVG icons (matches production)
+  const SyncBadge = ({ count, color }: { count: number; color: string }) => {
+    const fill = color === 'blue' ? '#3b82f6' : color === 'red' ? '#ef4444' : '#94a3b8';
+    const bolt = <svg viewBox="0 0 24 24" width="14" height="14" style={{ fill, display: 'inline' }}><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" /></svg>;
+    return (
+      <span className="inline-flex items-center" style={{ gap: 0 }}>
+        {bolt}
+        {count >= 2 && <span style={{ marginLeft: '-4px' }}>{bolt}</span>}
+      </span>
+    );
+  };
+
+  // Edit protection modal - shown when trying to edit a synced invoice
+  const showEditProtectModal = () => {
+    const existing = document.getElementById('edit-protect-overlay');
+    if (existing) existing.remove();
+    const ov = document.createElement('div');
+    ov.id = 'edit-protect-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10000;animation:epFadeIn 0.2s ease-out';
+    const md = document.createElement('div');
+    md.style.cssText = 'background:#fff;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);max-width:440px;width:90%;overflow:hidden;animation:epSlideIn 0.2s ease-out';
+    const hd = document.createElement('div');
+    hd.style.cssText = 'padding:24px 24px 0;display:flex;align-items:flex-start;gap:16px';
+    const iw = document.createElement('div');
+    iw.style.cssText = 'width:48px;height:48px;border-radius:50%;background:#FEF2F2;display:flex;align-items:center;justify-content:center;flex-shrink:0';
+    iw.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    const tc = document.createElement('div');
+    tc.style.cssText = 'flex:1';
+    const ti = document.createElement('h3');
+    ti.style.cssText = 'margin:0 0 8px;font-size:18px;font-weight:700;color:#1e293b';
+    ti.textContent = 'Защита на фактура';
+    const ms = document.createElement('p');
+    ms.style.cssText = 'margin:0;font-size:14px;line-height:1.5;color:#475569';
+    ms.innerHTML = '<span style="color:#dc2626;font-weight:600">Тази фактура не може да бъде редактирана</span>, защото е синхронизирана с контрагента.<br><br><span style="font-size:13px;color:#64748b">За да я редактирате, контрагентът трябва първо да я изтрие от профила си.</span>';
+    tc.appendChild(ti); tc.appendChild(ms);
+    hd.appendChild(iw); hd.appendChild(tc);
+    const ft = document.createElement('div');
+    ft.style.cssText = 'padding:20px 24px;display:flex;justify-content:flex-end';
+    const cb = document.createElement('button');
+    cb.style.cssText = 'padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer';
+    cb.textContent = 'Разбрах';
+    cb.onclick = () => ov.remove();
+    ft.appendChild(cb);
+    md.appendChild(hd); md.appendChild(ft);
+    ov.appendChild(md);
+    ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
   };
 
   // Show loading screen while checking session
@@ -3512,9 +3586,15 @@ function App() {
                                   <FileText className={'w-3.5 h-3.5 ' + (f.is_credit_note ? 'text-red-500' : 'text-gray-400')} />
                                   <span className={'truncate flex-1 ' + (f.is_credit_note ? 'text-red-600 font-medium' : '')}>{f.name}</span>
                                   {f.uploaded_at && <span className="text-xs text-gray-400 whitespace-nowrap">{f.uploaded_at}</span>}
-                                  {!item._shared && <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />}
-                                  <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'purchases', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'purchases', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
-                                  {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'purchases', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  {!item._shared && (fileStatuses[`${item.company.id}|${f.name}`] ? <SyncBadge count={fileStatuses[`${item.company.id}|${f.name}`].count} color={fileStatuses[`${item.company.id}|${f.name}`].color} /> : <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />)}
+                                  <span className="flex items-center gap-1" style={{ width: '90px', justifyContent: 'center' }}>
+                                    {!item._shared && fileStatuses[`${item.company.id}|${f.name}`] && (<>
+                                      <span className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Редактирай фактурата" onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.invoice_id) return; invCheckEditable(fs.invoice_id).then((d: Record<string, unknown>) => { if (d.editable === false) { showEditProtectModal(); } else if (activeProfile) { invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); } }).catch(() => { if (activeProfile) invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); }); }}><Edit3 className="w-4 h-4" /></span>
+                                      <span className={(fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'text-green-500 hover:text-green-700' : 'text-amber-500 hover:text-amber-700') + ' cursor-pointer'} title={fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'Синхронизирана' : 'Синхронизирай фактурата'} onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.is_synced && fs?.invoice_id && activeProfile) { invSyncSingle(fs.invoice_id, activeProfile.id).then(() => { if (activeProfile) loadProfileData(activeProfile.id); }).catch(() => { if (activeProfile) invSyncInvoices(item.company.id, activeProfile.id); }); } }}><RefreshCw className="w-4 h-4" /></span>
+                                    </>)}
+                                    <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'purchases', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'purchases', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
+                                    {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'purchases', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -3538,10 +3618,15 @@ function App() {
                                   <FileText className={'w-3.5 h-3.5 ' + (f.is_credit_note ? 'text-red-500' : 'text-gray-400')} />
                                   <span className={'truncate flex-1 ' + (f.is_credit_note ? 'text-red-600 font-medium' : '')}>{f.name}</span>
                                   {f.uploaded_at && <span className="text-xs text-gray-400 whitespace-nowrap">{f.uploaded_at}</span>}
-                                  {!item._shared && <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />}
-                                  {!item._shared && (() => { const inv = invoices.find(iv => iv.new_filename === f.name && iv.company_name === item.company.name); if (!inv) return null; const isSynced = inv.cross_copy_status === 'delivered'; return (<><span className={(isSynced ? 'text-green-500 hover:text-green-700' : 'text-amber-500 hover:text-amber-700') + ' cursor-pointer opacity-0 group-hover:opacity-100'} title={isSynced ? 'Синхронизирана' : 'Синхронизирай фактурата'} onClick={t => { t.stopPropagation(); }}><RefreshCw className="w-3.5 h-3.5" /></span><span className="text-blue-500 hover:text-blue-700 cursor-pointer opacity-0 group-hover:opacity-100" title="Редактирай фактурата" onClick={t => { t.stopPropagation(); if (activeProfile) invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: inv.id } as Record<string, unknown>); }}><Edit3 className="w-3.5 h-3.5" /></span></>); })()}
-                                  <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'sales', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'sales', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
-                                  {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'sales', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  {!item._shared && (fileStatuses[`${item.company.id}|${f.name}`] ? <SyncBadge count={fileStatuses[`${item.company.id}|${f.name}`].count} color={fileStatuses[`${item.company.id}|${f.name}`].color} /> : <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />)}
+                                  <span className="flex items-center gap-1" style={{ width: '90px', justifyContent: 'center' }}>
+                                    {!item._shared && fileStatuses[`${item.company.id}|${f.name}`] && (<>
+                                      <span className="text-blue-500 hover:text-blue-700 cursor-pointer" title="Редактирай фактурата" onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.invoice_id) return; invCheckEditable(fs.invoice_id).then((d: Record<string, unknown>) => { if (d.editable === false) { showEditProtectModal(); } else if (activeProfile) { invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); } }).catch(() => { if (activeProfile) invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: fs.invoice_id } as Record<string, unknown>); }); }}><Edit3 className="w-4 h-4" /></span>
+                                      <span className={(fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'text-green-500 hover:text-green-700' : 'text-amber-500 hover:text-amber-700') + ' cursor-pointer'} title={fileStatuses[`${item.company.id}|${f.name}`]?.is_synced ? 'Синхронизирана' : 'Синхронизирай фактурата'} onClick={(t) => { t.stopPropagation(); const fs = fileStatuses[`${item.company.id}|${f.name}`]; if (!fs?.is_synced && fs?.invoice_id && activeProfile) { invSyncSingle(fs.invoice_id, activeProfile.id).then(() => { if (activeProfile) loadProfileData(activeProfile.id); }).catch(() => { if (activeProfile) invSyncInvoices(item.company.id, activeProfile.id); }); } }}><RefreshCw className="w-4 h-4" /></span>
+                                    </>)}
+                                    <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'sales', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'sales', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
+                                    {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'sales', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                  </span>
                                 </div>
                               ))}
                             </div>
