@@ -2953,9 +2953,9 @@ function App() {
 
       <div className="max-w-7xl mx-auto px-2 md:px-4 py-3 md:py-4">
         {activeTab === 'companies' && (
-          <div className="bg-white rounded-xl border p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base md:text-lg font-semibold">Фирми в профил &quot;{activeProfile.name}&quot;</h2>
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <h2 className="text-base md:text-lg font-semibold">Фирми в профил &quot;{activeProfile.name}&quot;</h2>
               <button onClick={() => { setShowCompanyForm(true); setEditingCompany(null); setCompanyForm({ name: '', eik: '', vat_number: '', address: '', mol: '', tr_email: '', managers: [], partners: [] }); }} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 self-start sm:self-auto"><Plus className="w-4 h-4" /> Добави фирма</button>
             </div>
             {monthlyUsage && (() => {
@@ -3134,7 +3134,7 @@ function App() {
                     }
                   }
                   return (
-                  <div key={c.id} className="bg-white border rounded-xl p-5 hover:shadow-md transition-shadow">
+                  <div key={c.id} className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
                       <h3 className="font-bold text-base text-gray-900">{c.name}</h3>
                       <div className="flex flex-col items-start sm:items-end flex-shrink-0">
@@ -3205,7 +3205,7 @@ function App() {
                       }
                     }
                     return (
-                    <div key={sc.share_id} className="bg-green-50 border border-green-200 rounded-xl p-5 hover:shadow-md transition-shadow">
+                    <div key={sc.share_id} className="bg-green-50 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-bold text-base text-gray-900 flex items-center gap-2"><Share2 className="w-4 h-4 text-green-600" /> {c.name}</h3>
                         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
@@ -3240,8 +3240,8 @@ function App() {
 
         {activeTab === 'upload' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold mb-4">Качване и обработка на фактури</h2>
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                          <h2 className="text-lg font-semibold mb-4">Качване и обработка на фактури</h2>
               {monthlyUsage && (() => {
                 const warnLevel = monthlyUsage.limit_reached ? 'limit' : monthlyUsage.warning_90 ? '90' : monthlyUsage.warning_80 ? '80' : 'none';
                 return (
@@ -3367,8 +3367,8 @@ function App() {
               )}
             </div>
             {processResults && (
-              <div className="bg-white rounded-xl border p-4">
-                <h3 className="font-semibold mb-3">{processResults.message}</h3>
+                            <div className="bg-white rounded-xl shadow-sm p-4">
+                              <h3 className="font-semibold mb-3">{processResults.message}</h3>
                 {processResults.cross_copies && processResults.cross_copies.length > 0 && (
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <h4 className="text-sm font-medium text-blue-800 flex items-center gap-1 mb-2"><ArrowLeftRight className="w-4 h-4" /> Кръстосано копирани фактури</h4>
@@ -3395,10 +3395,10 @@ function App() {
         )}
 
         {activeTab === 'files' && (
-          <div className="bg-white rounded-xl border p-4 flex flex-col" style={{maxHeight: 'calc(100vh - 230px)'}}>
-            <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Структура на файловете</h2>
+                    <div className="bg-white rounded-xl shadow-sm p-4 flex flex-col" style={{maxHeight: 'calc(100vh - 230px)'}}>
+                      <div className="flex-shrink-0">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold">Структура на файловете</h2>
               {selectedFiles.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">{selectedFiles.length} избрани</span>
@@ -3695,9 +3695,9 @@ function App() {
           const processedCount = invoices.filter(inv => inv.status === 'processed').length;
           const unmatchedCount = invoices.filter(inv => inv.status === 'unmatched' || inv.status === 'error').length;
           return (
-          <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">История на фактурите</h2>
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold">История на фактурите</h2>
             </div>
             <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
               <button onClick={() => setHistoryFilter('all')} className={'flex-1 px-3 py-1.5 text-sm rounded-md transition ' + (historyFilter === 'all' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-600 hover:text-gray-900')}>Всички ({invoices.length})</button>
@@ -3768,9 +3768,9 @@ function App() {
         })()}
 
         {activeTab === 'notifications' && (
-          <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Известия</h2>
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold">Известия</h2>
               {notifications.length > 0 && <button onClick={handleClearNotifs} className="text-sm text-red-600 hover:text-red-800">Изчисти всички</button>}
             </div>
             {notifications.length === 0 ? (
@@ -3794,8 +3794,8 @@ function App() {
         )}
 
         {activeTab === 'billing' && (
-          <div className="bg-white rounded-xl border p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-indigo-600" /> Абонамент</h2>
+                    <div className="bg-white rounded-xl shadow-sm p-4">
+                      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-indigo-600" /> Абонамент</h2>
             
             {/* Current subscription status */}
             {subscription && (

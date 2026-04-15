@@ -295,10 +295,10 @@ export const invListClients = (companyId: string, profileId: string, search?: st
 };
 export const invCreateClient = (data: Record<string, unknown>) =>
   request('/api/invoicing/clients', { method: 'POST', body: JSON.stringify(data) });
-export const invUpdateClient = (clientId: string, data: Record<string, unknown>) =>
-  request(`/api/invoicing/clients/${clientId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invDeleteClient = (clientId: string) =>
-  request(`/api/invoicing/clients/${clientId}`, { method: 'DELETE' });
+export const invUpdateClient = (clientId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
+  request(`/api/invoicing/clients/${clientId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
+export const invDeleteClient = (clientId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/clients/${clientId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'DELETE' });
 
 // Items
 export const invListItems = (companyId: string, profileId: string, search?: string) => {
@@ -308,20 +308,20 @@ export const invListItems = (companyId: string, profileId: string, search?: stri
 };
 export const invCreateItem = (data: Record<string, unknown>) =>
   request('/api/invoicing/items', { method: 'POST', body: JSON.stringify(data) });
-export const invUpdateItem = (itemId: string, data: Record<string, unknown>) =>
-  request(`/api/invoicing/items/${itemId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invDeleteItem = (itemId: string) =>
-  request(`/api/invoicing/items/${itemId}`, { method: 'DELETE' });
+export const invUpdateItem = (itemId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
+  request(`/api/invoicing/items/${itemId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
+export const invDeleteItem = (itemId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/items/${itemId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'DELETE' });
 
 // Invoices
 export const invGetNextNumber = (companyId: string, profileId: string, documentType: string = 'invoice') =>
   request(`/api/invoicing/next-number?company_id=${companyId}&profile_id=${profileId}&document_type=${documentType}`);
 export const invCreateInvoice = (data: Record<string, unknown>) =>
   request('/api/invoicing/invoices', { method: 'POST', body: JSON.stringify(data) });
-export const invUpdateInvoice = (invoiceId: string, data: Record<string, unknown>) =>
-  request(`/api/invoicing/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invGetInvoice = (invoiceId: string) =>
-  request(`/api/invoicing/invoices/${invoiceId}`);
+export const invUpdateInvoice = (invoiceId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
+export const invGetInvoice = (invoiceId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}?company_id=${companyId}&profile_id=${profileId}`);
 export const invListInvoices = (companyId: string, profileId: string) =>
   request(`/api/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`);
 export const invGetPdfUrl = (invoiceId: string) =>
