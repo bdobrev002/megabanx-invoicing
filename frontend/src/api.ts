@@ -320,8 +320,8 @@ export const invCreateInvoice = (data: Record<string, unknown>) =>
   request('/api/invoicing/invoices', { method: 'POST', body: JSON.stringify(data) });
 export const invUpdateInvoice = (invoiceId: string, data: Record<string, unknown>) =>
   request(`/api/invoicing/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invGetInvoice = (invoiceId: string) =>
-  request(`/api/invoicing/invoices/${invoiceId}`);
+export const invGetInvoice = (invoiceId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`);
 export const invListInvoices = (companyId: string, profileId: string) =>
   request(`/api/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`);
 export const invGetPdfUrl = (invoiceId: string) =>

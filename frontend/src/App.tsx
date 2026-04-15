@@ -39,7 +39,7 @@ import {
   Shield, ArrowRight, Eye, Brain, FolderSync, BarChart3, Lock, Globe, ChevronLeft,
   Home, Monitor, Camera, Rocket, UserCheck, CalendarCheck, Sparkles, TrendingUp, XCircle, ScanLine, FileUp,
   Copy, Banknote, Info, Phone, MessageSquare, Send, Share2, UserPlus, ToggleLeft, ToggleRight,
-  Receipt, ExternalLink, RefreshCw, Ban, AlertTriangle, Crown, Menu, HelpCircle, Users2, Smartphone, ArrowUp, ArrowDown,
+  Receipt, ExternalLink, RefreshCw, Ban, AlertTriangle, Crown, Menu, HelpCircle, Users2, Smartphone, ArrowUp, ArrowDown, Edit3,
 } from 'lucide-react';
 
 interface Profile { id: string; name: string; created_at: string; }
@@ -1154,10 +1154,10 @@ function App() {
     try {
       if (invEditInvoiceId) {
         const result = await invUpdateInvoice(invEditInvoiceId, payload);
-        invToastShow(`Фактура ${result.invoice_number} е обновена`);
+        invToastShow(`${invDocType === 'proforma' ? 'Проформа' : 'Фактура'} ${result.invoice_number} е обновена`);
       } else {
         const result = await invCreateInvoice(payload);
-        invToastShow(`Фактура ${result.invoice_number} е ${status === 'issued' ? 'издадена' : 'запазена'}`);
+        invToastShow(`${invDocType === 'proforma' ? 'Проформа' : 'Фактура'} ${result.invoice_number} е ${status === 'issued' ? 'издадена' : 'запазена като чернова'}`);
       }
       setInvModal(null);
       // WebSocket will auto-refresh the file list
@@ -1167,15 +1167,15 @@ function App() {
   };
 
   const invHandleDelete = async (invoiceId: string, invoiceNumber: string) => {
-    if (!confirm(`Изтриване на фактура ${invoiceNumber}?`)) return;
+    if (!confirm(`Сигурни ли сте, че искате да изтриете фактура ${invoiceNumber}? Това действие е необратимо.`)) return;
     try {
       await invDeleteInvoice(invoiceId);
       invToastShow(`Фактура ${invoiceNumber} е изтрита`);
       if (activeProfile) loadProfileData(activeProfile.id);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Грешка';
-      if (msg.includes('одобрена') || msg.includes('approved') || msg.includes('защитен') || msg.includes('protected')) {
-        alert(msg);
+      if (msg.includes('одобрена') || msg.includes('approved') || msg.includes('защитен') || msg.includes('protected') || msg.includes('синхронизиран')) {
+        alert('Изтриването е блокирано: ' + msg);
       } else {
         invToastShow('Грешка: ' + msg, 'error');
       }
@@ -1185,10 +1185,22 @@ function App() {
   const invHandleSync = async (companyId: string, profileId: string) => {
     setInvSyncing(prev => ({ ...prev, [companyId]: true }));
     try {
-      await invSyncInvoices(companyId, profileId);
-      invToastShow('Фактурите са синхронизирани');
+      const result = await invSyncInvoices(companyId, profileId);
+      const syncCount = result?.synced_count || 0;
+      if (syncCount > 0) {
+        invToastShow(`Синхронизирани фактури: ${syncCount}`);
+      } else {
+        invToastShow('Всички фактури вече са синхронизирани');
+      }
       if (activeProfile) loadProfileData(activeProfile.id);
-    } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('вече') || msg.includes('already')) {
+        invToastShow('Всички фактури вече са синхронизирани');
+      } else {
+        invToastShow('Грешка при синхронизация: ' + msg, 'error');
+      }
+    }
     finally { setInvSyncing(prev => ({ ...prev, [companyId]: false })); }
   };
 
@@ -1538,17 +1550,16 @@ function App() {
                       <Zap className="w-4 h-4" /> AI-базирана обработка на фактури
                     </div>
                     <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-6">
-                      Управлявайте фактурите си<br />
-                      <span className="text-indigo-600">интелигентно и автоматично</span>
+                                            Издавайте и управлявайте фактурите си<br />
+                                            <span className="text-indigo-600">интелигентно и автоматично</span>
                     </h1>
                     <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
-                      MegaBanx анализира вашите фактури с изкуствен интелект, организира ги по фирми и типове,
-                      и ви спестява часове ръчна работа. Без сложни настройки — качете и готово.
+                                            MegaBanx ви позволява да издавате фактури и да ги изпращате автоматично на контрагентите, да качвате и организирате документи с AI, и да спестявате часове ръчна работа. Без сложни настройки — започнете веднага.
                     </p>
                     <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 max-w-3xl mx-auto mb-8 text-left">
                       <h3 className="text-base font-bold text-indigo-800 mb-2 flex items-center gap-2"><Zap className="w-5 h-5" /> Без предварително сортиране!</h3>
                       <p className="text-sm text-indigo-700 leading-relaxed">
-                        Имате повече от една фирма? <strong>Не е нужно да сортирате фактурите предварително!</strong> Просто качете
+                        Издавайте фактури директно от системата или качете готови документи от множество фирми. <strong>Не е нужно да сортирате фактурите предварително!</strong> Просто качете
                         всички сканирани или генерирани фактури (PDF, JPEG, PNG и др.) — без значение за коя ваша фирма се отнасят — и натиснете
                         &quot;Обработка с AI&quot;. Нашият изкуствен интелект автоматично ще:
                       </p>
@@ -1589,7 +1600,8 @@ function App() {
                         { icon: ArrowLeftRight, title: 'Споделяне с контрагенти', desc: 'Фактурите автоматично се споделят с контрагентите ви в системата. Те получават известие и могат да одобрят.', color: 'bg-orange-100 text-orange-600' },
                         { icon: BarChart3, title: 'Пълна история', desc: 'Детайлна история на всяка фактура — кога е качена, обработена, одобрена. Филтриране и търсене по всички полета.', color: 'bg-cyan-100 text-cyan-600' },
                         { icon: Shield, title: 'Сигурност', desc: 'SSL криптиране, верификация на фирми, GDPR съвместимост. Данните ви са защитени на европейски сървъри.', color: 'bg-emerald-100 text-emerald-600' },
-                        { icon: Mail, title: 'Заместител на имейла', desc: 'MegaBanx не е просто още едно място за качване — той замества изцяло имейла за обмен на фактури. Забравете ръчното изпращане на имейли с прикачени фактури. Качете веднъж и контрагентите ви получават фактурите автоматично.', color: 'bg-indigo-100 text-indigo-600' },
+                        { icon: Mail, title: 'Издаване и доставка', desc: 'Издавайте фактури директно в MegaBanx или качете готови документи — контрагентите ви ги получават автоматично по имейл и в системата. Без ръчно изпращане, без прикачени файлове. Всичко е автоматизирано от край до край.', color: 'bg-indigo-100 text-indigo-600' },
+                        { icon: Receipt, title: 'Структура на фактурите', desc: 'Ясна и прегледна структура на всяка фактура — редове, количества, мерни единици, ДДС ставки и суми. Кочани с 10-цифрени номера за пълен контрол.', color: 'bg-violet-100 text-violet-600' },
                       ].map((f, i) => (
                         <div key={i} className="bg-gray-50 rounded-2xl p-5 hover:shadow-lg transition-shadow border border-gray-100">
                           <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${f.color}`}>
@@ -1616,13 +1628,13 @@ function App() {
                     <div className="relative z-10">
                       <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 mb-6">
                         <Sparkles className="w-4 h-4 text-yellow-300" />
-                        <span className="text-white/90 text-sm font-medium tracking-wide">Бъдещето на документооборота</span>
+                        <span className="text-white/90 text-sm font-medium tracking-wide">Бъдещето на фактурирането</span>
                       </div>
                       <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4 leading-tight tracking-tight" style={{fontFamily: "'Inter', system-ui, sans-serif"}}>
-                        Спрете да сканирате и да пращате имейли.
+                        Издавайте, организирайте и доставяйте автоматично.
                       </h2>
                       <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed font-medium">
-                        MegaBanx <span className="underline decoration-yellow-300 decoration-2 underline-offset-4">автоматизира документооборота</span> между вас и вашите клиенти.
+                        MegaBanx <span className="underline decoration-yellow-300 decoration-2 underline-offset-4">автоматизира издаването и обмена на фактури</span> между вас и вашите клиенти.
                       </p>
                     </div>
                   </div>
@@ -1637,8 +1649,7 @@ function App() {
                       <div>
                         <h3 className="text-xl font-extrabold text-gray-900 mb-2 tracking-tight">Вашият цифров мост към всеки контрагент</h3>
                         <p className="text-base text-gray-700 leading-relaxed">
-                          Качвате веднъж — фактурата е при клиента и неговия счетоводител <span className="font-bold text-indigo-600">за секунди</span>.
-                          Без сканиране, без именуване на файлове, без изпращане по имейл.
+                                                    Издавате или качвате фактура — тя е при клиента и неговия счетоводител <span className="font-bold text-indigo-600">за секунди</span>. Без сканиране, без именуване на файлове — доставката е автоматична.
                         </p>
                       </div>
                     </div>
@@ -1664,7 +1675,7 @@ function App() {
                           </div>
                         </div>
                         <p className="text-sm text-gray-700 leading-relaxed">
-                          <span className="font-bold">100 фактури/ден</span> = 4 часа сканиране, именуване и пращане по имейл.
+                          <span className="font-bold">100 фактури/ден</span> = 4 часа сканиране, именуване и ръчно пращане по имейл.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                           {['Сканиране', 'Именуване', 'Имейли'].map(t => (
@@ -1726,8 +1737,8 @@ function App() {
                         <ScanLine className="w-4 h-4" />
                         <span className="text-sm font-bold tracking-wide">Как протича процесът?</span>
                       </div>
-                      <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">От PDF до подредена счетоводна папка</h2>
-                      <p className="text-gray-500 mt-2">4 стъпки. Напълно автоматично.</p>
+                                            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">От издаване до подредена счетоводна папка</h2>
+                                            <p className="text-gray-500 mt-2">Издавайте или качвайте. Напълно автоматично.</p>
                     </div>
 
                     {/* Стъпки с анимирана връзка */}
@@ -1740,8 +1751,8 @@ function App() {
                           {
                             step: 1,
                             icon: FileUp,
-                            title: 'Качване на PDF',
-                            desc: 'Качете оригиналния PDF от складовата програма. Drag & Drop или изберете файлове — готово за секунди.',
+                                                        title: 'Издаване или качване',
+                                                        desc: 'Издайте фактура директно в MegaBanx или качете PDF от складовата програма. Drag & Drop или изберете файлове — готово за секунди.',
                             gradient: 'from-blue-500 to-cyan-500',
                             bgLight: 'bg-blue-50',
                             borderColor: 'border-blue-200',
@@ -1905,7 +1916,7 @@ function App() {
                         <Monitor className="w-4 h-4" />
                         <span className="text-sm font-bold tracking-wide">Вижте как работи на практика</span>
                       </div>
-                      <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">От качване до получаване — под 1 минута</h2>
+                      <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">От издаване до получаване — под 1 минута</h2>
                     </div>
 
                     <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-3xl p-6 md:p-8 overflow-hidden shadow-2xl border border-slate-700">
@@ -2513,15 +2524,23 @@ function App() {
                       <HelpCircle className="w-4 h-4" /> FAQ
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 mb-3">Често задавани въпроси</h2>
-                    <p className="text-gray-500">Отговори на най-честите въпроси за MegaBanx</p>
+                    <p className="text-gray-500">Отговори на най-честите въпроси за издаване, обработка и доставка на фактури</p>
                   </div>
                   <div className="space-y-4">
                     {[
-                      { q: 'Мога ли да качвам фактури на различни фирми наведнъж?', a: 'Да! MegaBanx автоматично разпознава за коя фирма се отнася документът чрез AI и го подрежда в правилната папка (Покупки или Продажби), без нужда от предварително сортиране.', icon: FolderSync },
+                      { q: 'Мога ли да издавам и качвам фактури за различни фирми?', a: 'Да! MegaBanx автоматично разпознава за коя фирма се отнася документът чрез AI и го подрежда в правилната папка (Покупки или Продажби), без нужда от предварително сортиране.', icon: FolderSync },
                       { q: 'Как става споделянето на фактури с контрагенти?', a: 'Системата автоматично разпознава получателя по фактурата. Ако той също е в MegaBanx, документът се появява в неговия профил мигновено. Край на изпращането на фактури по имейл.', icon: Share2 },
                       { q: 'Какво означава \u201cАвтоматично именуване\u201d?', a: 'Нашият AI извлича номера на фактурата, датата и името на доставчика, и преименува файла автоматично. Така архивът ви е винаги подреден и лесен за търсене.', icon: Brain },
                       { q: 'Защитени ли са моите фактури?', a: 'Да! Всички фактури и документи в MegaBanx са криптирани с AES криптиране (Fernet/AES-128-CBC + HMAC-SHA256). Дори при евентуален неоторизиран достъп до сървъра, файловете са напълно нечетими без криптографския ключ. Вашите данни са защитени от чужди очи.', icon: Lock },
                       { q: 'Защо е необходима верификация при въвеждане на фирма?', a: 'Верификацията е създадена за защита на самите потребители. Чрез нея гарантираме, че никой не може да използва данните на чужда фирма без съгласието на легитимните собственици. Процесът е прост — еднократен превод от фирмената сметка, който потвърждава, че вие сте оторизирано лице за тази фирма. Така всички данни и фактури остават достъпни само за истинските им собственици.', icon: Shield },
+                      { q: 'Колко време се съхраняват фактурите ми?', a: 'Фактурите ви се съхраняват неограничено време в MegaBanx. Няма срок на изтичане — документите остават достъпни докато имате активен акаунт. Всички файлове са криптирани и безопасно съхранени на нашите сървъри.', icon: Clock },
+                      { q: 'Мога ли да споделям фактури с други потребители?', a: 'Да! MegaBanx автоматично споделя фактурите с контрагентите ви. Когато качите фактура, системата разпознава получателя и ако той е регистриран в MegaBanx, документът се появява в неговия профил мигновено. Без ръчно изпращане на имейли.', icon: Share2 },
+                      { q: 'Безплатен ли е MegaBanx?', a: 'Да, MegaBanx предлага безплатен план, който включва управление на до 3 фирми. За повече фирми или разширени функции, можете да преминете към платен абонамент. Вижте секция "Планове и цени" за повече информация.', icon: CreditCard },
+                      { q: 'Как се регистрирам в системата?', a: 'Регистрацията е бърза и лесна — просто въведете имейл адреса си и ще получите код за вход. Не е нужна парола! При всяко влизане получавате еднократен код на имейла си, което е по-сигурно от традиционните пароли.', icon: UserPlus },
+                      { q: 'Какви формати на фактури се поддържат?', a: 'MegaBanx поддържа PDF формат за фактури. Просто качете вашия PDF файл и системата автоматично ще извлече номера, датата, сумата и данните на контрагента чрез AI разпознаване. Файлът се преименува автоматично за лесно търсене.', icon: FileText },
+                      { q: 'Мога ли да изтрия качена фактура?', a: 'Да, можете да изтриете всяка фактура, която сте качили. При изтриване, фактурата се премахва и от профила на контрагента, ако е била споделена. Изтриването е окончателно и не може да бъде отменено.', icon: Trash2 },
+                      { q: 'Как работи автоматичното разпознаване на фактури?', a: 'Нашият AI анализира качения PDF файл и автоматично извлича ключова информация: номер на фактура, дата на издаване, име на издател/получател, ЕИК, ДДС номер и обща сума. Файлът се преименува и категоризира автоматично.', icon: ScanLine },
+                      { q: 'Какво се случва ако контрагентът ми не е в MegaBanx?', a: 'Ако контрагентът ви не е регистриран в системата, можете да му изпратите фактурата по имейл директно от MegaBanx. Той ще получи линк за сваляне на фактурата и покана да се регистрира безплатно, за да получава фактури автоматично в бъдеще.', icon: Mail },
                     ].map((faq, idx) => (
                       <div key={idx} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
                         <button
@@ -3345,6 +3364,17 @@ function App() {
                   ) : null;
                 })()}
               </div>
+              <select className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none" value="" onChange={e => { const t = e.target.value; const now = new Date(); if (t === 'today') { const d = now.toISOString().slice(0,10); setFilesDateFrom(d); setFilesDateTo(d); } else if (t === 'week') { const day = now.getDay() || 7; const mon = new Date(now); mon.setDate(now.getDate() - day + 1); setFilesDateFrom(mon.toISOString().slice(0,10)); setFilesDateTo(now.toISOString().slice(0,10)); } else if (t === 'month') { setFilesDateFrom(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10)); setFilesDateTo(now.toISOString().slice(0,10)); } else if (t === 'last_month') { setFilesDateFrom(new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,10)); setFilesDateTo(new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0,10)); } else if (t === 'quarter') { const qm = Math.floor(now.getMonth()/3)*3; setFilesDateFrom(new Date(now.getFullYear(), qm, 1).toISOString().slice(0,10)); setFilesDateTo(now.toISOString().slice(0,10)); } else if (t === 'year') { setFilesDateFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0,10)); setFilesDateTo(now.toISOString().slice(0,10)); } else if (t === 'last_year') { setFilesDateFrom(new Date(now.getFullYear()-1, 0, 1).toISOString().slice(0,10)); setFilesDateTo(new Date(now.getFullYear()-1, 11, 31).toISOString().slice(0,10)); } else if (t === 'all') { setFilesDateFrom(''); setFilesDateTo(''); } }}>
+                <option value="">Времева рамка...</option>
+                <option value="today">Днес</option>
+                <option value="week">Тази седмица</option>
+                <option value="month">Този месец</option>
+                <option value="last_month">Миналия месец</option>
+                <option value="quarter">Това тримесечие</option>
+                <option value="year">Тази година</option>
+                <option value="last_year">Миналата година</option>
+                <option value="all">Всички</option>
+              </select>
               <input type="date" value={filesDateFrom} onChange={e => setFilesDateFrom(e.target.value)} className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none" title="От дата" />
               <input type="date" value={filesDateTo} onChange={e => setFilesDateTo(e.target.value)} className="px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none" title="До дата" />
               {(filesSearch || filesCompany || filesCompanyInput || filesDateFrom || filesDateTo) && (
@@ -3509,6 +3539,7 @@ function App() {
                                   <span className={'truncate flex-1 ' + (f.is_credit_note ? 'text-red-600 font-medium' : '')}>{f.name}</span>
                                   {f.uploaded_at && <span className="text-xs text-gray-400 whitespace-nowrap">{f.uploaded_at}</span>}
                                   {!item._shared && <DeliveryTicks status={f.cross_copy_status} crossCopiedFrom={f.cross_copied_from} />}
+                                  {!item._shared && (() => { const inv = invoices.find(iv => iv.new_filename === f.name && iv.company_name === item.company.name); if (!inv) return null; const isSynced = inv.cross_copy_status === 'delivered'; return (<><span className={(isSynced ? 'text-green-500 hover:text-green-700' : 'text-amber-500 hover:text-amber-700') + ' cursor-pointer opacity-0 group-hover:opacity-100'} title={isSynced ? 'Синхронизирана' : 'Синхронизирай фактурата'} onClick={t => { t.stopPropagation(); }}><RefreshCw className="w-3.5 h-3.5" /></span><span className="text-blue-500 hover:text-blue-700 cursor-pointer opacity-0 group-hover:opacity-100" title="Редактирай фактурата" onClick={t => { t.stopPropagation(); if (activeProfile) invOpenInvoice(item.company.id, activeProfile.id, item.company.name, { invoice_id: inv.id } as Record<string, unknown>); }}><Edit3 className="w-3.5 h-3.5" /></span></>); })()}
                                   <a href={item._shared ? sharedDownloadFileUrl(item._shareId, item.company.name, 'sales', f.name) : downloadFileUrl(activeProfile.id, item.company.name, 'sales', f.name)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600" onClick={(e) => e.stopPropagation()} download><Download className="w-3.5 h-3.5" /></a>
                                   {!item._shared && <button onClick={(e) => { e.stopPropagation(); handleDeleteFile(item.company.name, 'sales', f.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>}
                                 </div>
@@ -4480,14 +4511,15 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInvModal('clients')}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">{invEditClient ? 'Редактиране на клиент' : 'Нов клиент'}</h2>
+              <h2 className="text-lg font-semibold">{invEditClient ? 'Редактирай клиент' : 'Нов клиент'}</h2>
               <button onClick={() => setInvModal('clients')} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-3">
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Име *</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.name || ''} onChange={e => setInvClientForm(p => ({ ...p, name: e.target.value }))} placeholder="Име на фирмата или лицето" /></div>
+              <div className="flex items-center gap-3 mb-1"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={invClientForm.is_individual === 'true'} onChange={e => setInvClientForm(p => ({ ...p, is_individual: e.target.checked ? 'true' : 'false' }))} /> Физическо лице</label></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Наименование *</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.name || ''} onChange={e => setInvClientForm(p => ({ ...p, name: e.target.value }))} placeholder="Име на фирмата или лицето" /></div>
               <div className="flex items-center gap-2">
                 <div className="flex-1"><label className="block text-xs font-medium text-gray-600 mb-1">ЕИК</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.eik || ''} onChange={e => setInvClientForm(p => ({ ...p, eik: e.target.value }))} placeholder="000000000" /></div>
-                <button onClick={async () => { if (!invClientForm.eik) { invToastShow('Въведете ЕИК', 'error'); return; } try { const r = await invRegistryLookup(invClientForm.eik); if (r.name) setInvClientForm(p => ({ ...p, name: r.name || p.name, address: r.address || p.address, city: r.city || p.city, mol: r.mol || p.mol, vat_number: r.vat_number || p.vat_number, is_vat_registered: r.is_vat_registered ? 'true' : 'false' })); invToastShow('Данните са заредени от ТР'); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="mt-5 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 flex items-center gap-1 whitespace-nowrap"><Search className="w-3.5 h-3.5" /> ТР</button>
+                <button onClick={async () => { if (!invClientForm.eik) { invToastShow('Въведете ЕИК', 'error'); return; } try { const r = await invRegistryLookup(invClientForm.eik); if (r.name) setInvClientForm(p => ({ ...p, name: r.name || p.name, address: r.address || p.address, city: r.city || p.city, mol: r.mol || p.mol, vat_number: r.vat_number || p.vat_number, is_vat_registered: r.is_vat_registered ? 'true' : 'false' })); invToastShow('Данните са заредени от ТР'); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="mt-5 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 flex items-center gap-1 whitespace-nowrap"><Search className="w-3.5 h-3.5" /> Търсене в ТР</button>
               </div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">ДДС номер</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.vat_number || ''} onChange={e => setInvClientForm(p => ({ ...p, vat_number: e.target.value }))} placeholder="BG000000000" /></div>
               <div className="grid grid-cols-2 gap-3">
@@ -4499,9 +4531,9 @@ function App() {
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">Email</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.email || ''} onChange={e => setInvClientForm(p => ({ ...p, email: e.target.value }))} /></div>
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">Телефон</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.phone || ''} onChange={e => setInvClientForm(p => ({ ...p, phone: e.target.value }))} /></div>
               </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Имейл адреси за уведомления</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invClientForm.notify_emails || ''} onChange={e => setInvClientForm(p => ({ ...p, notify_emails: e.target.value }))} placeholder="email1@example.com, email2@example.com" /><p className="text-xs text-gray-400 mt-0.5">Изпращай уведомления на тези адреси (разделени със запетая)</p></div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={invClientForm.is_vat_registered === 'true'} onChange={e => setInvClientForm(p => ({ ...p, is_vat_registered: e.target.checked ? 'true' : 'false' }))} /> Регистриран по ДДС</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={invClientForm.is_individual === 'true'} onChange={e => setInvClientForm(p => ({ ...p, is_individual: e.target.checked ? 'true' : 'false' }))} /> Физическо лице</label>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setInvModal('clients')} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Отказ</button>
@@ -4572,7 +4604,7 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInvModal('items')}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">{invEditItem ? 'Редактиране на артикул' : 'Нов артикул'}</h2>
+              <h2 className="text-lg font-semibold">{invEditItem ? 'Редактирай артикул' : 'Нов артикул'}</h2>
               <button onClick={() => setInvModal('items')} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-3">
@@ -4582,6 +4614,7 @@ function App() {
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">Цена</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" type="number" step="0.01" value={invItemForm.default_price || ''} onChange={e => setInvItemForm(p => ({ ...p, default_price: e.target.value }))} /></div>
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">ДДС %</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" type="number" step="0.01" value={invItemForm.vat_rate || ''} onChange={e => setInvItemForm(p => ({ ...p, vat_rate: e.target.value }))} /></div>
               </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Баркод</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" value={invItemForm.barcode || ''} onChange={e => setInvItemForm(p => ({ ...p, barcode: e.target.value }))} placeholder="Баркод на артикула (незадължително)" /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Описание</label><textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" rows={2} value={invItemForm.description || ''} onChange={e => setInvItemForm(p => ({ ...p, description: e.target.value }))} placeholder="Опционално описание" /></div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setInvModal('items')} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Отказ</button>
@@ -4605,13 +4638,23 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInvModal(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold flex items-center gap-2"><RefreshCw className="w-5 h-5 text-gray-600" /> Настройки</h2>
+              <h2 className="text-lg font-semibold flex items-center gap-2"><RefreshCw className="w-5 h-5 text-gray-600" /> Настройки за фактуриране</h2>
+              <span className="text-xs text-gray-400">Настройки за синхронизация</span>
               <button onClick={() => setInvModal(null)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2 border-b pb-1">Банкови данни</h3>
                 <div className="space-y-2">
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">ДДС % по подразбиране</label>
+                    <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invSettingsForm.default_vat_rate || '20'} onChange={e => setInvSettingsForm(p => ({ ...p, default_vat_rate: e.target.value }))}>
+                      <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
+                    </select>
+                  </div><div><label className="block text-xs font-medium text-gray-600 mb-1">Режим на цените:</label>
+                    <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invSettingsForm.price_mode || 'without_vat'} onChange={e => setInvSettingsForm(p => ({ ...p, price_mode: e.target.value }))}>
+                      <option value="without_vat">Цена без ДДС</option><option value="with_vat">Цена с ДДС</option>
+                    </select>
+                  </div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">IBAN</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invSettingsForm.iban || ''} onChange={e => setInvSettingsForm(p => ({ ...p, iban: e.target.value }))} placeholder="BG00XXXX00000000000000" /></div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Име на банката</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invSettingsForm.bank_name || ''} onChange={e => setInvSettingsForm(p => ({ ...p, bank_name: e.target.value }))} placeholder="Банка ООД" /></div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">BIC код</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={invSettingsForm.bic || ''} onChange={e => setInvSettingsForm(p => ({ ...p, bic: e.target.value }))} placeholder="XXXXBGSF" /></div>
@@ -4648,7 +4691,10 @@ function App() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold">Управление на кочани</h2>
-              <button onClick={() => setInvModal('settings')} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Редактирай кочан</span>
+                <button onClick={() => setInvModal('settings')} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="p-4">
               <p className="text-sm text-gray-500 mb-3">Кочаните определят диапазона от номера за фактури. Всеки кочан съдържа 10-цифрени номера.</p>
@@ -4658,7 +4704,7 @@ function App() {
                     <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div>
                         <div className="font-medium text-sm">{s.name}</div>
-                        <div className="text-xs text-gray-500">{String(s.start_number).padStart(10, '0')} — {String(s.end_number).padStart(10, '0')}</div>
+                        <div className="text-xs text-gray-500">{String(s.start_number).padStart(10, '0')} — {String(s.end_number).padStart(10, '0')} <span className="text-gray-400">(следващият свободен №)</span></div>
                       </div>
                       <button onClick={async () => { if (!confirm('Изтриване на кочан ' + s.name + '?')) return; try { await invDeleteStub(s.id); invToastShow('Кочанът е изтрит'); const list = await invListStubs(invCompanyId, invProfileId); setInvStubs(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
@@ -4746,6 +4792,7 @@ function App() {
                   <span className="text-sm font-semibold text-gray-700">Редове</span>
                   <div className="flex items-center gap-2">
                     <label className="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" checked={invPriceWithVat} onChange={e => setInvPriceWithVat(e.target.checked)} /> Цена с ДДС</label>
+                    <button onClick={() => { if (invItems.length > 0) { invSelectItem(invItems[0], invLines.length); } }} className="px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 flex items-center gap-1" title="Избери от каталога"><FileText className="w-3 h-3" /> Избери от каталога</button>
                     <button onClick={invAddLine} className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 flex items-center gap-1"><Plus className="w-3 h-3" /> Нов ред</button>
                   </div>
                 </div>
@@ -4754,13 +4801,13 @@ function App() {
                   <tbody>
                     {invLines.map((line, idx) => (
                       <tr key={idx} className="border-t">
-                        <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.description} onChange={e => invUpdateLine(idx, 'description', e.target.value)} placeholder="Описание на услугата..." /></td>
+                        <td className="py-1"><div className="flex items-center gap-1"><input className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.description} onChange={e => invUpdateLine(idx, 'description', e.target.value)} placeholder="Описание на услугата..." />{invItems.length > 0 && <button onClick={() => { const sel = invItems.find(it => it.name === line.description); if (!sel) { invSelectItem(invItems[0], idx); } }} className="p-1 text-purple-500 hover:text-purple-700" title="Избор на артикул"><FileText className="w-3.5 h-3.5" /></button>}</div></td>
                         <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.quantity} onChange={e => invUpdateLine(idx, 'quantity', e.target.value)} /></td>
                         <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.unit} onChange={e => invUpdateLine(idx, 'unit', e.target.value)} /></td>
                         <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.unit_price} onChange={e => invUpdateLine(idx, 'unit_price', e.target.value)} /></td>
                         <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.vat_rate} onChange={e => invUpdateLine(idx, 'vat_rate', e.target.value)} /></td>
                         <td className="py-1 text-right font-mono text-xs pr-1">{invCalcLineTotal(line).toFixed(2)}</td>
-                        <td className="py-1"><button onClick={() => invRemoveLine(idx)} className="p-0.5 text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                        <td className="py-1"><button onClick={() => invRemoveLine(idx)} className="p-0.5 text-red-400 hover:text-red-600" title="Премахни ред"><Trash2 className="w-3.5 h-3.5" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -4769,11 +4816,12 @@ function App() {
               {/* Totals */}
               {(() => { const t = invCalcTotals(); return (
                 <div className="flex justify-end">
-                  <div className="w-64 space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Подсума:</span><span className="font-mono">{t.subtotal.toFixed(2)} EUR</span></div>
+                  <div className="w-72 space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">Сума (без отстъпка):</span><span className="font-mono">{t.subtotal.toFixed(2)} EUR</span></div>
                     {t.discountAmount > 0 && <div className="flex justify-between text-red-600"><span>Отстъпка:</span><span className="font-mono">-{t.discountAmount.toFixed(2)} EUR</span></div>}
-                    {!invNoVat && <div className="flex justify-between"><span className="text-gray-500">ДДС:</span><span className="font-mono">{t.totalVat.toFixed(2)} EUR</span></div>}
-                    <div className="flex justify-between font-bold border-t pt-1"><span>Общо:</span><span className="font-mono">{t.total.toFixed(2)} EUR</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Данъчна основа:</span><span className="font-mono">{(t.subtotal - t.discountAmount).toFixed(2)} EUR</span></div>
+                    {!invNoVat && <div className="flex justify-between"><span className="text-gray-500">ДДС ({invLines.length > 0 ? (parseFloat(invLines[0].vat_rate) || 20) : 20}%):</span><span className="font-mono">{t.totalVat.toFixed(2)} EUR</span></div>}
+                    <div className="flex justify-between font-bold border-t pt-1"><span>Сума за плащане:</span><span className="font-mono">{t.total.toFixed(2)} EUR</span></div>
                   </div>
                 </div>
               ); })()}
@@ -4790,13 +4838,13 @@ function App() {
                 </div>
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">Начин на плащане</label>
                   <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invPaymentMethod} onChange={e => setInvPaymentMethod(e.target.value)}>
-                    <option value="">—</option><option value="bank_transfer">Банков превод</option><option value="cash">В брой</option><option value="card">С карта</option>
+                    <option value="">—</option><option value="bank_transfer">Банков превод</option><option value="cash">В брой</option><option value="card">С карта</option><option value="cod">Наложен платеж</option><option value="payment_order">Платежно нареждане</option><option value="money_transfer">Паричен превод</option><option value="postal_transfer">Пощенски паричен превод</option><option value="offset">С насрещно прихващане</option>
                   </select>
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1"><input type="checkbox" checked={invNoVat} onChange={e => setInvNoVat(e.target.checked)} /> Без ДДС</label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1"><input type="checkbox" checked={invNoVat} onChange={e => setInvNoVat(e.target.checked)} /> Не начислявай ДДС по тази фактура</label>
                   {invNoVat && <select className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none" value={invNoVatReason} onChange={e => setInvNoVatReason(e.target.value)}>
-                    <option value="">— причина —</option><option value="Чл.113, ал.9 от ЗДДС">Чл.113, ал.9</option><option value="Чл.21, ал.2 от ЗДДС">Чл.21, ал.2</option><option value="Нерегистриран по ЗДДС">Нерегистриран по ЗДДС</option><option value="other">Друга</option>
+                    <option value="">Изберете или въведете основание...</option><option value="чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option><option value="чл. 7 от ЗДДС — ВОД">чл. 7 от ЗДДС — ВОД</option><option value="чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option><option value="чл. 28 от ЗДДС — Доставка свързана с международен транспорт">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option><option value="чл. 41 от ЗДДС — Освободена доставка">чл. 41 от ЗДДС — Освободена доставка</option><option value="other">Друга</option>
                   </select>}
                   {invNoVat && invNoVatReason === 'other' && <input className="w-full mt-1 border rounded-lg px-2 py-1.5 text-xs focus:outline-none" placeholder="Причина..." value={invNoVatReasonCustom} onChange={e => setInvNoVatReasonCustom(e.target.value)} />}
                 </div>
@@ -4821,8 +4869,8 @@ function App() {
             {/* Actions */}
             <div className="flex justify-end gap-2 p-4 border-t">
               <button onClick={() => setInvModal(null)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Отказ</button>
-              <button onClick={() => invSaveInvoice('draft')} disabled={invSaving} className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Запази като чернова' : 'Чернова')}</button>
-              <button onClick={() => invSaveInvoice('issued')} disabled={invSaving} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Запази промените' : 'Издай фактура')}</button>
+              <button onClick={() => invSaveInvoice('draft')} disabled={invSaving} className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Запази като чернова' : 'Създай чернова')}</button>
+              <button onClick={() => invSaveInvoice('issued')} disabled={invSaving} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Обнови фактурата' : 'Създай фактурата')}</button>
             </div>
           </div>
         </div>
