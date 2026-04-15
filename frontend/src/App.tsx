@@ -289,7 +289,7 @@ function App() {
   const [invNoVatReason, setInvNoVatReason] = useState('');
   const [invNoVatReasonCustom, setInvNoVatReasonCustom] = useState('');
   const [invDiscount, setInvDiscount] = useState('');
-  const [invDiscountType, setInvDiscountType] = useState('fixed');
+  const [invDiscountType, setInvDiscountType] = useState('EUR');
   const [invNotes, setInvNotes] = useState('');
   const [invInternalNotes, setInvInternalNotes] = useState('');
   const [invComposedBy, setInvComposedBy] = useState('');
@@ -1060,7 +1060,7 @@ function App() {
     setInvDocType(editData?.document_type as string || 'invoice');
     setInvSelectedClient(null); setInvSelectedStub('');
     setInvNoVat(false); setInvNoVatReason(''); setInvNoVatReasonCustom('');
-    setInvDiscount(''); setInvDiscountType('fixed');
+    setInvDiscount(''); setInvDiscountType('EUR');
     setInvNotes(''); setInvInternalNotes(''); setInvComposedBy('');
     setInvShowDueDate(false); setInvDueDate(''); setInvPaymentMethod('');
     setInvPriceWithVat(false); setInvSyncMode('manual'); setInvDelayMinutes('30');
@@ -1101,7 +1101,7 @@ function App() {
         setInvPaymentMethod(editData.payment_method as string || '');
         if (editData.no_vat) { setInvNoVat(true); setInvNoVatReason(editData.no_vat_reason as string || ''); }
         setInvDiscount(editData.discount ? String(editData.discount) : '');
-        setInvDiscountType(editData.discount_type as string || 'fixed');
+        setInvDiscountType(editData.discount_type as string || 'EUR');
         setInvNotes(editData.notes as string || '');
         setInvInternalNotes(editData.internal_notes as string || '');
         setInvComposedBy(editData.composed_by as string || '');
@@ -1223,7 +1223,7 @@ function App() {
     let discountAmount = 0;
     const discountVal = parseFloat(invDiscount) || 0;
     if (discountVal > 0) {
-      discountAmount = invDiscountType === 'percent' ? subtotal * discountVal / 100 : discountVal;
+      discountAmount = invDiscountType === '%' ? subtotal * discountVal / 100 : discountVal;
     }
     const afterDiscount = subtotal - discountAmount;
     const vatOnDiscount = invNoVat ? 0 : totalVat * (afterDiscount / (subtotal || 1));
@@ -4832,7 +4832,7 @@ function App() {
                   <div className="flex gap-1">
                     <input className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" type="number" step="0.01" value={invDiscount} onChange={e => setInvDiscount(e.target.value)} placeholder="0" />
                     <select className="border rounded-lg px-2 py-2 text-sm focus:outline-none" value={invDiscountType} onChange={e => setInvDiscountType(e.target.value)}>
-                      <option value="fixed">EUR</option><option value="percent">%</option>
+                      <option value="EUR">EUR</option><option value="%">%</option>
                     </select>
                   </div>
                 </div>
