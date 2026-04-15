@@ -3504,25 +3504,26 @@ function App() {
               <div className="space-y-2">
                 {filteredFolders.map(item => (
                   <div key={(item._shared ? 'shared-' : '') + item.company.id} className={item._shared ? 'border border-green-200 rounded-lg' : ''}>
-                    <div onClick={() => toggleCompany((item._shared ? 'shared-' : '') + item.company.id)} className={'w-full flex items-center gap-2 p-3 hover:bg-gray-50 cursor-pointer bg-white border-b border-gray-100' + (item._shared ? ' bg-green-50/50' : '')} style={{position: 'sticky', top: 0, zIndex: 10}}>
-                      {expandedCompanies[(item._shared ? 'shared-' : '') + item.company.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      {item._shared ? <Share2 className="w-4 h-4 text-green-600" /> : <Building2 className="w-4 h-4 text-indigo-500" />}
-                      <span className="font-medium flex-1">{item.company.name}</span>
-                      {item._shared && <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">споделена</span>}
-                      <span className="text-xs text-gray-500">{item.purchases.count} покупки, {item.sales.count} продажби{item.proformas && item.proformas.count > 0 ? `, ${item.proformas.count} проформи` : ''}{item.pending && item.pending.count > 0 ? `, ${item.pending.count} за одобрение` : ''}</span>
+                    <div className={'w-full flex items-center gap-2 p-3 hover:bg-gray-50 cursor-pointer bg-white border-b border-gray-100' + (item._shared ? ' bg-green-50/50' : '')} style={{position: 'sticky', top: 0, zIndex: 10}}>
+                      <div className="flex items-center gap-2 cursor-pointer flex-1 min-w-0" onClick={() => toggleCompany((item._shared ? 'shared-' : '') + item.company.id)}>
+                        {expandedCompanies[(item._shared ? 'shared-' : '') + item.company.id] ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
+                        {item._shared ? <Share2 className="w-4 h-4 text-green-600 flex-shrink-0" /> : <Building2 className="w-4 h-4 text-indigo-500 flex-shrink-0" />}
+                        <span className="font-medium truncate">{item.company.name}</span>
+                        {item._shared && <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full flex-shrink-0">споделена</span>}
+                        <span className="text-xs text-gray-500 flex-shrink-0">{item.purchases.count} покупки, {item.sales.count} продажби{item.proformas && item.proformas.count > 0 ? `, ${item.proformas.count} проформи` : ''}{item.pending && item.pending.count > 0 ? `, ${item.pending.count} за одобрение` : ''}</span>
+                      </div>
+                      {!item._shared && activeProfile && (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button onClick={(e) => { e.stopPropagation(); invOpenInvoice(item.company.id, activeProfile.id, item.company.name); }} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 cursor-pointer"><Plus className="w-3 h-3" /> Нова фактура</button>
+                          <button onClick={(e) => { e.stopPropagation(); invOpenClients(item.company.id, activeProfile.id); }} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 cursor-pointer"><Users className="w-3 h-3" /> Клиенти</button>
+                          <button onClick={(e) => { e.stopPropagation(); invOpenItems(item.company.id, activeProfile.id); }} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 cursor-pointer"><FileText className="w-3 h-3" /> Артикули</button>
+                          <button onClick={(e) => { e.stopPropagation(); invHandleSync(item.company.id, activeProfile.id); }} disabled={invSyncing[item.company.id]} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 disabled:opacity-50 cursor-pointer">{invSyncing[item.company.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />} Синхронизирай</button>
+                          <button onClick={(e) => { e.stopPropagation(); invOpenSettings(item.company.id, activeProfile.id); }} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600 cursor-pointer"><RefreshCw className="w-3 h-3" /> Настройки</button>
+                        </div>
+                      )}
                     </div>
                     {expandedCompanies[(item._shared ? 'shared-' : '') + item.company.id] && (
                       <div className="border-t px-3 pb-3">
-                        {/* ── Invoicing buttons ── */}
-                        {!item._shared && activeProfile && (
-                          <div className="flex flex-wrap gap-2 mt-2 mb-3 pb-2 border-b border-gray-100">
-                            <button onClick={() => invOpenInvoice(item.company.id, activeProfile.id, item.company.name)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg hover:bg-emerald-700"><Plus className="w-3.5 h-3.5" /> Нова фактура</button>
-                            <button onClick={() => invOpenClients(item.company.id, activeProfile.id)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"><Users className="w-3.5 h-3.5" /> Клиенти</button>
-                            <button onClick={() => invOpenItems(item.company.id, activeProfile.id)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700"><FileText className="w-3.5 h-3.5" /> Артикули</button>
-                            <button onClick={() => invHandleSync(item.company.id, activeProfile.id)} disabled={invSyncing[item.company.id]} className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 disabled:opacity-50">{invSyncing[item.company.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />} Синхронизирай</button>
-                            <button onClick={() => invOpenSettings(item.company.id, activeProfile.id)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-500 text-white text-xs rounded-lg hover:bg-gray-600"><RefreshCw className="w-3.5 h-3.5" /> Настройки</button>
-                          </div>
-                        )}
                         {!item._shared && item.pending && item.pending.count > 0 && (() => {
                           const filteredPending = item.pending.files_info.filter(f => {
                             if (filesSearch && !f.name.toLowerCase().includes(filesQ)) return false;
