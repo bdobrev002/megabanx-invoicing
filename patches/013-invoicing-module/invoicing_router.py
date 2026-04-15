@@ -1380,7 +1380,7 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
 
 
 @invoicing_router.put("/invoices/{invoice_id}")
-async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks: BackgroundTasks):
+async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks: BackgroundTasks, company_id: str = Query(...), profile_id: str = Query(...)):
     """Update an existing software-issued invoice."""
     # Default dates
     today = date.today().isoformat()
@@ -1432,7 +1432,7 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 # Verify invoice exists and get old PDF path for cleanup
-                cur.execute("SELECT id, pdf_path FROM inv_invoice_meta WHERE invoice_id = %s", (invoice_id,))
+                cur.execute("SELECT id, pdf_path FROM inv_invoice_meta WHERE invoice_id = %s AND company_id = %s AND profile_id = %s", (invoice_id, company_id, profile_id))
                 existing = cur.fetchone()
                 if not existing:
                     raise HTTPException(status_code=404, detail="Invoice not found")
@@ -1468,13 +1468,13 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
                         vat_rate = %s, no_vat = %s, no_vat_reason = %s,
                         payment_method = %s, notes = %s, internal_notes = %s,
                         currency = %s, updated_at = NOW()
-                       WHERE invoice_id = %s""",
+                       WHERE invoice_id = %s AND company_id = %s AND profile_id = %s""",
                     (data.client_id, data.document_type, data.invoice_number,
                      issue_date, tax_event_date, data.due_date,
                      float(subtotal), float(discount), float(vat_amount), float(total),
                      data.vat_rate, data.no_vat, data.no_vat_reason,
                      data.payment_method, data.notes, data.internal_notes,
-                     data.currency, invoice_id)
+                     data.currency, invoice_id, company_id, profile_id)
                 )
 
                 # Delete old lines and insert new ones

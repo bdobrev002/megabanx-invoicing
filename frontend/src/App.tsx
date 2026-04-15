@@ -1178,7 +1178,7 @@ function App() {
     };
     try {
       if (invEditInvoiceId) {
-        const result = await invUpdateInvoice(invEditInvoiceId, payload);
+        const result = await invUpdateInvoice(invEditInvoiceId, payload, invCompanyId, invProfileId);
         invToastShow(`${invDocType === 'proforma' ? 'Проформа' : 'Фактура'} ${result.invoice_number} е обновена`);
       } else {
         const result = await invCreateInvoice(payload);
