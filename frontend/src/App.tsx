@@ -307,6 +307,9 @@ function App() {
   const [invTrLoading, setInvTrLoading] = useState(false);
   const [invPickerSearch, setInvPickerSearch] = useState('');
   const [invSyncing, setInvSyncing] = useState<Record<string, boolean>>({});
+  const [invClientSearch, setInvClientSearch] = useState('');
+  const [invVatPerLine, setInvVatPerLine] = useState(false);
+  const EUR_TO_BGN = 1.95583;
 
   const loadMonthlyUsage = useCallback(async () => {
     try {
@@ -1088,7 +1091,7 @@ function App() {
     setInvDiscount(''); setInvDiscountType('EUR');
     setInvNotes(''); setInvInternalNotes(''); setInvComposedBy('');
     setInvShowDueDate(false); setInvDueDate(''); setInvPaymentMethod('');
-    setInvPriceWithVat(false); setInvSyncMode('manual'); setInvDelayMinutes('30');
+    setInvPriceWithVat(false); setInvSyncMode('manual'); setInvDelayMinutes('30'); setInvClientSearch(''); setInvVatPerLine(false);
     setInvEditInvoiceId(editData?.invoice_id as string || null);
     // Load data
     try {
@@ -1267,6 +1270,11 @@ function App() {
 
   const invRemoveLine = (idx: number) => {
     setInvLines(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx));
+  };
+
+  const invInsertLine = (afterIdx: number) => {
+    const defVat = String(Number(invSettings.default_vat_rate || 20).toFixed(2));
+    setInvLines(prev => { const n = [...prev]; n.splice(afterIdx + 1, 0, { item_id: null, description: '', quantity: '1.00', unit: 'бр.', unit_price: '0.00', vat_rate: defVat }); return n; });
   };
 
   const invSelectItem = (item: InvItem, lineIdx: number) => {
@@ -1630,7 +1638,7 @@ function App() {
                     <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
                                             MegaBanx ви позволява да издавате фактури и да ги изпращате автоматично на контрагентите, да качвате и организирате документи с AI, и да спестявате часове ръчна работа. Без сложни настройки — започнете веднага.
                     </p>
-                    <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 max-w-3xl mx-auto mb-8 text-left">
+                    <div className="bg-indigo-50 rounded-2xl p-5 max-w-3xl mx-auto mb-8 text-left">
                       <h3 className="text-base font-bold text-indigo-800 mb-2 flex items-center gap-2"><Zap className="w-5 h-5" /> Без предварително сортиране!</h3>
                       <p className="text-sm text-indigo-700 leading-relaxed">
                         Издавайте фактури директно от системата или качете готови документи от множество фирми. <strong>Не е нужно да сортирате фактурите предварително!</strong> Просто качете
@@ -1677,7 +1685,7 @@ function App() {
                         { icon: Mail, title: 'Издаване и доставка', desc: 'Издавайте фактури директно в MegaBanx или качете готови документи — контрагентите ви ги получават автоматично по имейл и в системата. Без ръчно изпращане, без прикачени файлове. Всичко е автоматизирано от край до край.', color: 'bg-indigo-100 text-indigo-600' },
                         { icon: Receipt, title: 'Структура на фактурите', desc: 'Ясна и прегледна структура на всяка фактура — редове, количества, мерни единици, ДДС ставки и суми. Кочани с 10-цифрени номера за пълен контрол.', color: 'bg-violet-100 text-violet-600' },
                       ].map((f, i) => (
-                        <div key={i} className="bg-gray-50 rounded-2xl p-5 hover:shadow-lg transition-shadow border border-gray-100">
+                        <div key={i} className="bg-gray-50 rounded-2xl p-5 hover:shadow-lg transition-shadow">
                           <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${f.color}`}>
                             <f.icon className="w-5 h-5" />
                           </div>
@@ -1714,7 +1722,7 @@ function App() {
                   </div>
 
                   {/* ── Втори мотивационен текст ── */}
-                  <div className="bg-gradient-to-r from-sky-50 to-indigo-50 rounded-2xl p-8 mb-12 border border-sky-200 relative overflow-hidden">
+                  <div className="bg-gradient-to-r from-sky-50 to-indigo-50 rounded-2xl p-8 mb-12 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-indigo-200/40 to-transparent rounded-bl-full" />
                     <div className="relative flex items-start gap-5">
                       <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
@@ -1737,7 +1745,7 @@ function App() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       {/* Преди */}
-                      <div className="relative bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl p-6 border-2 border-red-200 shadow-sm">
+                      <div className="relative bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl p-6 shadow-sm">
                         <div className="absolute -top-3 left-6 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wide uppercase">Преди</div>
                         <div className="mt-3 flex items-center gap-3 mb-4">
                           <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
@@ -1759,7 +1767,7 @@ function App() {
                       </div>
 
                       {/* С MegaBanx */}
-                      <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-300 shadow-lg ring-2 ring-green-200/50">
+                      <div className="relative bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 shadow-lg ring-2 ring-green-200/50">
                         <div className="absolute -top-3 left-6 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wide uppercase">С MegaBanx</div>
                         <div className="mt-3 flex items-center gap-3 mb-4">
                           <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -1781,7 +1789,7 @@ function App() {
                       </div>
 
                       {/* Резултат */}
-                      <div className="relative bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-6 border-2 border-amber-300 shadow-sm">
+                      <div className="relative bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-6 shadow-sm">
                         <div className="absolute -top-3 left-6 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wide uppercase">Резултат</div>
                         <div className="mt-3 flex items-center gap-3 mb-4">
                           <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -1919,7 +1927,7 @@ function App() {
                   </div>
 
                   {/* ── Визуална лента: Стар процес vs Нов процес ── */}
-                  <div className="mb-12 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                  <div className="mb-12 bg-white rounded-2xl shadow-sm overflow-hidden">
                     <div className="grid grid-cols-1 md:grid-cols-2">
                       {/* Стар процес */}
                       <div className="p-6 bg-gradient-to-br from-gray-50 to-red-50/30 border-b md:border-b-0 md:border-r">
@@ -1993,7 +2001,7 @@ function App() {
                       <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">От издаване до получаване — под 1 минута</h2>
                     </div>
 
-                    <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-3xl p-6 md:p-8 overflow-hidden shadow-2xl border border-slate-700">
+                    <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-3xl p-6 md:p-8 overflow-hidden shadow-2xl">
                       {/* Фонови частици */}
                       <div className="absolute inset-0 overflow-hidden pointer-events-none">
                         {[...Array(12)].map((_, i) => (
@@ -2352,7 +2360,7 @@ function App() {
                   </div>
 
                   {/* ── Какво получавате ── */}
-                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-8 border">
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-8">
                     <h3 className="text-xl font-extrabold text-gray-900 mb-4 text-center tracking-tight">Какво получавате?</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -2363,7 +2371,7 @@ function App() {
                         { icon: Bell, text: 'Мигновени WebSocket известия + имейл нотификации за всяко събитие' },
                         { icon: BarChart3, text: 'Пълна история и филтриране по всички полета' },
                       ].map((item, i) => (
-                        <div key={i} className="flex items-start gap-3 bg-white rounded-xl p-3 border">
+                        <div key={i} className="flex items-start gap-3 bg-white rounded-xl p-3">
                           <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                             <item.icon className="w-4 h-4 text-indigo-600" />
                           </div>
@@ -2385,7 +2393,7 @@ function App() {
                     <p className="text-gray-500">Разгледайте интерфейса на MegaBanx в детайли</p>
                   </div>
                   <div className="relative">
-                    <div className="bg-gray-50 rounded-2xl border overflow-hidden shadow-xl">
+                    <div className="bg-gray-50 rounded-2xl overflow-hidden shadow-xl">
                       <img src={screenshots[galleryIdx].src} alt={screenshots[galleryIdx].title} className="w-full" />
                     </div>
                     <div className="mt-4 text-center">
@@ -2416,8 +2424,8 @@ function App() {
                     <p className="text-gray-500 max-w-2xl mx-auto">Защитаваме вашите финансови данни с многостепенна верификация</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-white rounded-2xl p-6 border shadow-sm">
-                      <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><Lock className="w-5 h-5 text-indigo-600" /> Защо е необходима верификация?</h3>
+                    <div className=                    "bg-white rounded-2xl p-6 shadow-sm">
+                                          <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><Lock className="w-5 h-5 text-indigo-600" /> Защо е необходима верификация?</h3>
                       <p className="text-sm text-gray-600 leading-relaxed mb-3">
                         Фактурите съдържат чувствителна финансова информация — суми, банкови данни, ДДС номера. Без верификация, някой може да регистрира чужда фирма и да получи достъп до фактурите й.
                       </p>
@@ -2425,8 +2433,8 @@ function App() {
                         Затова MegaBanx изисква потвърждение, че вие сте оправомощено лице да управлявате фактурите на дадена фирма. Това защитава вас и вашите контрагенти.
                       </p>
                     </div>
-                    <div className="bg-white rounded-2xl p-6 border shadow-sm">
-                      <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><Check className="w-5 h-5 text-green-600" /> Как работи процесът?</h3>
+                    <div className=                    "bg-white rounded-2xl p-6 shadow-sm">
+                                          <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><Check className="w-5 h-5 text-green-600" /> Как работи процесът?</h3>
                       <div className="space-y-3">
                         <div className="flex gap-3">
                           <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
@@ -2531,7 +2539,7 @@ function App() {
                     <p className="text-gray-500">Историята зад MegaBanx</p>
                   </div>
 
-                  <div className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-3xl border border-indigo-100 p-8 md:p-12 mb-10">
+                  <div className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-3xl p-8 md:p-12 mb-10">
                     <div className="flex items-start gap-4 mb-6">
                       <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0">
                         <Sparkles className="w-6 h-6 text-white" />
@@ -2562,16 +2570,16 @@ function App() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-4">
+                    <div className=                    "bg-white rounded-2xl p-6 shadow-sm">
+                                          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-4">
                         <Building2 className="w-5 h-5 text-indigo-600" />
                       </div>
                       <h4 className="font-bold text-gray-900 mb-2">Фирма</h4>
                       <p className="text-gray-600 text-sm">Д-РЕНТ ЕООД</p>
                       <p className="text-gray-500 text-sm">ЕИК: 200551856</p>
                     </div>
-                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                    <div className=                    "bg-white rounded-2xl p-6 shadow-sm">
+                                          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
                         <Globe className="w-5 h-5 text-emerald-600" />
                       </div>
                       <h4 className="font-bold text-gray-900 mb-2">Локация</h4>
@@ -2616,7 +2624,7 @@ function App() {
                       { q: 'Как работи автоматичното разпознаване на фактури?', a: 'Нашият AI анализира качения PDF файл и автоматично извлича ключова информация: номер на фактура, дата на издаване, име на издател/получател, ЕИК, ДДС номер и обща сума. Файлът се преименува и категоризира автоматично.', icon: ScanLine },
                       { q: 'Какво се случва ако контрагентът ми не е в MegaBanx?', a: 'Ако контрагентът ви не е регистриран в системата, можете да му изпратите фактурата по имейл директно от MegaBanx. Той ще получи линк за сваляне на фактурата и покана да се регистрира безплатно, за да получава фактури автоматично в бъдеще.', icon: Mail },
                     ].map((faq, idx) => (
-                      <div key={idx} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+                      <div key={idx} className="bg-white rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
                         <button
                           onClick={() => setOpenFaqIndex(openFaqIndex === idx ? null : idx)}
                           className="w-full flex items-center gap-4 px-6 py-5 text-left transition-colors hover:bg-gray-50"
@@ -2660,7 +2668,7 @@ function App() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Contact Info */}
                     <div className="space-y-6">
-                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-100">
+                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6">
                         <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mb-4">
                           <Mail className="w-6 h-6 text-white" />
                         </div>
@@ -2668,7 +2676,7 @@ function App() {
                         <a href="mailto:info@megabanx.com" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">info@megabanx.com</a>
                       </div>
                       {contactPhone && (
-                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border border-emerald-100">
+                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6">
                           <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center mb-4">
                             <Phone className="w-6 h-6 text-white" />
                           </div>
@@ -2676,7 +2684,7 @@ function App() {
                           <a href={`tel:${contactPhone}`} className="text-emerald-600 hover:text-emerald-800 text-sm font-medium">{contactPhone}</a>
                         </div>
                       )}
-                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100">
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6">
                         <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mb-4">
                           <Clock className="w-6 h-6 text-white" />
                         </div>
@@ -2687,7 +2695,7 @@ function App() {
 
                     {/* Contact Form */}
                     <div className="lg:col-span-2">
-                      <form onSubmit={handleSubmitContact} className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+                      <form onSubmit={handleSubmitContact} className="bg-white rounded-2xl p-8 shadow-sm">
                         <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                           <Send className="w-5 h-5 text-indigo-600" /> Изпратете запитване
                         </h3>
@@ -4832,140 +4840,334 @@ function App() {
 
       {/* ── Invoice Form Modal ── */}
       {invModal === 'invoice' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInvModal(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold flex items-center gap-2"><Receipt className="w-5 h-5 text-emerald-600" /> {invEditInvoiceId ? ('Редакция на ' + (invDocType === 'proforma' ? 'проформа фактура' : invDocType === 'credit_note' ? 'кредитно известие' : invDocType === 'debit_note' ? 'дебитно известие' : 'фактура')) : ('Нов' + (invDocType === 'proforma' ? 'а проформа фактура' : invDocType === 'credit_note' ? 'о кредитно известие' : invDocType === 'debit_note' ? 'о дебитно известие' : 'а фактура'))} от {invCompanyName}</h2>
-              <button onClick={() => setInvModal(null)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:'rgba(0,0,0,.45)'}} onClick={() => setInvModal(null)}>
+          <div style={{background:'#fff',borderRadius:'12px',boxShadow:'0 25px 50px -12px rgba(0,0,0,.25)',maxHeight:'90vh',overflowY:'auto',width:'1100px',maxWidth:'95vw',position:'relative',zIndex:99999}} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #e2e8f0',background:'linear-gradient(to right, #f8fafc, #fff)'}}>
+              <h2 style={{margin:0,fontSize:'18px',color:'#1e293b',fontWeight:700,display:'flex',alignItems:'center',gap:'8px'}}>
+                <Receipt className="w-5 h-5" style={{color:'#334155'}} />
+                {invEditInvoiceId ? 'Редактирай фактура от' : 'Нова фактура от'}
+                {' '}
+                <select value={invCompanyId} onChange={e => { const co = companies.find(c => c.id === e.target.value); if (co && activeProfile) { setInvCompanyId(co.id); setInvCompanyName(co.name); } }} style={{fontSize:'16px',fontWeight:700,color:'#2563eb',border:'none',background:'transparent',cursor:'pointer',padding:'0 4px',maxWidth:'300px',fontFamily:'inherit'}}>
+                  {companies.map(co => <option key={co.id} value={co.id}>{co.name}</option>)}
+                </select>
+              </h2>
+              <button onClick={() => setInvModal(null)} style={{width:'28px',height:'28px',border:'none',background:'#f1f5f9',borderRadius:'6px',cursor:'pointer',fontSize:'16px',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center'}}><X className="w-4 h-4" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Document type */}
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-gray-700">Тип документ:</span>
-                {[{v: 'invoice', l: 'Фактура'}, {v: 'proforma', l: 'Проформа'}, {v: 'credit_note', l: 'Кредитно известие'}, {v: 'debit_note', l: 'Дебитно известие'}].map(dt => (
-                  <label key={dt.v} className="flex items-center gap-1 text-sm"><input type="radio" name="invDocType" value={dt.v} checked={invDocType === dt.v} onChange={() => { setInvDocType(dt.v); if (!invEditInvoiceId) { invGetNextNumber(invCompanyId, invProfileId, dt.v).then(nn => setInvNumber(nn.next_number ? String(nn.next_number).padStart(10, '0') : '')).catch(() => setInvNumber('')); } }} /> {dt.l}</label>
+
+            {/* Body */}
+            <div style={{padding:'16px 20px'}}>
+
+              {/* SEC 1: Document Type */}
+              <div style={{display:'flex',alignItems:'center',gap:'4px',marginBottom:'14px'}}>
+                <span style={{fontSize:'13px',fontWeight:600,color:'#334155',marginRight:'10px'}}>Тип:</span>
+                {[{v:'proforma',l:'Проформа',bold:false},{v:'invoice',l:'Фактура',bold:true},{v:'debit_note',l:'Дебитно известие',bold:false},{v:'credit_note',l:'Кредитно известие',bold:false}].map(dt => (
+                  <label key={dt.v} style={{display:'flex',alignItems:'center',gap:'5px',cursor:'pointer',marginRight:'14px',fontSize:'13px'}}>
+                    <input type="radio" name="inv_doctype" checked={invDocType===dt.v} onChange={() => { setInvDocType(dt.v); if (!invEditInvoiceId) { invGetNextNumber(invCompanyId, invProfileId, dt.v).then(nn => setInvNumber(nn.next_number ? String(nn.next_number).padStart(10,'0') : '')).catch(() => setInvNumber('')); }}} style={{width:'14px',height:'14px',accentColor:'#2563eb'}} />
+                    <span style={dt.bold?{fontWeight:700}:undefined}>{dt.l}</span>
+                  </label>
                 ))}
               </div>
-              {/* Number + Dates */}
-              <div className={invDocType === 'proforma' ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-4 gap-3'}>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Номер</label><input className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invNumber} onChange={e => setInvNumber(e.target.value)} /></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Дата на издаване</label><input type="date" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invIssueDate} onChange={e => setInvIssueDate(e.target.value)} /></div>
-                {invDocType !== 'proforma' && <div><label className="block text-xs font-medium text-gray-600 mb-1">Дата на данъчно събитие</label><input type="date" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invTaxEventDate} onChange={e => setInvTaxEventDate(e.target.value)} /></div>}
-                {invDocType !== 'proforma' && <div><label className="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1"><input type="checkbox" checked={invShowDueDate} onChange={e => setInvShowDueDate(e.target.checked)} /> Падеж</label>{invShowDueDate && <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invDueDate} onChange={e => setInvDueDate(e.target.value)} />}</div>}
+
+              {/* SEC 2: Two-column grid */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 28px',marginBottom:'12px'}}>
+                {/* Left column: Client fields */}
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {/* Client search */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>Клиент:</label>
+                    <div style={{flex:1,display:'flex',gap:'3px',position:'relative'}}>
+                      <input placeholder="Търсене по име или ЕИК..." value={invClientSearch || (invSelectedClient?.name || '')} onChange={e => { setInvClientSearch(e.target.value); if (!e.target.value) setInvSelectedClient(null); }} style={{flex:1,height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px'}} />
+                      <button onClick={() => { setInvPickerSearch(''); setInvModal('clientPicker'); }} style={{height:'30px',width:'30px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Избери от базата">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+                      </button>
+                      <button onClick={() => { setInvTrEik(''); setInvTrResult(null); setInvModal('trLookup'); }} style={{height:'30px',width:'30px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Търсене в ТР">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      </button>
+                      {/* Inline dropdown */}
+                      {invClientSearch && invClientSearch.length > 0 && (() => { const filtered = invClients.filter(c => c.name.toLowerCase().includes(invClientSearch.toLowerCase()) || (c.eik && c.eik.includes(invClientSearch))); return filtered.length > 0 ? (
+                        <div style={{position:'absolute',zIndex:10,top:'32px',left:0,width:'100%',background:'#fff',border:'1px solid #cbd5e1',borderRadius:'6px',maxHeight:'160px',overflowY:'auto',boxShadow:'0 4px 6px -1px rgba(0,0,0,.1)'}}>
+                          {filtered.map(c => (
+                            <button key={c.id} onClick={() => { setInvSelectedClient(c); setInvClientSearch(''); }} style={{display:'block',width:'100%',textAlign:'left',padding:'6px 10px',border:'none',background:'none',cursor:'pointer',fontSize:'12px',borderBottom:'1px solid #f1f5f9'}}>
+                              <div style={{fontWeight:500}}>{c.name}</div>
+                              <div style={{fontSize:'11px',color:'#94a3b8'}}>{c.eik ? 'ЕИК: '+c.eik : ''}{c.city ? ' \u2022 '+c.city : ''}</div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null; })()}
+                    </div>
+                  </div>
+                  {/* Physical person checkbox */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <div style={{width:'130px',flexShrink:0}}></div>
+                    <label style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invSelectedClient?.is_individual || false} readOnly style={{width:'14px',height:'14px'}} />Клиентът е физическо лице</label>
+                  </div>
+                  {/* EIK */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>{invSelectedClient?.is_individual ? 'ЕГН:' : 'ЕИК/Булстат:'}</label>
+                    <input readOnly value={invSelectedClient?.eik || ''} style={{flex:1,height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',background:'#f8fafc'}} />
+                  </div>
+                  {/* VAT registered */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <div style={{width:'130px',flexShrink:0}}></div>
+                    <label style={{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invSelectedClient?.is_vat_registered || false} disabled style={{width:'14px',height:'14px'}} />Регистрация по ЗДДС</label>
+                  </div>
+                  {/* MOL */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>МОЛ:</label>
+                    <input readOnly value={invSelectedClient?.mol || ''} style={{flex:1,height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',background:'#f8fafc'}} />
+                  </div>
+                  {/* City */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>Град:</label>
+                    <input readOnly value={invSelectedClient?.city || ''} style={{flex:1,height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',background:'#f8fafc'}} />
+                  </div>
+                  {/* Address */}
+                  <div style={{display:'flex',alignItems:'flex-start',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right',paddingTop:'4px'}}>Адрес:<br/><span style={{fontSize:'11px',fontWeight:400,color:'#94a3b8'}}>на регистрация</span></label>
+                    <textarea readOnly value={invSelectedClient?.address || ''} rows={2} style={{flex:1,fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'4px 10px',background:'#f8fafc',resize:'none',minHeight:'50px'}} />
+                  </div>
+                  {/* Recipient */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>Получател:</label>
+                    <input readOnly value={invSelectedClient?.name || ''} style={{flex:1,height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',background:'#f8fafc'}} />
+                  </div>
+                </div>
+
+                {/* Right column: Stub + Number + Dates */}
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {/* Stub */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'185px',flexShrink:0,textAlign:'right'}}>Кочан:</label>
+                    {invStubs.length > 0 ? (
+                      <select value={invSelectedStub} onChange={e => setInvSelectedStub(e.target.value)} style={{height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'0 8px',background:'#fff'}}>
+                        <option value="">—</option>
+                        {invStubs.map(s => <option key={s.id} value={s.id}>{s.name} ({s.start_number}-{s.end_number})</option>)}
+                      </select>
+                    ) : (
+                      <button onClick={() => invOpenStubs(invCompanyId, invProfileId)} style={{fontSize:'13px',color:'#2563eb',fontWeight:600,textDecoration:'underline',background:'none',border:'none',cursor:'pointer'}}>+ кочан</button>
+                    )}
+                  </div>
+                  {/* Invoice number */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'185px',flexShrink:0,textAlign:'right'}}>Фактура №:<br/><span style={{fontSize:'11px',fontWeight:400,color:'#94a3b8'}}>следващият свободен №</span></label>
+                    <input value={invNumber} onChange={e => setInvNumber(e.target.value)} maxLength={10} style={{height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #93c5fd',background:'#eff6ff',fontFamily:'monospace',fontWeight:600,color:'#1e40af',maxWidth:'160px',padding:'2px 10px'}} />
+                  </div>
+                  {/* Issue date */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'185px',flexShrink:0,textAlign:'right'}}>Дата на издаване:</label>
+                    <input type="date" value={invIssueDate} onChange={e => setInvIssueDate(e.target.value)} style={{height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',width:'160px',background:'transparent'}} />
+                  </div>
+                  {/* Tax event date */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'185px',flexShrink:0,textAlign:'right'}}>Дата на данъчно<br/>събитие:</label>
+                    <input type="date" value={invTaxEventDate} onChange={e => setInvTaxEventDate(e.target.value)} style={{height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',width:'160px',background:'transparent'}} />
+                  </div>
+                  {/* Due date */}
+                  <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                    <div style={{width:'185px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'6px'}}>
+                      <input type="checkbox" checked={invShowDueDate} onChange={e => { setInvShowDueDate(e.target.checked); if (e.target.checked && !invDueDate) setInvDueDate(invIssueDate); }} style={{width:'14px',height:'14px'}} />
+                      <label style={{fontSize:'13px',fontWeight:600,color:'#334155'}}>Дата на падеж:</label>
+                    </div>
+                    {invShowDueDate && <input type="date" value={invDueDate} onChange={e => setInvDueDate(e.target.value)} style={{height:'30px',fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'2px 10px',width:'160px',background:'transparent'}} />}
+                  </div>
+                </div>
               </div>
-              {/* Stub selector — hidden for proforma */}
-              {invDocType !== 'proforma' && invStubs.length > 0 && (
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Кочан</label>
-                  <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invSelectedStub} onChange={e => setInvSelectedStub(e.target.value)}>
-                    <option value="">— няма кочан —</option>
-                    {invStubs.map(s => <option key={s.id} value={s.id}>{s.name} ({String(s.start_number).padStart(10, '0')} — {String(s.end_number).padStart(10, '0')})</option>)}
-                  </select>
-                </div>
-              )}
-              {/* Client */}
-                            <div className="rounded-lg p-3 bg-gray-50 shadow-sm">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-semibold text-gray-700">Клиент</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setInvPickerSearch(''); setInvModal('clientPicker'); }} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Избери клиент</button>
-                    <button onClick={() => { setInvTrEik(''); setInvTrResult(null); setInvModal('trLookup'); }} className="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 flex items-center gap-1"><Search className="w-3 h-3" /> ТР</button>
-                  </div>
-                </div>
-                {invSelectedClient ? (
-                  <div className="text-sm">
-                    <div className="font-medium">{invSelectedClient.name}</div>
-                    <div className="text-gray-500 text-xs">ЕИК: {invSelectedClient.eik || '—'} | ДДС: {invSelectedClient.vat_number || '—'} | МОЛ: {invSelectedClient.mol || '—'}</div>
-                    <div className="text-gray-500 text-xs">{invSelectedClient.address || ''} {invSelectedClient.city || ''}</div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Не е избран клиент</p>
-                )}
-              </div>
-              {/* Lines */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">Редове</span>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 text-xs text-gray-500"><input type="checkbox" checked={invPriceWithVat} onChange={e => setInvPriceWithVat(e.target.checked)} /> Цена с ДДС</label>
-                    <button onClick={() => { if (invItems.length > 0) { invSelectItem(invItems[0], invLines.length); } }} className="px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 flex items-center gap-1" title="Избери от каталога"><FileText className="w-3 h-3" /> Избери от каталога</button>
-                    <button onClick={invAddLine} className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 flex items-center gap-1"><Plus className="w-3 h-3" /> Нов ред</button>
-                  </div>
-                </div>
-                <table className="w-full text-sm">
-                  <thead><tr className="text-xs text-gray-500 uppercase"><th className="pb-1 text-left">Описание</th><th className="pb-1 w-16 text-right">Кол.</th><th className="pb-1 w-16">Мярка</th><th className="pb-1 w-24 text-right">{invPriceWithVat ? 'Цена с ДДС' : 'Ед. цена'}</th><th className="pb-1 w-16 text-right">ДДС%</th><th className="pb-1 w-24 text-right">Сума</th><th className="pb-1 w-8"></th></tr></thead>
+
+              {/* SEC 3: Items table */}
+              <div style={{border:'1px solid #cbd5e1',borderRadius:'6px',overflow:'hidden',marginBottom:'2px'}}>
+                <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead><tr style={{background:'#f1f5f9',borderBottom:'1px solid #cbd5e1'}}>
+                    <th style={{width:'100px',padding:'6px 2px',borderRight:'1px solid #e2e8f0'}}></th>
+                    <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',borderRight:'1px solid #e2e8f0',minWidth:'220px'}}>Артикул</th>
+                    <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'130px',borderRight:'1px solid #e2e8f0'}}>Количество</th>
+                    <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'150px',borderRight:'1px solid #e2e8f0'}}>
+                      <button onClick={() => setInvPriceWithVat(!invPriceWithVat)} style={{display:'inline-flex',alignItems:'center',gap:'2px',background:'none',border:'none',cursor:'pointer',fontSize:'13px',fontWeight:600,color:'#334155'}}>
+                        <span>{invPriceWithVat ? 'Цена с ДДС' : 'Цена без ДДС'}</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                    </th>
+                    <th style={{textAlign:'center',fontSize:'13px',fontWeight:600,color:'#334155',padding:'6px',width:'100px'}}>Стойност</th>
+                  </tr></thead>
                   <tbody>
-                    {invLines.map((line, idx) => (
-                      <tr key={idx} className="border-t">
-                        <td className="py-1"><div className="flex items-center gap-1"><input className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.description} onChange={e => invUpdateLine(idx, 'description', e.target.value)} placeholder="Описание на услугата..." />{invItems.length > 0 && <button onClick={() => { const sel = invItems.find(it => it.name === line.description); if (!sel) { invSelectItem(invItems[0], idx); } }} className="p-1 text-purple-500 hover:text-purple-700" title="Избор на артикул"><FileText className="w-3.5 h-3.5" /></button>}</div></td>
-                        <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.quantity} onChange={e => invUpdateLine(idx, 'quantity', e.target.value)} /></td>
-                        <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.unit} onChange={e => invUpdateLine(idx, 'unit', e.target.value)} /></td>
-                        <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.unit_price} onChange={e => invUpdateLine(idx, 'unit_price', e.target.value)} /></td>
-                        <td className="py-1"><input className="w-full border rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-emerald-500" value={line.vat_rate} onChange={e => invUpdateLine(idx, 'vat_rate', e.target.value)} /></td>
-                        <td className="py-1 text-right font-mono text-xs pr-1">{invCalcLineTotal(line).toFixed(2)}</td>
-                        <td className="py-1"><button onClick={() => invRemoveLine(idx)} className="p-0.5 text-red-400 hover:text-red-600" title="Премахни ред"><Trash2 className="w-3.5 h-3.5" /></button></td>
-                      </tr>
-                    ))}
+                    {invLines.map((line, idx) => {
+                      const displayPrice = invPriceWithVat ? (parseFloat(line.unit_price) * (1 + (parseFloat(line.vat_rate) || 20) / 100)).toFixed(2) : line.unit_price;
+                      return (
+                        <tr key={idx} style={{borderBottom:'1px solid #e2e8f0'}}>
+                          <td style={{padding:'2px 2px',textAlign:'center',borderRight:'1px solid #e2e8f0'}}>
+                            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'1px'}}>
+                              <span style={{color:'#94a3b8',cursor:'grab',padding:'2px'}}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                              </span>
+                              <button onClick={() => invInsertLine(idx)} style={{color:'#3b82f6',padding:'2px',background:'none',border:'none',cursor:'pointer'}} title="Добави ред">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                              </button>
+                              <button onClick={() => invRemoveLine(idx)} style={{color:'#f87171',padding:'2px',background:'none',border:'none',cursor:'pointer'}} title="Премахни ред">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
+                            <div style={{display:'flex',gap:'2px',alignItems:'center'}}>
+                              <input value={line.description} onChange={e => invUpdateLine(idx,'description',e.target.value)} placeholder="" style={{flex:1,height:'26px',fontSize:'13px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 8px'}} />
+                              {invItems.length > 0 && <button onClick={() => invSelectItem(invItems[0], idx)} style={{height:'26px',width:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} title="Избери от каталога">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+                              </button>}
+                            </div>
+                          </td>
+                          <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
+                            <div style={{display:'flex',gap:'2px',alignItems:'center'}}>
+                              <input type="number" step="0.01" min="0" value={line.quantity} onChange={e => invUpdateLine(idx,'quantity',e.target.value)} style={{height:'26px',fontSize:'13px',textAlign:'center',border:'1px solid #cbd5e1',borderRadius:'6px',width:'70px',padding:'0 4px'}} />
+                              <select value={line.unit} onChange={e => invUpdateLine(idx,'unit',e.target.value)} style={{height:'26px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff'}}>
+                                <option>бр.</option><option>кг</option><option>м</option><option>л</option><option>м²</option><option>м³</option><option>час</option><option>ден</option><option>мес.</option><option>услуга</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td style={{padding:'2px 2px',borderRight:'1px solid #e2e8f0'}}>
+                            <div style={{display:'flex',gap:'2px',alignItems:'center'}}>
+                              <input type="number" step="0.01" min="0" value={displayPrice} onChange={e => { if (invPriceWithVat) { const vr = parseFloat(line.vat_rate) || 20; invUpdateLine(idx,'unit_price',(parseFloat(e.target.value)/(1+vr/100)).toFixed(2)); } else { invUpdateLine(idx,'unit_price',e.target.value); }}} style={{flex:1,height:'26px',fontSize:'13px',textAlign:'right',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 6px'}} />
+                              <span style={{fontSize:'11px',color:'#94a3b8',marginLeft:'2px',flexShrink:0}}>EUR</span>
+                            </div>
+                          </td>
+                          <td style={{padding:'4px 6px',textAlign:'right',fontSize:'13px',fontWeight:500}}>{invCalcLineTotal(line).toFixed(2)} EUR</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              {/* Totals */}
-              {(() => { const t = invCalcTotals(); return (
-                <div className="flex justify-end">
-                  <div className="w-72 space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Сума (без отстъпка):</span><span className="font-mono">{t.subtotal.toFixed(2)} EUR</span></div>
-                    {t.discountAmount > 0 && <div className="flex justify-between text-red-600"><span>Отстъпка:</span><span className="font-mono">-{t.discountAmount.toFixed(2)} EUR</span></div>}
-                    <div className="flex justify-between"><span className="text-gray-500">Данъчна основа:</span><span className="font-mono">{(t.subtotal - t.discountAmount).toFixed(2)} EUR</span></div>
-                    {!invNoVat && <div className="flex justify-between"><span className="text-gray-500">ДДС ({invLines.length > 0 ? (parseFloat(invLines[0].vat_rate) || 20) : 20}%):</span><span className="font-mono">{t.totalVat.toFixed(2)} EUR</span></div>}
-                    <div className="flex justify-between font-bold border-t pt-1"><span>Сума за плащане:</span><span className="font-mono">{t.total.toFixed(2)} EUR</span></div>
+
+              {/* SEC 4: + Добави ред + Subtotal */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'4px 6px',marginBottom:'2px'}}>
+                <button onClick={invAddLine} style={{display:'flex',alignItems:'center',gap:'4px',fontSize:'13px',color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  <span>Добави ред</span>
+                </button>
+                <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                  <span style={{fontSize:'13px',color:'#475569'}}>Сума (без отстъпка)</span>
+                  <span style={{fontSize:'13px',fontWeight:600,width:'120px',textAlign:'right'}}>{invCalcTotals().subtotal.toFixed(2)} EUR</span>
+                </div>
+              </div>
+
+              {/* SEC 5: Totals */}
+              {(() => { const t = invCalcTotals(); const taxBase = t.subtotal - t.discountAmount; const totalVat = invNoVat ? 0 : t.totalVat; const total = taxBase + totalVat; return (
+                <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',marginBottom:'2px'}}>
+                  <table style={{borderCollapse:'collapse'}}>
+                    <tbody>
+                      <tr>
+                        <td style={{textAlign:'right',fontSize:'13px',color:'#475569',padding:'2px 12px 2px 0'}}>Отстъпка</td>
+                        <td style={{textAlign:'right',padding:'2px 0'}}><div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'3px'}}>
+                          <input type="number" step="0.01" min="0" value={invDiscount} onChange={e => setInvDiscount(e.target.value)} style={{height:'24px',fontSize:'13px',textAlign:'right',border:'1px solid #cbd5e1',borderRadius:'6px',width:'70px',padding:'0 6px'}} />
+                          <select value={invDiscountType} onChange={e => setInvDiscountType(e.target.value)} style={{height:'24px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'12px',background:'#fff',width:'52px'}}><option value="EUR">EUR</option><option value="%">%</option></select>
+                        </div></td>
+                      </tr>
+                      <tr style={{borderTop:'1px solid #e2e8f0'}}>
+                        <td style={{textAlign:'right',fontSize:'13px',color:'#475569',padding:'2px 12px 2px 0'}}>Данъчна основа</td>
+                        <td style={{textAlign:'right',fontSize:'13px',fontWeight:600,padding:'2px 0',width:'120px'}}>{taxBase.toFixed(2)} EUR<div style={{fontSize:'11px',color:'#94a3b8',fontWeight:400}}>{(taxBase * EUR_TO_BGN).toFixed(2)} лв.</div></td>
+                      </tr>
+                      <tr>
+                        <td style={{textAlign:'right',fontSize:'13px',color:'#475569',padding:'2px 12px 2px 0'}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:'6px'}}>
+                            <span>ДДС</span>
+                            <select value={invLines.length > 0 ? String(Math.round(parseFloat(invLines[0].vat_rate) || 20)) : '20'} onChange={e => { const r = e.target.value + '.00'; setInvLines(prev => prev.map(l => ({...l, vat_rate: r}))); }} style={{height:'22px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 2px',fontSize:'13px',background:'#fff'}}>
+                              <option value="20">20%</option><option value="9">9%</option><option value="0">0%</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td style={{textAlign:'right',fontSize:'13px',fontWeight:600,padding:'2px 0'}}>{totalVat.toFixed(2)} EUR<div style={{fontSize:'11px',color:'#94a3b8',fontWeight:400}}>{(totalVat * EUR_TO_BGN).toFixed(2)} лв.</div></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ); })()}
+
+              {/* SEC 6: ДДС настройки */}
+              <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',marginBottom:'2px',borderTop:'1px solid #e2e8f0',borderBottom:'1px solid #e2e8f0',padding:'6px 0'}}>
+                <span style={{fontSize:'13px',fontWeight:600,color:'#334155'}}>ДДС настройки:</span>
+                <label style={{display:'flex',alignItems:'center',gap:'5px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invNoVat} onChange={e => { setInvNoVat(e.target.checked); if (e.target.checked) { setInvLines(prev => prev.map(l => ({...l, vat_rate:'0.00'}))); } else { setInvLines(prev => prev.map(l => ({...l, vat_rate:'20.00'}))); }}} style={{width:'14px',height:'14px',accentColor:'#2563eb'}} />Не начислявай ДДС по тази фактура</label>
+                <label style={{display:'flex',alignItems:'center',gap:'5px',cursor:'pointer',fontSize:'13px'}}><input type="checkbox" checked={invVatPerLine} onChange={e => setInvVatPerLine(e.target.checked)} style={{width:'14px',height:'14px',accentColor:'#2563eb'}} />ДДС на всеки ред</label>
+              </div>
+              {/* VAT reason dropdown */}
+              {invNoVat && (
+                <div style={{padding:'8px 0'}}>
+                  <label style={{fontSize:'12px',fontWeight:600,color:'#475569',display:'block',marginBottom:'4px'}}>Основание за неначисляване на ДДС:</label>
+                  <select value={invNoVatReason} onChange={e => setInvNoVatReason(e.target.value)} style={{fontSize:'13px',maxWidth:'500px',width:'100%',padding:'6px 10px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#fff'}}>
+                    <option value="">— Изберете основание —</option>
+                    <option value="чл. 21, ал. 2 от ЗДДС">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option>
+                    <option value="чл. 28 от ЗДДС">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option>
+                    <option value="чл. 41 от ЗДДС">чл. 41 от ЗДДС — Освободена доставка</option>
+                    <option value="чл. 42 от ЗДДС">чл. 42 от ЗДДС — Безвъзмездна доставка</option>
+                    <option value="чл. 50, ал. 1 от ЗДДС">чл. 50, ал. 1 от ЗДДС — Освободен внос</option>
+                    <option value="чл. 113, ал. 9 от ЗДДС">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option>
+                    <option value="чл. 7 от ЗДДС">чл. 7 от ЗДДС — ВОД (Вътреобщностна доставка)</option>
+                    <option value="other">Друго (въведете ръчно)</option>
+                  </select>
+                  {invNoVatReason === 'other' && <input value={invNoVatReasonCustom} onChange={e => setInvNoVatReasonCustom(e.target.value)} placeholder="Въведете основание..." style={{display:'block',marginTop:'6px',maxWidth:'500px',width:'100%',padding:'6px 10px',border:'1px solid #cbd5e1',borderRadius:'6px',fontSize:'13px'}} />}
+                </div>
+              )}
+
+              {/* SEC 7: Съставил + Сума за плащане */}
+              {(() => { const t = invCalcTotals(); const taxBase = t.subtotal - t.discountAmount; const totalVat = invNoVat ? 0 : t.totalVat; const total = taxBase + totalVat; return (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px',borderBottom:'1px solid #e2e8f0',paddingBottom:'6px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                    <label style={{fontSize:'13px',color:'#475569'}}>Съставил</label>
+                    <input value={invComposedBy} onChange={e => setInvComposedBy(e.target.value)} style={{height:'28px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 8px',fontSize:'13px',background:'#fff',minWidth:'200px'}} />
+                  </div>
+                  <div style={{textAlign:'right',display:'flex',alignItems:'center',gap:'12px'}}>
+                    <span style={{fontSize:'13px',color:'#475569'}}>Сума за плащане</span>
+                    <div>
+                      <div style={{fontSize:'18px',fontWeight:700,color:'#0f172a'}}>{total.toFixed(2)} EUR</div>
+                      <div style={{fontSize:'11px',color:'#94a3b8',fontWeight:600}}>{(total * EUR_TO_BGN).toFixed(2)} лв.</div>
+                    </div>
                   </div>
                 </div>
               ); })()}
-              {/* Discount + Payment + VAT */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Отстъпка</label>
-                  <div className="flex gap-1">
-                    <input className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" type="number" step="0.01" value={invDiscount} onChange={e => setInvDiscount(e.target.value)} placeholder="0" />
-                    <select className="border rounded-lg px-2 py-2 text-sm focus:outline-none" value={invDiscountType} onChange={e => setInvDiscountType(e.target.value)}>
-                      <option value="EUR">EUR</option><option value="%">%</option>
-                    </select>
-                  </div>
-                </div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Начин на плащане</label>
-                  <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invPaymentMethod} onChange={e => setInvPaymentMethod(e.target.value)}>
-                    <option value="">—</option><option value="bank_transfer">Банков превод</option><option value="cash">В брой</option><option value="card">С карта</option><option value="cod">Наложен платеж</option><option value="payment_order">Платежно нареждане</option><option value="money_transfer">Паричен превод</option><option value="postal_transfer">Пощенски паричен превод</option><option value="offset">С насрещно прихващане</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1"><input type="checkbox" checked={invNoVat} onChange={e => setInvNoVat(e.target.checked)} /> Не начислявай ДДС по тази фактура</label>
-                  {invNoVat && <select className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none" value={invNoVatReason} onChange={e => setInvNoVatReason(e.target.value)}>
-                    <option value="">Изберете или въведете основание...</option><option value="чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице">чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице</option><option value="чл. 7 от ЗДДС — ВОД">чл. 7 от ЗДДС — ВОД</option><option value="чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България">чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България</option><option value="чл. 28 от ЗДДС — Доставка свързана с международен транспорт">чл. 28 от ЗДДС — Доставка свързана с международен транспорт</option><option value="чл. 41 от ЗДДС — Освободена доставка">чл. 41 от ЗДДС — Освободена доставка</option><option value="other">Друга</option>
-                  </select>}
-                  {invNoVat && invNoVatReason === 'other' && <input className="w-full mt-1 border rounded-lg px-2 py-1.5 text-xs focus:outline-none" placeholder="Причина..." value={invNoVatReasonCustom} onChange={e => setInvNoVatReasonCustom(e.target.value)} />}
+
+              {/* SEC 8: Забележки */}
+              <div style={{paddingTop:'6px',marginBottom:'6px'}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:'10px',marginBottom:'6px'}}>
+                  <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right',paddingTop:'4px'}}>Забележки<br/><span style={{fontSize:'11px',fontWeight:400,color:'#94a3b8'}}>видими за клиента</span></label>
+                  <textarea value={invNotes} onChange={e => setInvNotes(e.target.value)} rows={2} style={{flex:1,fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'4px 10px',resize:'none'}} />
                 </div>
               </div>
-              {/* Notes */}
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Бележки (за клиента)</label><textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" rows={2} value={invNotes} onChange={e => setInvNotes(e.target.value)} /></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Вътрешни бележки</label><textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" rows={2} value={invInternalNotes} onChange={e => setInvInternalNotes(e.target.value)} /></div>
+
+              {/* SEC 9: Начин на плащане */}
+              <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'6px',borderTop:'1px solid #e2e8f0',paddingTop:'6px'}}>
+                <label style={{fontSize:'13px',fontWeight:600,color:'#334155',width:'130px',flexShrink:0,textAlign:'right'}}>Начин на плащане</label>
+                <select value={invPaymentMethod} onChange={e => setInvPaymentMethod(e.target.value)} style={{height:'30px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 8px',fontSize:'13px',background:'#fff'}}>
+                  <option value="">В брой</option><option value="bank_transfer">Банков път</option><option value="cod">Наложен платеж</option><option value="card">С карта</option>
+                  <option value="payment_order">Платежно нареждане</option><option value="check">Чек/Ваучер</option><option value="offset">С насрещно прихващане</option>
+                  <option value="money_transfer">Паричен превод</option><option value="epay">E-Pay</option><option value="paypal">PayPal</option><option value="stripe">Stripe</option>
+                  <option value="easypay">EasyPay</option><option value="postal_transfer">Пощенски паричен превод</option><option value="other">Друг</option>
+                </select>
               </div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Съставил</label><input className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={invComposedBy} onChange={e => setInvComposedBy(e.target.value)} /></div>
-              {/* Sync settings */}
-                            <div className="rounded-lg p-3 bg-gray-50 shadow-sm">
-                              <span className="text-sm font-semibold text-gray-700">Синхронизация</span>
-                <div className="flex items-center gap-4 mt-2">
-                  {[{v: 'manual', l: 'Ръчно'}, {v: 'auto', l: 'Автоматично'}, {v: 'delayed', l: 'С отложение'}].map(m => (
-                    <label key={m.v} className="flex items-center gap-1 text-sm"><input type="radio" name="invSync" value={m.v} checked={invSyncMode === m.v} onChange={() => setInvSyncMode(m.v)} /> {m.l}</label>
-                  ))}
-                  {invSyncMode === 'delayed' && <input className="w-20 border rounded px-2 py-1 text-sm" type="number" value={invDelayMinutes} onChange={e => setInvDelayMinutes(e.target.value)} />}
+
+              {/* SEC 10: Коментари */}
+              <div style={{border:'1px solid #cbd5e1',borderRadius:'6px',marginBottom:'8px',overflow:'hidden'}}>
+                <div style={{background:'#f8fafc',padding:'4px 10px',borderBottom:'1px solid #cbd5e1'}}>
+                  <span style={{fontSize:'13px',fontWeight:600,color:'#334155'}}>Коментари</span>
+                  <span style={{fontSize:'11px',color:'#ef4444',marginLeft:'6px'}}>(не се вижда от клиента)</span>
+                </div>
+                <div style={{padding:'6px'}}><textarea value={invInternalNotes} onChange={e => setInvInternalNotes(e.target.value)} rows={2} style={{fontSize:'13px',borderRadius:'6px',border:'1px solid #cbd5e1',padding:'4px 10px',resize:'none',width:'100%',boxSizing:'border-box'}} /></div>
+              </div>
+
+              {/* SEC 11: Sync settings */}
+              <div style={{marginTop:'16px',padding:'12px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e2e8f0'}}>
+                <h3 style={{fontSize:'13px',fontWeight:600,color:'#475569',margin:'0 0 8px'}}>Настройки за синхронизация</h3>
+                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                  <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',color:'#475569',cursor:'pointer'}}><input type="radio" name="inv_sync" checked={invSyncMode==='manual'} onChange={() => setInvSyncMode('manual')} style={{width:'16px',height:'16px'}} /> Ръчно (фактурата няма да се изпрати автоматично)</label>
+                  <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',color:'#475569',cursor:'pointer'}}><input type="radio" name="inv_sync" checked={invSyncMode==='immediate'} onChange={() => setInvSyncMode('immediate')} style={{width:'16px',height:'16px'}} /> Веднага (фактурата се изпраща незабавно)</label>
+                  <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'13px',color:'#475569',cursor:'pointer'}}><input type="radio" name="inv_sync" checked={invSyncMode==='delayed'} onChange={() => setInvSyncMode('delayed')} style={{width:'16px',height:'16px'}} /> След определено време
+                    <input type="number" value={invDelayMinutes} onChange={e => setInvDelayMinutes(e.target.value)} min="1" style={{width:'60px',height:'24px',fontSize:'13px',border:'1px solid #cbd5e1',borderRadius:'6px',padding:'0 6px',marginLeft:'4px'}} /> мин.</label>
                 </div>
               </div>
-            </div>
-            {/* Actions */}
-            <div className="flex justify-end gap-2 p-4 border-t">
-              <button onClick={() => setInvModal(null)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Отказ</button>
-              <button onClick={() => invSaveInvoice('draft')} disabled={invSaving} className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Запази като чернова' : 'Създай чернова')}</button>
-              <button onClick={() => invSaveInvoice('issued')} disabled={invSaving} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Обнови фактурата' : 'Създай фактурата')}</button>
+
+              {/* SEC 12: Buttons */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'16px',padding:'12px 0'}}>
+                <button onClick={() => invSaveInvoice('issued')} disabled={invSaving} style={{background:'#28a745',color:'#fff',fontWeight:600,fontSize:'15px',padding:'8px 40px',borderRadius:'8px',border:'none',cursor:'pointer',boxShadow:'0 1px 3px rgba(0,0,0,.1)',opacity:invSaving?.5:1}}>{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Обнови фактурата' : 'Създай фактурата')}</button>
+                <button onClick={() => invSaveInvoice('draft')} disabled={invSaving} style={{background:'#fff',color:'#334155',fontWeight:600,fontSize:'15px',padding:'8px 40px',borderRadius:'8px',border:'1px solid #cbd5e1',cursor:'pointer',boxShadow:'0 1px 3px rgba(0,0,0,.1)',opacity:invSaving?.5:1}}>{invSaving ? 'Запазване...' : (invEditInvoiceId ? 'Запази чернова' : 'Създай чернова')}</button>
+              </div>
+
             </div>
           </div>
         </div>
