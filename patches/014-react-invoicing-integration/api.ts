@@ -348,10 +348,10 @@ export const invListStubs = (companyId: string, profileId: string) =>
   request(`/api/invoicing/stubs?company_id=${companyId}&profile_id=${profileId}`);
 export const invCreateStub = (data: Record<string, unknown>) =>
   request('/api/invoicing/stubs', { method: 'POST', body: JSON.stringify(data) });
-export const invUpdateStub = (stubId: string, data: Record<string, unknown>) =>
-  request(`/api/invoicing/stubs/${stubId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invDeleteStub = (stubId: string) =>
-  request(`/api/invoicing/stubs/${stubId}`, { method: 'DELETE' });
+export const invUpdateStub = (stubId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
+  request(`/api/invoicing/stubs/${stubId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
+export const invDeleteStub = (stubId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/stubs/${stubId}?company_id=${companyId}&profile_id=${profileId}`, { method: 'DELETE' });
 
 // Sync invoices to megabanx folder
 export const invSyncInvoices = (companyId: string, profileId: string) =>

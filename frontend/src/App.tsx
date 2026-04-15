@@ -1194,7 +1194,7 @@ function App() {
   const invHandleDelete = async (invoiceId: string, invoiceNumber: string) => {
     if (!confirm(`Сигурни ли сте, че искате да изтриете фактура ${invoiceNumber}? Това действие е необратимо.`)) return;
     try {
-      await invDeleteInvoice(invoiceId);
+      await invDeleteInvoice(invoiceId, invCompanyId, invProfileId);
       invToastShow(`Фактура ${invoiceNumber} е изтрита`);
       if (activeProfile) loadProfileData(activeProfile.id);
     } catch (e) {
@@ -4792,7 +4792,7 @@ function App() {
                         <div className="font-medium text-sm">{s.name}</div>
                         <div className="text-xs text-gray-500">{String(s.start_number).padStart(10, '0')} — {String(s.end_number).padStart(10, '0')} <span className="text-gray-400">(следващият свободен №)</span></div>
                       </div>
-                      <button onClick={async () => { if (!confirm('Изтриване на кочан ' + s.name + '?')) return; try { await invDeleteStub(s.id); invToastShow('Кочанът е изтрит'); const list = await invListStubs(invCompanyId, invProfileId); setInvStubs(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={async () => { if (!confirm('Изтриване на кочан ' + s.name + '?')) return; try { await invDeleteStub(s.id, invCompanyId, invProfileId); invToastShow('Кочанът е изтрит'); const list = await invListStubs(invCompanyId, invProfileId); setInvStubs(list); } catch (e) { invToastShow('Грешка: ' + (e instanceof Error ? e.message : ''), 'error'); } }} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
                 </div>

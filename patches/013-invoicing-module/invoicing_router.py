@@ -898,7 +898,7 @@ async def create_stub(data: StubCreate):
 
 
 @invoicing_router.put("/stubs/{stub_id}")
-async def update_stub(stub_id: str, data: StubUpdate):
+async def update_stub(stub_id: str, data: StubUpdate, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         updates = []
         values = []
@@ -910,25 +910,33 @@ async def update_stub(stub_id: str, data: StubUpdate):
         if not updates:
             return {"status": "no changes"}
         updates.append("updated_at = NOW()")
-        values.append(stub_id)
+        values.extend([stub_id, company_id, profile_id])
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"UPDATE inv_stubs SET {', '.join(updates)} WHERE id = %s", values)
+                cur.execute(f"UPDATE inv_stubs SET {', '.join(updates)} WHERE id = %s AND company_id = %s AND profile_id = %s", values)
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Stub not found")
             conn.commit()
         return {"status": "updated"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[INVOICING] Error updating stub: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @invoicing_router.delete("/stubs/{stub_id}")
-async def delete_stub(stub_id: str):
+async def delete_stub(stub_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM inv_stubs WHERE id = %s", (stub_id,))
+                cur.execute("DELETE FROM inv_stubs WHERE id = %s AND company_id = %s AND profile_id = %s", (stub_id, company_id, profile_id))
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Stub not found")
             conn.commit()
         return {"status": "deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[INVOICING] Error deleting stub: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1640,6 +1648,45 @@ async def sync_invoice(invoice_id: str, company_id: str = Query(...), profile_id
         raise
     except Exception as e:
         logger.error(f"[INVOICING] Error syncing invoice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@invoicing_router.delete("/invoices/{invoice_id}")
+async def delete_invoice(invoice_id: str, company_id: str = Query(...), profile_id: str = Query(...)):
+    """Delete a software-issued invoice (meta, lines, and main invoices row)."""
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Verify ownership
+                cur.execute(
+                    "SELECT id, pdf_path, sync_status FROM inv_invoice_meta WHERE invoice_id = %s AND company_id = %s AND profile_id = %s",
+                    (invoice_id, company_id, profile_id)
+                )
+                meta = cur.fetchone()
+                if not meta:
+                    raise HTTPException(status_code=404, detail="Invoice not found")
+                if meta["sync_status"] == "synced":
+                    raise HTTPException(status_code=400, detail="Не може да изтриете синхронизирана фактура")
+                # Delete lines
+                cur.execute("DELETE FROM inv_invoice_lines WHERE invoice_id = %s", (invoice_id,))
+                # Delete meta
+                cur.execute("DELETE FROM inv_invoice_meta WHERE invoice_id = %s AND company_id = %s AND profile_id = %s", (invoice_id, company_id, profile_id))
+                # Delete from main invoices table
+                cur.execute("DELETE FROM invoices WHERE id = %s", (invoice_id,))
+                # Delete PDF file if exists
+                pdf_path = meta.get("pdf_path")
+                if pdf_path:
+                    try:
+                        Path(pdf_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+            conn.commit()
+        await _notify_refresh(profile_id, "invoice_deleted")
+        return {"status": "deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INVOICING] Error deleting invoice: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

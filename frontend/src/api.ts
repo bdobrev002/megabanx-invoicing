@@ -348,14 +348,14 @@ export const invListStubs = (companyId: string, profileId: string) =>
   request(`/api/invoicing/stubs?company_id=${companyId}&profile_id=${profileId}`);
 export const invCreateStub = (data: Record<string, unknown>) =>
   request('/api/invoicing/stubs', { method: 'POST', body: JSON.stringify(data) });
-export const invUpdateStub = (stubId: string, data: Record<string, unknown>) =>
-  request(`/api/invoicing/stubs/${stubId}`, { method: 'PUT', body: JSON.stringify(data) });
-export const invDeleteStub = (stubId: string) =>
-  request(`/api/invoicing/stubs/${stubId}`, { method: 'DELETE' });
+export const invUpdateStub = (stubId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
+  request(`/api/invoicing/stubs/${stubId}?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`, { method: 'PUT', body: JSON.stringify(data) });
+export const invDeleteStub = (stubId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/stubs/${stubId}?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`, { method: 'DELETE' });
 
 // Delete invoice
-export const invDeleteInvoice = (invoiceId: string) =>
-  request(`/api/invoicing/invoices/${invoiceId}`, { method: 'DELETE' });
+export const invDeleteInvoice = (invoiceId: string, companyId: string, profileId: string) =>
+  request(`/api/invoicing/invoices/${invoiceId}?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`, { method: 'DELETE' });
 
 // Check if invoice is editable (not synced/approved)
 export const invCheckEditable = (invoiceId: string) =>
