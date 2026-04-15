@@ -1388,7 +1388,8 @@ def _generate_and_save_pdf(invoice_id, data, lines_data, company_name, client_na
         # Sanitize names to prevent path traversal
         safe_company = _sanitize_path_component(company_name)
         safe_client = _sanitize_path_component(client_name)
-        profile_dir = f"/opt/bginvoices/data/{data.profile_id}"
+        safe_profile_id = _sanitize_path_component(data.profile_id)
+        profile_dir = f"/opt/bginvoices/data/{safe_profile_id}"
         sales_dir = os.path.join(profile_dir, safe_company, "Фактури продажби")
         os.makedirs(sales_dir, exist_ok=True)
 

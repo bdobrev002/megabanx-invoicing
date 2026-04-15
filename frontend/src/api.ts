@@ -315,7 +315,7 @@ export const invDeleteItem = (itemId: string, companyId: string, profileId: stri
 
 // Invoices
 export const invGetNextNumber = (companyId: string, profileId: string, documentType: string = 'invoice') =>
-  request(`/api/invoicing/next-number?company_id=${companyId}&profile_id=${profileId}&document_type=${documentType}`);
+  request(`/api/invoicing/next-number?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}&document_type=${encodeURIComponent(documentType)}`);
 export const invCreateInvoice = (data: Record<string, unknown>) =>
   request('/api/invoicing/invoices', { method: 'POST', body: JSON.stringify(data) });
 export const invUpdateInvoice = (invoiceId: string, data: Record<string, unknown>, companyId: string, profileId: string) =>
@@ -323,7 +323,7 @@ export const invUpdateInvoice = (invoiceId: string, data: Record<string, unknown
 export const invGetInvoice = (invoiceId: string, companyId: string, profileId: string) =>
   request(`/api/invoicing/invoices/${invoiceId}?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`);
 export const invListInvoices = (companyId: string, profileId: string) =>
-  request(`/api/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`);
+  request(`/api/invoicing/invoices?company_id=${encodeURIComponent(companyId)}&profile_id=${encodeURIComponent(profileId)}`);
 export const invGetPdfUrl = (invoiceId: string) =>
   `${API_BASE}/api/invoicing/invoices/${invoiceId}/pdf`;
 
