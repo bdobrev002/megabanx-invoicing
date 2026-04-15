@@ -1056,7 +1056,7 @@ function App() {
     setInvCompanyId(companyId); setInvProfileId(profileId);
     setInvModal('settings');
     try {
-      const s = await invGetCompanySettings(companyId);
+      const s = await invGetCompanySettings(companyId, profileId);
       setInvSettings(s);
       setInvSettingsForm({ iban: s.iban || '', bank_name: s.bank_name || '', bic: s.bic || '', default_vat_rate: String(Math.round(Number(s.default_vat_rate || 20))) });
     } catch { setInvSettingsForm({ iban: '', bank_name: '', bic: '', default_vat_rate: '20' }); }
@@ -1096,7 +1096,7 @@ function App() {
         invListClients(companyId, profileId),
         invListItems(companyId, profileId),
         invListStubs(companyId, profileId),
-        invGetCompanySettings(companyId),
+        invGetCompanySettings(companyId, profileId),
       ]);
       setInvClients(c); setInvItems(it); setInvStubs(st); setInvSettings(cs);
       const defVat = String(Number(cs.default_vat_rate || 20).toFixed(2));
@@ -1113,7 +1113,7 @@ function App() {
       }
       // Sync settings
       try {
-        const ss = await invGetSyncSettings(companyId);
+        const ss = await invGetSyncSettings(companyId, profileId);
         setInvSyncMode(ss.sync_mode || 'manual');
         setInvDelayMinutes(String(ss.delay_minutes || 30));
       } catch { /* default */ }

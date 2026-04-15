@@ -332,14 +332,14 @@ export const invRegistryLookup = (eik: string) =>
   request(`/api/invoicing/registry/lookup/${eik}`);
 
 // Company Settings (bank, VAT)
-export const invGetCompanySettings = (companyId: string) =>
-  request(`/api/invoicing/company-settings/${companyId}`);
+export const invGetCompanySettings = (companyId: string, profileId: string) =>
+  request(`/api/invoicing/company-settings/${companyId}?profile_id=${profileId}`);
 export const invUpdateCompanySettings = (companyId: string, profileId: string, data: Record<string, unknown>) =>
   request(`/api/invoicing/company-settings/${companyId}?profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
 
 // Sync Settings
-export const invGetSyncSettings = (companyId: string) =>
-  request(`/api/invoicing/sync-settings/${companyId}`);
+export const invGetSyncSettings = (companyId: string, profileId: string) =>
+  request(`/api/invoicing/sync-settings/${companyId}?profile_id=${profileId}`);
 export const invUpdateSyncSettings = (companyId: string, profileId: string, data: Record<string, unknown>) =>
   request(`/api/invoicing/sync-settings/${companyId}?profile_id=${profileId}`, { method: 'PUT', body: JSON.stringify(data) });
 

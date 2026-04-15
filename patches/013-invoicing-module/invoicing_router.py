@@ -41,6 +41,26 @@ def set_ws_notify(fn):
     global _ws_notify_fn
     _ws_notify_fn = fn
 
+# Cross-copy and email helpers injected by main.py
+_cross_copy_fn = None
+_add_notification_fn = None
+_get_profile_dir_fn = None
+_send_cross_copy_approval_email_fn = None
+_send_invoice_email_fn = None
+
+def set_cross_copy_helpers(cross_copy_fn, add_notification_fn, get_profile_dir_fn, send_approval_email_fn):
+    """Set cross-copy helper functions from main.py."""
+    global _cross_copy_fn, _add_notification_fn, _get_profile_dir_fn, _send_cross_copy_approval_email_fn
+    _cross_copy_fn = cross_copy_fn
+    _add_notification_fn = add_notification_fn
+    _get_profile_dir_fn = get_profile_dir_fn
+    _send_cross_copy_approval_email_fn = send_approval_email_fn
+
+def set_send_invoice_email_fn(fn):
+    """Set the send-invoice-email function from main.py."""
+    global _send_invoice_email_fn
+    _send_invoice_email_fn = fn
+
 async def _notify_refresh(profile_id: str, reason: str = "invoice_updated"):
     """Send a WebSocket refresh event so the React frontend reloads the file list."""
     if _ws_notify_fn:
@@ -820,11 +840,11 @@ async def delete_item(item_id: str, company_id: str = Query(...), profile_id: st
 # ── Company Settings (bank account) ───────────────────────────────────────
 
 @invoicing_router.get("/company-settings/{company_id}")
-async def get_company_settings(company_id: str):
+async def get_company_settings(company_id: str, profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM inv_company_settings WHERE company_id = %s", (company_id,))
+                cur.execute("SELECT * FROM inv_company_settings WHERE company_id = %s AND profile_id = %s", (company_id, profile_id))
                 row = cur.fetchone()
                 if not row:
                     return {"company_id": company_id, "iban": "", "bank_name": "", "bic": "", "default_vat_rate": 20.0}
@@ -948,11 +968,11 @@ async def delete_stub(stub_id: str, company_id: str = Query(...), profile_id: st
 # ── Sync Settings ─────────────────────────────────────────────────────────
 
 @invoicing_router.get("/sync-settings/{company_id}")
-async def get_sync_settings(company_id: str):
+async def get_sync_settings(company_id: str, profile_id: str = Query(...)):
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM inv_sync_settings WHERE company_id = %s", (company_id,))
+                cur.execute("SELECT * FROM inv_sync_settings WHERE company_id = %s AND profile_id = %s", (company_id, profile_id))
                 row = cur.fetchone()
                 if not row:
                     return {"company_id": company_id, "sync_mode": "manual", "delay_minutes": 0}
