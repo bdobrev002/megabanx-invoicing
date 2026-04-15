@@ -1463,11 +1463,17 @@ async def update_invoice(invoice_id: str, data: InvoiceCreate, background_tasks:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 # Verify invoice exists and get old PDF path for cleanup
-                cur.execute("SELECT id, pdf_path FROM inv_invoice_meta WHERE invoice_id = %s AND company_id = %s AND profile_id = %s", (invoice_id, company_id, profile_id))
+                cur.execute("SELECT id, pdf_path, invoice_number FROM inv_invoice_meta WHERE invoice_id = %s AND company_id = %s AND profile_id = %s", (invoice_id, company_id, profile_id))
                 existing = cur.fetchone()
                 if not existing:
                     raise HTTPException(status_code=404, detail="Invoice not found")
                 old_pdf_path = existing.get("pdf_path") or ""
+
+                # If invoice_number not provided, keep the existing one
+                if data.invoice_number is None:
+                    data.invoice_number = existing.get("invoice_number")
+                if data.invoice_number is None:
+                    raise HTTPException(status_code=400, detail="Invoice number is required")
 
                 # Get client name
                 client_name = ""
