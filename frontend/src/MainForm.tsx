@@ -63,7 +63,7 @@ export interface MainFormHandle {
   invOpenSettings: (companyId: string, profileId: string) => void;
   invOpenStubs: (companyId: string, profileId: string) => void;
   invOpenInvoice: (companyId: string, profileId: string, companyName: string, editData?: Record<string, unknown>) => void;
-  invHandleDelete: (invoiceId: string, invoiceNumber: string) => void;
+  invHandleDelete: (invoiceId: string, invoiceNumber: string, companyId: string, profileId: string) => void;
   invHandleSync: (companyId: string, profileId: string) => void;
   invSyncSingle: (invoiceId: string, profileId: string, companyId: string) => void;
   invToastShow: (msg: string, type?: 'success' | 'error') => void;
@@ -333,10 +333,10 @@ const MainForm = forwardRef<MainFormHandle, MainFormProps>(({ companies, activeP
     finally { setInvSaving(false); }
   };
 
-  const invHandleDelete = async (invoiceId: string, invoiceNumber: string) => {
+  const invHandleDelete = async (invoiceId: string, invoiceNumber: string, companyId?: string, profileId?: string) => {
     if (!confirm(`Сигурни ли сте, че искате да изтриете фактура ${invoiceNumber}? Това действие е необратимо.`)) return;
     try {
-      await invDeleteInvoice(invoiceId, invCompanyId, invProfileId);
+      await invDeleteInvoice(invoiceId, companyId || invCompanyId, profileId || invProfileId);
       invToastShow(`Фактура ${invoiceNumber} е изтрита`);
       if (activeProfileId) loadProfileData(activeProfileId);
     } catch (e) {
