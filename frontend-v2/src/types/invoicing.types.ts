@@ -1,0 +1,95 @@
+export interface InvoiceClient {
+  id: string
+  name: string
+  eik: string
+  vat_number: string
+  address: string
+  mol: string
+  email?: string
+  phone?: string
+}
+
+export interface InvoiceItem {
+  id: string
+  name: string
+  unit: string
+  price: number
+  vat_rate: number
+  description?: string
+}
+
+export interface InvoiceLine {
+  description: string
+  quantity: number
+  unit: string
+  price: number
+  vat_rate: number
+  value: number
+}
+
+export interface InvoiceStub {
+  id: string
+  name: string
+  prefix: string
+  start_number: number
+  end_number: number
+  current_number: number
+  doc_type: string
+}
+
+export type DocType = 'invoice' | 'proforma' | 'debit_note' | 'credit_note'
+
+export type SyncMode = 'manual' | 'immediate' | 'delayed'
+
+export interface InvoiceFormData {
+  doc_type: DocType
+  client_id: string
+  stub_id: string
+  invoice_number: string
+  date: string
+  due_date: string
+  delivery_date: string
+  lines: InvoiceLine[]
+  notes: string
+  internal_notes: string
+  discount_type: 'eur' | 'percent'
+  discount_value: number
+  no_vat: boolean
+  no_vat_reason: string
+  price_with_vat: boolean
+  payment_method: string
+  sync_mode: SyncMode
+  delay_minutes: number
+}
+
+export const PAYMENT_METHODS = [
+  { value: '', label: 'В брой' },
+  { value: 'bank_transfer', label: 'Банков път' },
+  { value: 'cod', label: 'Наложен платеж' },
+  { value: 'card', label: 'С карта' },
+  { value: 'payment_order', label: 'Платежно нареждане' },
+  { value: 'check', label: 'Чек/Ваучер' },
+  { value: 'offset', label: 'С насрещно прихващане' },
+  { value: 'money_transfer', label: 'Паричен превод' },
+  { value: 'epay', label: 'E-Pay' },
+  { value: 'paypal', label: 'PayPal' },
+  { value: 'stripe', label: 'Stripe' },
+  { value: 'easypay', label: 'EasyPay' },
+  { value: 'postal_transfer', label: 'Пощенски паричен превод' },
+  { value: 'other', label: 'Друг' },
+] as const
+
+export const UNITS = [
+  'бр.', 'кг', 'м', 'л', 'м²', 'м³', 'час', 'ден', 'мес.', 'услуга',
+] as const
+
+export const VAT_REASONS = [
+  { value: 'чл. 21, ал. 2 от ЗДДС', label: 'чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България' },
+  { value: 'чл. 28 от ЗДДС', label: 'чл. 28 от ЗДДС — Доставка свързана с международен транспорт' },
+  { value: 'чл. 41 от ЗДДС', label: 'чл. 41 от ЗДДС — Освободена доставка' },
+  { value: 'чл. 42 от ЗДДС', label: 'чл. 42 от ЗДДС — Безвъзмездна доставка' },
+  { value: 'чл. 50, ал. 1 от ЗДДС', label: 'чл. 50, ал. 1 от ЗДДС — Освободен внос' },
+  { value: 'чл. 113, ал. 9 от ЗДДС', label: 'чл. 113, ал. 9 от ЗДДС — Нерегистрирано по ЗДДС лице' },
+  { value: 'чл. 7 от ЗДДС', label: 'чл. 7 от ЗДДС — ВОД (Вътреобщностна доставка)' },
+  { value: 'other', label: 'Друго (въведете ръчно)' },
+] as const
