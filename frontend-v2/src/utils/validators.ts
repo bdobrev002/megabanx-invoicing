@@ -2,15 +2,30 @@
 export function isValidEik(eik: string): boolean {
   if (!/^\d{9}$|^\d{13}$/.test(eik)) return false
   const digits = eik.split('').map(Number)
-  const w1 = [1, 2, 3, 4, 5, 6, 7, 8]
-  let sum = digits.slice(0, 8).reduce((s, d, i) => s + d * w1[i], 0)
+
+  // Validate 9th digit (positions 0-7 → check digit at 8)
+  let sum = digits.slice(0, 8).reduce((s, d, i) => s + d * (i + 1), 0)
   let check = sum % 11
   if (check === 10) {
-    const w2 = [3, 4, 5, 6, 7, 8, 9, 10]
-    sum = digits.slice(0, 8).reduce((s, d, i) => s + d * w2[i], 0)
+    sum = digits.slice(0, 8).reduce((s, d, i) => s + d * (i + 3), 0)
     check = (sum % 11) % 10
   }
-  return digits[8] === check
+  if (digits[8] !== check) return false
+
+  // For 13-digit EIK, validate 13th digit (positions 8-11 → check digit at 12)
+  if (digits.length === 13) {
+    const w13a = [1, 2, 3, 4]
+    sum = digits.slice(8, 12).reduce((s, d, i) => s + d * w13a[i], 0)
+    check = sum % 11
+    if (check === 10) {
+      const w13b = [3, 4, 5, 6]
+      sum = digits.slice(8, 12).reduce((s, d, i) => s + d * w13b[i], 0)
+      check = (sum % 11) % 10
+    }
+    if (digits[12] !== check) return false
+  }
+
+  return true
 }
 
 /** Validate email */

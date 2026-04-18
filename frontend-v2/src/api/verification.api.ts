@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, uploadFetch } from './client'
 import type { PendingVerification } from '@/types/verification.types'
 
 export const verificationApi = {
@@ -19,9 +19,6 @@ export const verificationApi = {
   uploadIdCard: (verificationId: string, file: File) => {
     const fd = new FormData()
     fd.append('file', file)
-    return fetch(`/verification/${verificationId}/id-card`, {
-      method: 'POST',
-      body: fd,
-    })
+    return uploadFetch(`/verification/${verificationId}/id-card`, fd)
   },
 }
