@@ -145,16 +145,16 @@ export default function HowItWorksSection() {
               ].map((s) => (
                 <div
                   key={s.step}
-                  className={`relative ${'$'}{s.bgLight} rounded-2xl p-5 border ${'$'}{s.borderColor} hover:shadow-xl transition-all duration-500 hover:-translate-y-1 group`}
-                  style={{animation: `howFadeSlideUp 0.6s ease-out ${'$'}{s.delay} both`}}
+                  className={`relative ${s.bgLight} rounded-2xl p-5 border ${s.borderColor} hover:shadow-xl transition-all duration-500 hover:-translate-y-1 group`}
+                  style={{animation: `howFadeSlideUp 0.6s ease-out ${s.delay} both`}}
                 >
-                  <div className={`absolute -top-4 -left-2 w-9 h-9 bg-gradient-to-br ${'$'}{s.gradient} rounded-xl flex items-center justify-center shadow-lg text-white font-black text-sm`}>
+                  <div className={`absolute -top-4 -left-2 w-9 h-9 bg-gradient-to-br ${s.gradient} rounded-xl flex items-center justify-center shadow-lg text-white font-black text-sm`}>
                     {s.step}
                   </div>
-                  <div className="text-3xl mb-3 mt-1" style={{animation: `howBounceGentle 2s ease-in-out ${'$'}{s.delay} infinite`}}>
+                  <div className="text-3xl mb-3 mt-1" style={{animation: `howBounceGentle 2s ease-in-out ${s.delay} infinite`}}>
                     {s.emoji}
                   </div>
-                  <div className={`w-10 h-10 bg-gradient-to-br ${'$'}{s.gradient} rounded-xl flex items-center justify-center mb-3 shadow-md group-hover:scale-110 transition-transform`}>
+                  <div className={`w-10 h-10 bg-gradient-to-br ${s.gradient} rounded-xl flex items-center justify-center mb-3 shadow-md group-hover:scale-110 transition-transform`}>
                     <s.icon className="w-5 h-5 text-white" />
                   </div>
                   <h3 className="text-base font-extrabold text-gray-900 mb-2 tracking-tight">{s.title}</h3>
@@ -253,8 +253,8 @@ export default function HowItWorksSection() {
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               {[...Array(12)].map((_, i) => (
                 <div key={i} className="absolute w-1 h-1 bg-white/20 rounded-full" style={{
-                  left: `${'$'}{8 + i * 8}%`, top: `${'$'}{10 + (i % 3) * 30}%`,
-                  animation: `howParticleFloat 3s ease-in-out ${'$'}{i * 0.3}s infinite alternate`
+                  left: `${8 + i * 8}%`, top: `${10 + (i % 3) * 30}%`,
+                  animation: `howParticleFloat 3s ease-in-out ${i * 0.3}s infinite alternate`
                 }} />
               ))}
             </div>
@@ -290,9 +290,9 @@ export default function HowItWorksSection() {
                     <div key={i}
                       className="absolute left-0 right-0 bg-white rounded-md px-1.5 py-1 shadow-md border border-gray-200"
                       style={{
-                        bottom: `${'$'}{i * 4}px`,
+                        bottom: `${i * 4}px`,
                         zIndex: 5 - i,
-                        animation: `howFilePickUp 10s ease-in-out ${'$'}{i * 0.6}s infinite`,
+                        animation: `howFilePickUp 10s ease-in-out ${i * 0.6}s infinite`,
                         transformOrigin: 'center bottom',
                       }}
                     >
@@ -309,7 +309,7 @@ export default function HowItWorksSection() {
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <div className="flex items-center">
                   {[0,1,2].map(i => (
-                    <div key={i} className="w-2 md:w-3 h-0.5 bg-blue-400 rounded-full mx-0.5" style={{animation: `howArrowPulse 1.5s ease-in-out ${'$'}{i * 0.2}s infinite`}} />
+                    <div key={i} className="w-2 md:w-3 h-0.5 bg-blue-400 rounded-full mx-0.5" style={{animation: `howArrowPulse 1.5s ease-in-out ${i * 0.2}s infinite`}} />
                   ))}
                   <ArrowRight className="w-4 h-4 text-blue-400" style={{animation: 'howArrowPulse 1.5s ease-in-out 0.6s infinite'}} />
                 </div>
@@ -330,7 +330,7 @@ export default function HowItWorksSection() {
                       top: ['0%','50%','100%','50%'][i],
                       left: ['50%','100%','50%','0%'][i],
                       transform: 'translate(-50%, -50%)',
-                      animation: `howSparkle 2s ease-in-out ${'$'}{i * 0.5}s infinite`,
+                      animation: `howSparkle 2s ease-in-out ${i * 0.5}s infinite`,
                     }} />
                   ))}
                 </div>
@@ -352,7 +352,7 @@ export default function HowItWorksSection() {
                   {['\ud83d\udcc4 Разчитане...', '\ud83c\udff7\ufe0f Именуване...', '\ud83d\udcc1 Сортиране...', '\u2705 Готово!'].map((label, i) => (
                     <div key={i} className="text-xs font-medium px-2 py-0.5 rounded-full" style={{
                       animation: 'howLabelCycle 10s ease-in-out infinite',
-                      animationDelay: `${'$'}{i * 2.5}s`,
+                      animationDelay: `${i * 2.5}s`,
                       opacity: 0,
                       color: i === 3 ? '#4ade80' : '#a5b4fc',
                     }}>
@@ -402,8 +402,8 @@ export default function HowItWorksSection() {
                       <div key={i}
                         className="absolute left-0 right-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-md px-1 py-1 shadow-md border border-blue-400"
                         style={{
-                          bottom: `${'$'}{i * 24}px`,
-                          animation: `howFolderAppear 10s ease-out ${'$'}{6 + i * 0.4}s infinite`,
+                          bottom: `${i * 24}px`,
+                          animation: `howFolderAppear 10s ease-out ${6 + i * 0.4}s infinite`,
                           opacity: 0,
                         }}
                       >
@@ -413,7 +413,7 @@ export default function HowItWorksSection() {
                         </div>
                         <div className="flex gap-0.5 mt-0.5">
                           {[0,1].map(j => (
-                            <div key={j} className="w-2.5 h-2.5 bg-white/30 rounded-sm" style={{animation: `howMiniFileAppear 10s ease-out ${'$'}{7 + i * 0.4 + j * 0.2}s infinite`, opacity: 0}} />
+                            <div key={j} className="w-2.5 h-2.5 bg-white/30 rounded-sm" style={{animation: `howMiniFileAppear 10s ease-out ${7 + i * 0.4 + j * 0.2}s infinite`, opacity: 0}} />
                           ))}
                         </div>
                       </div>
@@ -442,8 +442,8 @@ export default function HowItWorksSection() {
                       <div key={i}
                         className="absolute left-0 right-0 bg-gradient-to-r from-emerald-500 to-green-500 rounded-md px-1 py-1 shadow-md border border-emerald-400"
                         style={{
-                          bottom: `${'$'}{i * 24}px`,
-                          animation: `howFolderAppear 10s ease-out ${'$'}{6.5 + i * 0.4}s infinite`,
+                          bottom: `${i * 24}px`,
+                          animation: `howFolderAppear 10s ease-out ${6.5 + i * 0.4}s infinite`,
                           opacity: 0,
                         }}
                       >
@@ -453,7 +453,7 @@ export default function HowItWorksSection() {
                         </div>
                         <div className="flex gap-0.5 mt-0.5">
                           {[0,1].map(j => (
-                            <div key={j} className="w-2.5 h-2.5 bg-white/30 rounded-sm" style={{animation: `howMiniFileAppear 10s ease-out ${'$'}{7.5 + i * 0.4 + j * 0.2}s infinite`, opacity: 0}} />
+                            <div key={j} className="w-2.5 h-2.5 bg-white/30 rounded-sm" style={{animation: `howMiniFileAppear 10s ease-out ${7.5 + i * 0.4 + j * 0.2}s infinite`, opacity: 0}} />
                           ))}
                         </div>
                       </div>
@@ -563,10 +563,10 @@ export default function HowItWorksSection() {
               { step: 3, title: 'Готово!', desc: 'Клиентите получават известия. Счетоводителят сваля подредени документи.', icon: Check, gradient: 'from-emerald-500 to-green-500' },
             ].map((s) => (
               <div key={s.step} className="relative bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-shadow group">
-                <div className={`absolute -top-4 left-6 w-9 h-9 bg-gradient-to-br ${'$'}{s.gradient} rounded-xl flex items-center justify-center shadow-lg text-white font-black text-sm`}>
+                <div className={`absolute -top-4 left-6 w-9 h-9 bg-gradient-to-br ${s.gradient} rounded-xl flex items-center justify-center shadow-lg text-white font-black text-sm`}>
                   {s.step}
                 </div>
-                <div className={`w-12 h-12 bg-gradient-to-br ${'$'}{s.gradient} rounded-2xl flex items-center justify-center mb-4 mt-2 shadow-md group-hover:scale-110 transition-transform`}>
+                <div className={`w-12 h-12 bg-gradient-to-br ${s.gradient} rounded-2xl flex items-center justify-center mb-4 mt-2 shadow-md group-hover:scale-110 transition-transform`}>
                   <s.icon className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-lg font-extrabold text-gray-900 mb-2 tracking-tight">{s.title}</h3>
@@ -595,8 +595,8 @@ export default function HowItWorksSection() {
               { icon: Bell, title: 'Известия в реално време', desc: 'Клиентът и счетоводителят получават мигновени известия за нови документи.', color: 'text-pink-600', bg: 'bg-pink-50' },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-4 bg-white rounded-xl p-4 border border-gray-100 hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 ${'$'}{item.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                  <item.icon className={`w-5 h-5 ${'$'}{item.color}`} />
+                <div className={`w-10 h-10 ${item.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                  <item.icon className={`w-5 h-5 ${item.color}`} />
                 </div>
                 <div>
                   <h4 className="font-bold text-gray-900 mb-1">{item.title}</h4>
