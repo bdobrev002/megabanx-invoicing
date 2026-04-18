@@ -6,6 +6,7 @@ import {
   FileText,
   Bell,
   CreditCard,
+  ClipboardList,
   Home,
   Monitor,
   Camera,
@@ -23,6 +24,7 @@ const dashboardItems = [
   { to: ROUTES.UPLOAD, label: 'Качване', icon: Upload, color: 'text-green-500' },
   { to: ROUTES.FILES, label: 'Фактури', icon: Receipt, color: 'text-orange-500' },
   { to: ROUTES.HISTORY, label: 'История', icon: FileText, color: 'text-blue-500' },
+  { to: ROUTES.INVOICING, label: 'Фактуриране', icon: ClipboardList, color: 'text-teal-500' },
   { to: ROUTES.NOTIFICATIONS, label: 'Известия', icon: Bell, color: 'text-rose-500' },
   { to: ROUTES.BILLING, label: 'Абонамент', icon: CreditCard, color: 'text-purple-500' },
 ]
