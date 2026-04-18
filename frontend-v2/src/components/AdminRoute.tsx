@@ -10,7 +10,12 @@ export default function AdminRoute() {
     return <Navigate to={ROUTES.LOGIN} replace />
   }
 
-  if (user && !user.is_admin) {
+  // Block access while user is still loading (user is null but token exists)
+  if (!user) {
+    return null
+  }
+
+  if (!user.is_admin) {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
 

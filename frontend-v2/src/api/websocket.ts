@@ -13,9 +13,10 @@ function getWsUrl(): string {
 }
 
 export function connectWebSocket() {
-  if (ws?.readyState === WebSocket.OPEN) return
+  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return
 
   ws = new WebSocket(getWsUrl())
+  const currentWs = ws
 
   ws.onmessage = (event) => {
     try {
@@ -29,7 +30,7 @@ export function connectWebSocket() {
     reconnectTimer = setTimeout(connectWebSocket, 3000)
   }
 
-  ws.onerror = () => ws?.close()
+  ws.onerror = () => currentWs.close()
 }
 
 export function disconnectWebSocket() {
