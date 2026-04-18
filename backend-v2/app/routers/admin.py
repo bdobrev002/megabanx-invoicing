@@ -1,6 +1,7 @@
 """Admin router: user management, settings, stats."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,10 +80,14 @@ async def get_admin_settings(
     return {s.key: s.value for s in settings_list}
 
 
+class AdminSettingUpdate(BaseModel):
+    value: str
+
+
 @router.put("/settings/{key}")
 async def set_admin_setting(
     key: str,
-    value: str,
+    req: AdminSettingUpdate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -93,9 +98,9 @@ async def set_admin_setting(
     setting = result.scalar_one_or_none()
 
     if setting:
-        setting.value = value
+        setting.value = req.value
     else:
-        db.add(AdminSettings(key=key, value=value))
+        db.add(AdminSettings(key=key, value=req.value))
 
     await db.flush()
     return {"message": f"Настройка '{key}' е запазена"}

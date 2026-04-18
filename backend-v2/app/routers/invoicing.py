@@ -324,23 +324,38 @@ async def create_issued_invoice(
     # Handle invoice number from stub
     invoice_number = req.invoice_number
     if req.stub_id and not invoice_number:
-        result = await db.execute(select(InvStub).where(InvStub.id == req.stub_id))
+        result = await db.execute(
+            select(InvStub).where(InvStub.id == req.stub_id).with_for_update()
+        )
         stub = result.scalar_one_or_none()
         if stub:
             invoice_number = stub.next_number
             stub.next_number += 1
 
-    # Calculate totals from lines
+    # Calculate line subtotals first
     subtotal = Decimal("0")
-    vat_amount = Decimal("0")
-    lines_to_create = []
+    lines_data = []
 
     for idx, line in enumerate(req.lines):
         line_subtotal = Decimal(str(line.quantity)) * Decimal(str(line.unit_price))
-        line_vat = line_subtotal * Decimal(str(line.vat_rate)) / Decimal("100") if not req.no_vat else Decimal("0")
-        line_total = line_subtotal + line_vat
-
         subtotal += line_subtotal
+        lines_data.append((idx, line, line_subtotal))
+
+    # Apply discount to get discounted base
+    discount_val = Decimal(str(req.discount))
+    if req.discount_type in ("%", "percent"):
+        discount_val = subtotal * discount_val / Decimal("100")
+    discounted_subtotal = subtotal - discount_val
+
+    # Calculate VAT on discounted base
+    vat_amount = Decimal("0")
+    lines_to_create = []
+    discount_ratio = discounted_subtotal / subtotal if subtotal else Decimal("1")
+
+    for idx, line, line_subtotal in lines_data:
+        discounted_line = line_subtotal * discount_ratio
+        line_vat = discounted_line * Decimal(str(line.vat_rate)) / Decimal("100") if not req.no_vat else Decimal("0")
+        line_total = discounted_line + line_vat
         vat_amount += line_vat
 
         lines_to_create.append(InvInvoiceLine(
@@ -356,12 +371,7 @@ async def create_issued_invoice(
             line_total=line_total,
         ))
 
-    # Apply discount
-    discount_val = Decimal(str(req.discount))
-    if req.discount_type in ("%", "percent"):
-        discount_val = subtotal * discount_val / Decimal("100")
-
-    total = subtotal - discount_val + vat_amount
+    total = discounted_subtotal + vat_amount
 
     # Parse dates
     def _parse_date(s: str | None) -> date | None:

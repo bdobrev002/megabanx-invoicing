@@ -66,12 +66,12 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
     # Ensure profile directories on disk
     ensure_profile_dirs(profile_id)
 
-    # Generate and send OTP
+    await db.flush()
+
+    # Generate and send OTP (after DB success)
     code = generate_otp()
     store_otp(email, code)
     send_otp_email(email, code)
-
-    await db.flush()
 
     return {
         "message": "Регистрацията е успешна. Изпратен е код за потвърждение на имейла ви.",
