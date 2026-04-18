@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AuthUser } from '@/types/auth.types'
+import { authApi } from '@/api/auth.api'
 
 interface AuthState {
   user: AuthUser | null
@@ -25,6 +26,7 @@ interface AuthState {
   setAuthCode: (code: string) => void
   setAuthTosAccepted: (accepted: boolean) => void
   setAuthNeedsTos: (needs: boolean) => void
+  fetchUser: () => Promise<void>
   resetAuthForm: () => void
   logout: () => void
 }
@@ -66,7 +68,20 @@ export const useAuthStore = create<AuthState>((set) => ({
       error: null,
       success: null,
     }),
+  fetchUser: async () => {
+    set({ isLoading: true })
+    try {
+      const user = await authApi.me()
+      set({ user, isLoading: false })
+    } catch {
+      // Token expired or invalid — clear auth state
+      localStorage.removeItem('token')
+      set({ user: null, token: null, isLoading: false })
+    }
+  },
   logout: () => {
+    // Invalidate token server-side (fire-and-forget)
+    authApi.logout()
     localStorage.removeItem('token')
     set({
       user: null,

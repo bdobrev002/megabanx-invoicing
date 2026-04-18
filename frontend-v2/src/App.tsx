@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -42,6 +43,7 @@ import BillingOverview from '@/pages/admin/BillingOverview'
 import SystemLogs from '@/pages/admin/SystemLogs'
 import AdminSettings from '@/pages/admin/AdminSettings'
 
+import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import Toast from '@/components/ui/Toast'
 
@@ -55,6 +57,21 @@ const queryClient = new QueryClient({
   },
 })
 
+/** Fetch current user on app start when a token exists but user is not loaded */
+function AuthInitializer() {
+  const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
+  const fetchUser = useAuthStore((s) => s.fetchUser)
+
+  useEffect(() => {
+    if (token && !user) {
+      fetchUser()
+    }
+  }, [token, user, fetchUser])
+
+  return null
+}
+
 export default function App() {
   const error = useUiStore((s) => s.error)
   const success = useUiStore((s) => s.success)
@@ -64,6 +81,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AuthInitializer />
         <Routes>
           {/* ─── Landing (public) ─── */}
           <Route element={<LandingLayout />}>
