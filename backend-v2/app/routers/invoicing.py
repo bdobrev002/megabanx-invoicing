@@ -27,6 +27,12 @@ from app.schemas.invoicing import (
 router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
 
 
+def _verify_ownership(profile_id: str, user: User) -> None:
+    """Verify the authenticated user owns the given profile_id."""
+    if profile_id != user.profile_id:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+
+
 # ──────────────────── Clients ────────────────────
 
 @router.get("/clients")
@@ -37,6 +43,7 @@ async def list_clients(
     db: AsyncSession = Depends(get_db),
 ):
     """List clients for a company."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvClient).where(
             InvClient.company_id == company_id,
@@ -54,6 +61,7 @@ async def create_client(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new client."""
+    _verify_ownership(req.profile_id, user)
     client = InvClient(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -87,6 +95,7 @@ async def update_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Клиентът не е намерен")
+    _verify_ownership(client.profile_id, user)
 
     for field, value in req.model_dump(exclude_unset=True).items():
         setattr(client, field, value)
@@ -107,6 +116,7 @@ async def delete_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Клиентът не е намерен")
+    _verify_ownership(client.profile_id, user)
 
     await db.delete(client)
     return {"message": "Клиентът е изтрит"}
@@ -122,6 +132,7 @@ async def list_items(
     db: AsyncSession = Depends(get_db),
 ):
     """List items for a company."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvItem).where(
             InvItem.company_id == company_id,
@@ -139,6 +150,7 @@ async def create_item(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new item."""
+    _verify_ownership(req.profile_id, user)
     item = InvItem(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -166,6 +178,7 @@ async def update_item(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Артикулът не е намерен")
+    _verify_ownership(item.profile_id, user)
 
     for field, value in req.model_dump(exclude_unset=True).items():
         if field in ("default_price", "vat_rate") and value is not None:
@@ -189,6 +202,7 @@ async def delete_item(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Артикулът не е намерен")
+    _verify_ownership(item.profile_id, user)
 
     await db.delete(item)
     return {"message": "Артикулът е изтрит"}
@@ -204,6 +218,7 @@ async def list_stubs(
     db: AsyncSession = Depends(get_db),
 ):
     """List stubs for a company."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvStub).where(
             InvStub.company_id == company_id,
@@ -221,6 +236,7 @@ async def create_stub(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new stub."""
+    _verify_ownership(req.profile_id, user)
     stub = InvStub(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -247,6 +263,7 @@ async def update_stub(
     stub = result.scalar_one_or_none()
     if not stub:
         raise HTTPException(status_code=404, detail="Кочанът не е намерен")
+    _verify_ownership(stub.profile_id, user)
 
     for field, value in req.model_dump(exclude_unset=True).items():
         setattr(stub, field, value)
@@ -267,6 +284,7 @@ async def delete_stub(
     stub = result.scalar_one_or_none()
     if not stub:
         raise HTTPException(status_code=404, detail="Кочанът не е намерен")
+    _verify_ownership(stub.profile_id, user)
 
     await db.delete(stub)
     return {"message": "Кочанът е изтрит"}
@@ -282,6 +300,7 @@ async def list_issued_invoices(
     db: AsyncSession = Depends(get_db),
 ):
     """List issued invoices for a company."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvInvoiceMeta).where(
             InvInvoiceMeta.company_id == company_id,
@@ -299,6 +318,7 @@ async def create_issued_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new issued invoice with lines."""
+    _verify_ownership(req.profile_id, user)
     invoice_id = str(uuid.uuid4())
 
     # Handle invoice number from stub
@@ -338,7 +358,7 @@ async def create_issued_invoice(
 
     # Apply discount
     discount_val = Decimal(str(req.discount))
-    if req.discount_type == "%":
+    if req.discount_type in ("%", "percent"):
         discount_val = subtotal * discount_val / Decimal("100")
 
     total = subtotal - discount_val + vat_amount
@@ -402,6 +422,7 @@ async def get_issued_invoice(
     meta = result.scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    _verify_ownership(meta.profile_id, user)
 
     result = await db.execute(
         select(InvInvoiceLine)
@@ -442,6 +463,7 @@ async def delete_issued_invoice(
     meta = result.scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    _verify_ownership(meta.profile_id, user)
 
     # Delete lines
     result = await db.execute(
@@ -465,6 +487,7 @@ async def get_company_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Get company invoicing settings."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvCompanySettings).where(
             InvCompanySettings.company_id == company_id,
@@ -486,6 +509,7 @@ async def update_company_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Create or update company invoicing settings."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvCompanySettings).where(
             InvCompanySettings.company_id == company_id,
@@ -523,6 +547,7 @@ async def get_sync_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Get company sync settings."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvSyncSettings).where(
             InvSyncSettings.company_id == company_id,
@@ -544,6 +569,7 @@ async def update_sync_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Create or update company sync settings."""
+    _verify_ownership(profile_id, user)
     result = await db.execute(
         select(InvSyncSettings).where(
             InvSyncSettings.company_id == company_id,

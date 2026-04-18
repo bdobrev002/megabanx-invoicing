@@ -22,7 +22,7 @@ def store_otp(email: str, code: str) -> None:
         "expires": (datetime.now() + timedelta(minutes=10)).isoformat(),
         "attempts": 0,
     }
-    logger.info(f"[OTP] Code for {email}: {code}")
+    logger.info(f"[OTP] Code sent to {email}")
 
 
 def verify_otp(email: str, code: str) -> bool:

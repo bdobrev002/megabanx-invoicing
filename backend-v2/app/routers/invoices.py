@@ -24,6 +24,7 @@ from app.services.gemini import analyze_invoice_with_gemini
 from app.services.file_manager import (
     get_profile_dir, get_inbox_dir, SUPPORTED_EXTENSIONS,
 )
+from app.utils.helpers import sanitize_filename
 
 logger = logging.getLogger("megabanx.invoices")
 
@@ -160,7 +161,7 @@ async def upload_invoice(
     inv_date = analysis.get("date", "")
     inv_number = analysis.get("invoice_number", "")
     inv_issuer = analysis.get("issuer_name", "") if invoice_type == "purchase" else analysis.get("recipient_name", "")
-    new_filename = f"{inv_date}_{inv_number}_{inv_issuer}{ext}" if inv_date else safe_name
+    new_filename = sanitize_filename(f"{inv_date}_{inv_number}_{inv_issuer}") + ext if inv_date else safe_name
 
     # Determine destination path
     dest_subdir = "Фактури покупки" if invoice_type == "purchase" else "Фактури продажби"
