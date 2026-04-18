@@ -17,7 +17,7 @@ export const useUiStore = create<UiState>((set) => ({
   error: null,
   success: null,
   isLoading: false,
-  sidebarOpen: true,
+  sidebarOpen: false,
 
   setError: (error) => set({ error }),
   setSuccess: (success) => set({ success }),

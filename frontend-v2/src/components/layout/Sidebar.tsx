@@ -52,11 +52,6 @@ export default function Sidebar({ variant = 'dashboard' }: SidebarProps) {
 
   return (
     <>
-      {/* Overlay for mobile */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
       <aside
         className={`${
           isLanding
