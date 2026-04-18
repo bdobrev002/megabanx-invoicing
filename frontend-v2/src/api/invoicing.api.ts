@@ -51,6 +51,7 @@ export const invoicingApi = {
     apiFetch<Blob>(`/invoicing/${companyId}/preview`, {
       method: 'POST',
       body: JSON.stringify(data),
+      responseType: 'blob',
     }),
 
   sendEmail: (invoiceId: string, to: string, subject: string, body: string) =>

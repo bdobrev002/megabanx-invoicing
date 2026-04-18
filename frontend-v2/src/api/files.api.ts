@@ -23,7 +23,7 @@ export const filesApi = {
     ),
 
   download: (driveId: string) =>
-    apiFetch<Blob>(`/files/download/${driveId}`),
+    apiFetch<Blob>(`/files/download/${driveId}`, { responseType: 'blob' }),
 
   remove: (driveId: string) =>
     apiFetch<void>(`/files/${driveId}`, { method: 'DELETE' }),

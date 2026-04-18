@@ -35,8 +35,11 @@ export function connectWebSocket() {
 export function disconnectWebSocket() {
   if (reconnectTimer) clearTimeout(reconnectTimer)
   reconnectTimer = null
-  ws?.close()
-  ws = null
+  if (ws) {
+    ws.onclose = null
+    ws.close()
+    ws = null
+  }
 }
 
 export function onWsMessage(handler: MessageHandler) {

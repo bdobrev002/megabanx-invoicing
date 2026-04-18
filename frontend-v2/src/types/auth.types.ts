@@ -3,6 +3,7 @@ export interface AuthUser {
   name: string
   email: string
   profile_id: string
+  is_admin?: boolean
   subscription?: SubscriptionInfo
 }
 

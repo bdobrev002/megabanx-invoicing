@@ -1,18 +1,23 @@
 import { API_BASE_URL } from '@/utils/constants'
 
+interface ApiFetchOptions extends RequestInit {
+  responseType?: 'json' | 'blob'
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiFetchOptions = {},
 ): Promise<T> {
+  const { responseType = 'json', ...fetchOptions } = options
   const token = localStorage.getItem('token')
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
+    ...fetchOptions.headers,
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
   })
 
@@ -22,6 +27,7 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 204) return undefined as T
+  if (responseType === 'blob') return res.blob() as T
   return res.json()
 }
 
