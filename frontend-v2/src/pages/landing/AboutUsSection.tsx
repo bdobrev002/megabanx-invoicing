@@ -4,27 +4,27 @@ import { ROUTES } from '@/utils/constants'
 
 export default function AboutUsSection() {
   return (
-    <section id="about-us" className="bg-gray-50 py-20">
-      <div className="mx-auto max-w-4xl px-4 lg:px-8">
+    <section id="about-us" className="py-16 px-6">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-4">
-            <Users2 className="w-4 h-4" /> Кои сме ние
+            <Users2 className="w-4 h-4" /> За нас
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-3">Кои сме ние</h2>
           <p className="text-gray-500">Историята зад MegaBanx</p>
         </div>
 
-        <div className="space-y-6 mb-10">
-          <div className="flex items-start gap-4">
+        <div className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 rounded-3xl p-8 md:p-12 mb-10">
+          <div className="flex items-start gap-4 mb-6">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Как се роди идеята</h3>
-              <p className="text-gray-600 leading-relaxed">MegaBanx се роди от реален проблем — хаосът с фактурите в малкия бизнес. Всеки месец — десетки фактури, ръчно сортиране, имейли напред-назад със счетоводителя. Решихме да автоматизираме целия процес с помощта на AI.</p>
+              <p className="text-gray-600 leading-relaxed">Като собственици на малък бизнес, ежедневно се сблъсквахме с хаос от фактури — десетки PDF файлове разпръснати в имейли, папки и чатове. Изпращането на фактури до клиенти и контрагенти отнемаше часове, а намирането на стара фактура беше като търсене на игла в купа сено.</p>
             </div>
           </div>
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 mb-6">
             <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center flex-shrink-0">
               <Brain className="w-6 h-6 text-white" />
             </div>
