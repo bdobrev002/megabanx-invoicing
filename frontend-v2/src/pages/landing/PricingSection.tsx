@@ -7,32 +7,39 @@ import { apiFetch } from '@/api/client'
 interface BillingPlan {
   id: string
   name: string
-  description: string
-  price_monthly: number
-  price_yearly: number
+  price: number
   currency: string
+  interval: string | null
   max_companies: number
   max_invoices: number
   features: string[]
-  is_popular?: boolean
-  is_contact_us?: boolean
+  popular?: boolean
+  contact_us?: boolean
+  promo?: string
+  trial_days?: number
 }
+
+interface PlansResponse {
+  plans: BillingPlan[]
+}
+
+const FALLBACK_PLANS: BillingPlan[] = [
+  { id: 'free', name: 'Безплатен', price: 0, currency: 'EUR', interval: null, max_companies: 1, max_invoices: 10, features: ['1 фирма', 'До 10 фактури/мес', 'AI обработка', 'Имейл известия'] },
+  { id: 'starter', name: 'Стартов', price: 29.99, currency: 'EUR', interval: 'month', max_companies: 3, max_invoices: 50, promo: '3 месеца БЕЗПЛАТНО', features: ['До 3 фирми', 'До 50 фактури/мес', 'AI обработка', 'Сваляне на фактури'] },
+  { id: 'business', name: 'Бизнес', price: 99.99, currency: 'EUR', interval: 'month', max_companies: 5, max_invoices: 3500, popular: true, features: ['До 5 фирми', 'До 3 500 фактури/мес', 'AI обработка', 'Приоритетна поддръжка'] },
+]
 
 export default function PricingSection() {
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiFetch<BillingPlan[]>('/billing/plans')
-      .then(setPlans)
-      .catch(() => {
-        // Fallback static plans if API fails
-        setPlans([
-          { id: 'free', name: 'Безплатен', description: 'За индивидуални потребители', price_monthly: 0, price_yearly: 0, currency: 'BGN', max_companies: 3, max_invoices: 50, features: ['До 3 фирми', 'До 50 фактури/месец', 'AI обработка', 'Автоматично споделяне'] },
-          { id: 'pro', name: 'Професионален', description: 'За малки и средни фирми', price_monthly: 29.99, price_yearly: 299.99, currency: 'BGN', max_companies: 10, max_invoices: 500, features: ['До 10 фирми', 'До 500 фактури/месец', 'Всичко от Безплатен', 'Издаване на фактури', 'Приоритетна поддръжка'], is_popular: true },
-          { id: 'business', name: 'Бизнес', description: 'За големи компании', price_monthly: 0, price_yearly: 0, currency: 'BGN', max_companies: 999999, max_invoices: 999999, features: ['Неограничени фирми', 'Неограничени фактури', 'Всичко от Професионален', 'API достъп', 'Персонален мениджър'], is_contact_us: true },
-        ])
+    apiFetch<PlansResponse>('/billing/plans')
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.plans
+        setPlans(Array.isArray(list) ? list : FALLBACK_PLANS)
       })
+      .catch(() => setPlans(FALLBACK_PLANS))
       .finally(() => setLoading(false))
   }, [])
 
@@ -52,17 +59,17 @@ export default function PricingSection() {
             <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
           </div>
         ) : (
-          <div className="grid gap-8 md:grid-cols-3">
+          <div className="grid gap-8 md:grid-cols-3 lg:grid-cols-3">
             {plans.map((plan) => (
               <div
                 key={plan.id}
                 className={`rounded-2xl bg-white p-8 relative ${
-                  plan.is_popular
+                  plan.popular
                     ? 'border-2 border-indigo-600 ring-4 ring-indigo-100 shadow-xl'
                     : 'border border-gray-200 shadow-sm'
                 }`}
               >
-                {plan.is_popular && (
+                {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-4 py-1 text-xs font-bold text-white shadow-lg">
                       <Star className="w-3 h-3" /> Най-популярен
@@ -71,19 +78,21 @@ export default function PricingSection() {
                 )}
 
                 <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">{plan.description}</p>
+                {plan.promo && (
+                  <span className="inline-block mt-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{plan.promo}</span>
+                )}
 
                 <div className="mt-6">
-                  {plan.is_contact_us ? (
+                  {plan.contact_us ? (
                     <div className="text-2xl font-bold text-gray-900">По запитване</div>
-                  ) : plan.price_monthly === 0 ? (
+                  ) : plan.price === 0 ? (
                     <div>
                       <span className="text-4xl font-extrabold text-gray-900">Безплатно</span>
                     </div>
                   ) : (
                     <div>
-                      <span className="text-4xl font-extrabold text-gray-900">{plan.price_monthly.toFixed(2)}</span>
-                      <span className="text-gray-500 ml-1">лв/мес</span>
+                      <span className="text-4xl font-extrabold text-gray-900">{plan.price.toFixed(2)}</span>
+                      <span className="text-gray-500 ml-1">{plan.currency}/{plan.interval === 'month' ? 'мес' : 'год'}</span>
                     </div>
                   )}
                 </div>
@@ -96,7 +105,7 @@ export default function PricingSection() {
                   ))}
                 </ul>
 
-                {plan.is_contact_us ? (
+                {plan.contact_us ? (
                   <Link
                     to={ROUTES.CONTACT}
                     className="mt-8 flex items-center justify-center gap-2 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
@@ -107,12 +116,12 @@ export default function PricingSection() {
                   <Link
                     to={ROUTES.REGISTER}
                     className={`mt-8 block rounded-xl py-3 text-center text-sm font-semibold transition ${
-                      plan.is_popular
+                      plan.popular
                         ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200'
                         : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    {plan.price_monthly === 0 ? 'Започни безплатно' : 'Избери план'}
+                    {plan.price === 0 ? 'Започни безплатно' : 'Избери план'}
                   </Link>
                 )}
               </div>
