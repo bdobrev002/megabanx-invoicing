@@ -47,7 +47,7 @@ async def list_shares(
             "company_id": s.company_id,
             "shared_with_email": s.shared_with_email,
             "shared_with_user_id": s.shared_with_user_id,
-            "shared_by_user_id": s.shared_by_user_id,
+            "owner_user_id": s.owner_user_id,
             "can_upload": s.can_upload,
             "created_at": s.created_at.isoformat(),
         }
@@ -102,7 +102,9 @@ async def share_company(
         owner_profile_id=profile_id,
         shared_with_email=target_email,
         shared_with_user_id=target_user.id if target_user else "",
-        shared_by_user_id=user.id,
+        owner_user_id=user.id,
+        company_name=company.name,
+        company_eik=company.eik,
         can_upload=req.can_upload,
     )
     db.add(share)
@@ -111,11 +113,12 @@ async def share_company(
     if target_user:
         # Existing user — send notification
         db.add(Notification(
-            user_id=target_user.id,
+            profile_id=target_user.profile_id,
             type="company_shared",
             title="Нова споделена фирма",
             message=f"{user.name} сподели фирма {company.name} с вас.",
-            data=f'{{"company_id": "{company_id}", "share_id": "{share.id}"}}',
+            filename="",
+            source="sharing",
         ))
         send_share_notification_email(target_email, user.name, company.name)
     else:

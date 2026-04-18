@@ -32,12 +32,12 @@ async def get_billing(
         }
 
     now = datetime.utcnow()
-    month_key = f"{now.year}-{now.month:02d}"
 
     result = await db.execute(
         select(InvoiceMonthlyUsage).where(
             InvoiceMonthlyUsage.user_id == user.id,
-            InvoiceMonthlyUsage.month == month_key,
+            InvoiceMonthlyUsage.year == now.year,
+            InvoiceMonthlyUsage.month == now.month,
         )
     )
     usage = result.scalar_one_or_none()

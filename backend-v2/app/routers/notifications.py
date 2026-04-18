@@ -20,8 +20,8 @@ async def get_notifications(
     """Get all notifications for the current user."""
     result = await db.execute(
         select(Notification)
-        .where(Notification.user_id == user.id)
-        .order_by(Notification.created_at.desc())
+        .where(Notification.profile_id == user.profile_id)
+        .order_by(Notification.timestamp.desc())
     )
     notifications = result.scalars().all()
     return [
@@ -30,9 +30,10 @@ async def get_notifications(
             "type": n.type,
             "title": n.title,
             "message": n.message,
-            "data": n.data,
-            "is_read": n.is_read,
-            "created_at": n.created_at.isoformat(),
+            "filename": n.filename,
+            "source": n.source,
+            "is_read": n.read,
+            "created_at": n.timestamp.isoformat(),
         }
         for n in notifications
     ]
@@ -46,8 +47,8 @@ async def get_unread_count(
     """Get count of unread notifications."""
     result = await db.execute(
         select(Notification).where(
-            Notification.user_id == user.id,
-            Notification.is_read == False,
+            Notification.profile_id == user.profile_id,
+            Notification.read == False,
         )
     )
     notifications = result.scalars().all()
@@ -64,14 +65,14 @@ async def mark_read(
     result = await db.execute(
         select(Notification).where(
             Notification.id == notification_id,
-            Notification.user_id == user.id,
+            Notification.profile_id == user.profile_id,
         )
     )
     notification = result.scalar_one_or_none()
     if not notification:
         raise HTTPException(status_code=404, detail="Известието не е намерено")
 
-    notification.is_read = True
+    notification.read = True
     await db.flush()
     return {"message": "Маркирано като прочетено"}
 
@@ -84,8 +85,8 @@ async def mark_all_read(
     """Mark all notifications as read."""
     await db.execute(
         update(Notification)
-        .where(Notification.user_id == user.id, Notification.is_read == False)
-        .values(is_read=True)
+        .where(Notification.profile_id == user.profile_id, Notification.read == False)
+        .values(read=True)
     )
     return {"message": "Всички известия са маркирани като прочетени"}
 
@@ -100,7 +101,7 @@ async def delete_notification(
     result = await db.execute(
         select(Notification).where(
             Notification.id == notification_id,
-            Notification.user_id == user.id,
+            Notification.profile_id == user.profile_id,
         )
     )
     notification = result.scalar_one_or_none()

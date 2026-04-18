@@ -1,6 +1,5 @@
 """Auth service: OTP generation, session management."""
 
-import random
 import secrets
 import logging
 from datetime import datetime, timedelta
@@ -13,7 +12,7 @@ OTP_STORE: dict[str, dict] = {}
 
 def generate_otp() -> str:
     """Generate a 6-digit OTP code."""
-    return "{:06d}".format(random.randint(0, 999999))
+    return "{:06d}".format(secrets.randbelow(1000000))
 
 
 def store_otp(email: str, code: str) -> None:

@@ -48,12 +48,12 @@ async def _check_billing_limit(user_id: str, db: AsyncSession) -> None:
         return
 
     now = datetime.utcnow()
-    month_key = f"{now.year}-{now.month:02d}"
 
     result = await db.execute(
         select(InvoiceMonthlyUsage).where(
             InvoiceMonthlyUsage.user_id == user_id,
-            InvoiceMonthlyUsage.month == month_key,
+            InvoiceMonthlyUsage.year == now.year,
+            InvoiceMonthlyUsage.month == now.month,
         )
     )
     usage = result.scalar_one_or_none()
@@ -69,19 +69,19 @@ async def _check_billing_limit(user_id: str, db: AsyncSession) -> None:
 async def _increment_usage(user_id: str, db: AsyncSession) -> None:
     """Increment monthly invoice usage counter."""
     now = datetime.utcnow()
-    month_key = f"{now.year}-{now.month:02d}"
 
     result = await db.execute(
         select(InvoiceMonthlyUsage).where(
             InvoiceMonthlyUsage.user_id == user_id,
-            InvoiceMonthlyUsage.month == month_key,
+            InvoiceMonthlyUsage.year == now.year,
+            InvoiceMonthlyUsage.month == now.month,
         )
     )
     usage = result.scalar_one_or_none()
     if usage:
         usage.count += 1
     else:
-        db.add(InvoiceMonthlyUsage(user_id=user_id, month=month_key, count=1))
+        db.add(InvoiceMonthlyUsage(user_id=user_id, year=now.year, month=now.month, count=1))
 
 
 @router.post("/upload")
@@ -206,11 +206,12 @@ async def upload_invoice(
     # Notify if unmatched
     if not matched_company_id:
         db.add(Notification(
-            user_id=user.id,
+            profile_id=profile_id,
             type="unmatched_invoice",
             title="Несъответстваща фактура",
             message=f"Фактура {file.filename} не може да бъде съпоставена с фирма.",
-            data=f'{{"invoice_id": "{invoice.id}"}}',
+            filename=file.filename,
+            source="upload",
         ))
 
     await db.flush()
