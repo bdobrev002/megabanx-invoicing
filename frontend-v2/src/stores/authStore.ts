@@ -1,24 +1,46 @@
 import { create } from 'zustand'
-import type { AuthUser, AuthScreen } from '@/types/auth.types'
+import type { AuthUser } from '@/types/auth.types'
 
 interface AuthState {
   user: AuthUser | null
   token: string | null
-  authScreen: AuthScreen
   isLoading: boolean
+  error: string | null
+  success: string | null
+
+  // Form state shared across auth screens
+  authEmail: string
+  authName: string
+  authCode: string
+  authTosAccepted: boolean
+  authNeedsTos: boolean
 
   setUser: (user: AuthUser | null) => void
   setToken: (token: string | null) => void
-  setAuthScreen: (screen: AuthScreen) => void
   setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
+  setSuccess: (success: string | null) => void
+  setAuthEmail: (email: string) => void
+  setAuthName: (name: string) => void
+  setAuthCode: (code: string) => void
+  setAuthTosAccepted: (accepted: boolean) => void
+  setAuthNeedsTos: (needs: boolean) => void
+  resetAuthForm: () => void
   logout: () => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem('token'),
-  authScreen: 'login',
   isLoading: false,
+  error: null,
+  success: null,
+
+  authEmail: '',
+  authName: '',
+  authCode: '',
+  authTosAccepted: false,
+  authNeedsTos: false,
 
   setUser: (user) => set({ user }),
   setToken: (token) => {
@@ -26,10 +48,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     else localStorage.removeItem('token')
     set({ token })
   },
-  setAuthScreen: (authScreen) => set({ authScreen }),
   setLoading: (isLoading) => set({ isLoading }),
+  setError: (error) => set({ error }),
+  setSuccess: (success) => set({ success }),
+  setAuthEmail: (authEmail) => set({ authEmail }),
+  setAuthName: (authName) => set({ authName }),
+  setAuthCode: (authCode) => set({ authCode }),
+  setAuthTosAccepted: (authTosAccepted) => set({ authTosAccepted }),
+  setAuthNeedsTos: (authNeedsTos) => set({ authNeedsTos }),
+  resetAuthForm: () =>
+    set({
+      authEmail: '',
+      authName: '',
+      authCode: '',
+      authTosAccepted: false,
+      authNeedsTos: false,
+      error: null,
+      success: null,
+    }),
   logout: () => {
     localStorage.removeItem('token')
-    set({ user: null, token: null, authScreen: 'login' })
+    set({
+      user: null,
+      token: null,
+      authEmail: '',
+      authName: '',
+      authCode: '',
+      authTosAccepted: false,
+      authNeedsTos: false,
+      error: null,
+      success: null,
+    })
   },
 }))

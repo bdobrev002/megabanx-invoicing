@@ -21,4 +21,4 @@ export interface SubscriptionInfo {
   stripe_customer_id?: string
 }
 
-export type AuthScreen = 'login' | 'register' | 'verify'
+export type AuthScreen = 'login' | 'register' | 'verify' | 'landing'

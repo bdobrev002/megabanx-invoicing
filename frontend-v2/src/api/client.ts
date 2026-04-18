@@ -41,11 +41,18 @@ export class ApiError extends Error {
   }
 }
 
-export function uploadFetch(path: string, formData: FormData) {
+export async function uploadFetch(path: string, formData: FormData) {
   const token = localStorage.getItem('token')
-  return fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body.detail ?? res.statusText)
+  }
+
+  return res
 }
