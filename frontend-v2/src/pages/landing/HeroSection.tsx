@@ -62,12 +62,12 @@ export default function HeroSection() {
             >
               Започнете безплатно <ArrowRight className="w-5 h-5" />
             </Link>
-            <a
-              href="#how"
+            <Link
+              to={ROUTES.HOW}
               className="px-8 py-3 border-2 border-gray-200 text-gray-700 font-semibold rounded-xl hover:border-indigo-300 hover:text-indigo-600 transition"
             >
               Как работи?
-            </a>
+            </Link>
           </div>
           <p className="text-sm text-gray-400 mt-4">Безплатен план — без кредитна карта</p>
         </div>
