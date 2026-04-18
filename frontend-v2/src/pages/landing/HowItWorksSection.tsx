@@ -546,62 +546,47 @@ export default function HowItWorksSection() {
           `}</style>
         </div>
 
-        {/* 3 Quick Steps */}
-        <div className="mb-14">
+        {/* 3 Quick Steps — matching original centered layout */}
+        <div className="mb-10">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 rounded-full px-4 py-1.5 mb-3">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm font-bold tracking-wide">3 лесни стъпки</span>
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Започнете за минути</h2>
-            <p className="text-gray-500 mt-2">Без кредитна карта. Безплатен план завинаги.</p>
+            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Започнете за 3 минути</h2>
+            <p className="text-gray-500 mt-1">Три прости стъпки до пълен контрол</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { step: 1, title: 'Регистрация', desc: 'Създайте акаунт с имейл и парола. Готово за 30 секунди.', icon: Building2, gradient: 'from-blue-500 to-indigo-600' },
-              { step: 2, title: 'Качете фактури', desc: 'Drag & Drop или издайте директно. AI разпознава всичко автоматично.', icon: Upload, gradient: 'from-purple-500 to-pink-500' },
-              { step: 3, title: 'Готово!', desc: 'Клиентите получават известия. Счетоводителят сваля подредени документи.', icon: Check, gradient: 'from-emerald-500 to-green-500' },
-            ].map((s) => (
-              <div key={s.step} className="relative bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-shadow group">
-                <div className={`absolute -top-4 left-6 w-9 h-9 bg-gradient-to-br ${s.gradient} rounded-xl flex items-center justify-center shadow-lg text-white font-black text-sm`}>
-                  {s.step}
+              { step: '1', title: 'Регистрирайте фирма', desc: 'Въведете ЕИК номера и данните се зареждат автоматично от Търговския регистър. Добавете колкото фирми желаете.', icon: Building2 },
+              { step: '2', title: 'Качете фактури', desc: 'Drag & drop или изберете файлове — PDF, JPG, PNG, ZIP. Качете десетки фактури наведнъж. AI ги анализира за секунди.', icon: Upload },
+              { step: '3', title: 'Готово!', desc: 'Фактурите са разпознати, сортирани по фирми и типове, и споделени с контрагентите ви. Свалете ги по всяко време.', icon: Check },
+            ].map((s, i) => (
+              <div key={i} className="text-center">
+                <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
+                  <s.icon className="w-8 h-8 text-white" />
                 </div>
-                <div className={`w-12 h-12 bg-gradient-to-br ${s.gradient} rounded-2xl flex items-center justify-center mb-4 mt-2 shadow-md group-hover:scale-110 transition-transform`}>
-                  <s.icon className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-lg font-extrabold text-gray-900 mb-2 tracking-tight">{s.title}</h3>
+                <div className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full text-sm font-bold mb-3">Стъпка {s.step}</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{s.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* What you get */}
-        <div className="mb-6">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 rounded-full px-4 py-1.5 mb-3">
-              <Check className="w-4 h-4" />
-              <span className="text-sm font-bold tracking-wide">Какво получавате</span>
-            </div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Всичко, от което се нуждаете</h2>
-          </div>
+        {/* What you get — matching original indigo gradient bg */}
+        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-8">
+          <h3 className="text-xl font-extrabold text-gray-900 mb-4 text-center tracking-tight">Какво получавате?</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
-              { icon: ScanLine, title: 'AI разпознаване', desc: 'Автоматично извличане на данни от PDF фактури — дата, номер, сума, ДДС.', color: 'text-purple-600', bg: 'bg-purple-50' },
-              { icon: ArrowLeftRight, title: 'Автоматичен обмен', desc: 'Фактурите стигат мигновено до клиента и неговия счетоводител.', color: 'text-blue-600', bg: 'bg-blue-50' },
-              { icon: FolderSync, title: 'Сортирани папки', desc: 'Покупки и Продажби — всяка фактура е на своето място. Без допълнителна работа.', color: 'text-green-600', bg: 'bg-green-50' },
-              { icon: Download, title: 'Групово теглене', desc: 'Счетоводителят сваля всичко с един клик — в края на месеца или седмицата.', color: 'text-amber-600', bg: 'bg-amber-50' },
-              { icon: BarChart3, title: 'Статистика и история', desc: 'Пълна история на всяка фактура — кога е издадена, кога е получена, кога е свалена.', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-              { icon: Bell, title: 'Известия в реално време', desc: 'Клиентът и счетоводителят получават мигновени известия за нови документи.', color: 'text-pink-600', bg: 'bg-pink-50' },
+              { icon: Brain, text: 'AI разпознаване на дата, номер, издател, получател и суми от фактурите' },
+              { icon: FolderSync, text: 'Автоматична организация по фирми и тип — покупки и продажби' },
+              { icon: ArrowLeftRight, text: 'Споделяне с контрагенти — те получават известие и одобряват' },
+              { icon: Download, text: 'Сваляне на фактури поотделно или групово с един клик' },
+              { icon: Bell, text: 'Мигновени WebSocket известия + имейл нотификации за всяко събитие' },
+              { icon: BarChart3, text: 'Пълна история и филтриране по всички полета' },
             ].map((item, i) => (
-              <div key={i} className="flex items-start gap-4 bg-white rounded-xl p-4 border border-gray-100 hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 ${item.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                  <item.icon className={`w-5 h-5 ${item.color}`} />
+              <div key={i} className="flex items-start gap-3 bg-white rounded-xl p-3">
+                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <item.icon className="w-4 h-4 text-indigo-600" />
                 </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">{item.title}</h4>
-                  <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
-                </div>
+                <p className="text-sm text-gray-700">{item.text}</p>
               </div>
             ))}
           </div>

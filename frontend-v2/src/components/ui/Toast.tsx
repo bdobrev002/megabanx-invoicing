@@ -15,7 +15,7 @@ export default function Toast({ message, type, onClose, duration = 5000 }: Toast
   useEffect(() => {
     const timer = setTimeout(() => onCloseRef.current(), duration)
     return () => clearTimeout(timer)
-  }, [duration])
+  }, [duration, message])
 
   const Icon = type === 'success' ? CheckCircle : AlertCircle
   const bg = type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
