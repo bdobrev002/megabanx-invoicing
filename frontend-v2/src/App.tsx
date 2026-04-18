@@ -83,7 +83,10 @@ export default function App() {
       <BrowserRouter>
         <AuthInitializer />
         <Routes>
-          {/* ─── Landing (public) ─── */}
+          {/* ─── Landing (public) ───
+              ВАЖНО: Всяко меню от сайдбара = ОТДЕЛЕН route = ОТДЕЛНА секция.
+              НЕ слагайте всички секции в LandingPage! Вижте LandingPage.tsx за детайли.
+              Sidebar навигацията е в Sidebar.tsx (landingItems масива). */}
           <Route element={<LandingLayout />}>
             <Route index element={<LandingPage />} />
             <Route path="how" element={<HowItWorksSection />} />
