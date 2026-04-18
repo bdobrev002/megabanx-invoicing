@@ -19,10 +19,10 @@ export default function PricingSection() {
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`rounded-2xl border bg-white p-8 ${plan.popular ? 'border-blue-600 ring-2 ring-blue-600' : 'border-gray-200'}`}
+              className={`rounded-2xl border bg-white p-8 ${plan.popular ? 'border-indigo-600 ring-2 ring-indigo-600' : 'border-gray-200'}`}
             >
               {plan.popular && (
-                <span className="mb-4 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                <span className="mb-4 inline-block rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                   Най-популярен
                 </span>
               )}
@@ -34,7 +34,7 @@ export default function PricingSection() {
               <ul className="mt-6 space-y-3">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                    <span className="text-blue-600">&#10003;</span> {f}
+                    <span className="text-indigo-600">&#10003;</span> {f}
                   </li>
                 ))}
               </ul>
@@ -42,7 +42,7 @@ export default function PricingSection() {
                 to={ROUTES.REGISTER}
                 className={`mt-8 block rounded-lg py-3 text-center text-sm font-semibold ${
                   plan.popular
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                     : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
                 }`}
               >

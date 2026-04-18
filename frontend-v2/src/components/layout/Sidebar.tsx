@@ -2,91 +2,116 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Building2,
   Upload,
-  FolderOpen,
-  History,
+  Receipt,
+  FileText,
   Bell,
   CreditCard,
-  FileText,
-  LogOut,
+  Home,
+  Monitor,
+  Camera,
+  Shield,
+  HelpCircle,
+  Users2,
+  MessageSquare,
   X,
 } from 'lucide-react'
-import LogoIcon from '@/components/branding/LogoIcon'
 import { useUiStore } from '@/stores/uiStore'
-import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/utils/constants'
 
-const navItems = [
-  { to: ROUTES.COMPANIES, label: 'Фирми', icon: Building2 },
-  { to: ROUTES.UPLOAD, label: 'Качване', icon: Upload },
-  { to: ROUTES.FILES, label: 'Файлове', icon: FolderOpen },
-  { to: ROUTES.HISTORY, label: 'История', icon: History },
-  { to: ROUTES.INVOICING, label: 'Фактуриране', icon: FileText },
-  { to: ROUTES.NOTIFICATIONS, label: 'Известия', icon: Bell },
-  { to: ROUTES.BILLING, label: 'Абонамент', icon: CreditCard },
+const dashboardItems = [
+  { to: ROUTES.COMPANIES, label: 'Фирми', icon: Building2, color: 'text-indigo-500' },
+  { to: ROUTES.UPLOAD, label: 'Качване', icon: Upload, color: 'text-green-500' },
+  { to: ROUTES.FILES, label: 'Фактури', icon: Receipt, color: 'text-orange-500' },
+  { to: ROUTES.HISTORY, label: 'История', icon: FileText, color: 'text-blue-500' },
+  { to: ROUTES.NOTIFICATIONS, label: 'Известия', icon: Bell, color: 'text-rose-500' },
+  { to: ROUTES.BILLING, label: 'Абонамент', icon: CreditCard, color: 'text-purple-500' },
 ]
 
-export default function Sidebar() {
+const landingItems = [
+  { to: ROUTES.HOME, label: 'За сайта', icon: Home },
+  { to: ROUTES.HOW, label: 'Как работи', icon: Monitor },
+  { to: ROUTES.SCREENSHOTS, label: 'ScreenShots', icon: Camera },
+  { to: ROUTES.SECURITY, label: 'Сигурност', icon: Shield },
+  { to: ROUTES.PRICING, label: 'Планове и цени', icon: CreditCard },
+  { to: ROUTES.FAQ, label: 'Често задавани въпроси', icon: HelpCircle },
+  { to: ROUTES.ABOUT_US, label: 'Кои сме ние', icon: Users2 },
+  { to: ROUTES.CONTACT, label: 'Контакти', icon: MessageSquare },
+]
+
+interface SidebarProps {
+  variant?: 'dashboard' | 'landing'
+}
+
+export default function Sidebar({ variant = 'dashboard' }: SidebarProps) {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen)
   const setSidebarOpen = useUiStore((s) => s.setSidebarOpen)
-  const logout = useAuthStore((s) => s.logout)
   const location = useLocation()
+
+  const items = variant === 'landing' ? landingItems : dashboardItems
+  const isLanding = variant === 'landing'
 
   return (
     <>
       {/* Overlay for mobile */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 bg-white transition-transform lg:static lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`${
+          isLanding
+            ? 'hidden md:block w-64 bg-gray-50 border-r flex-shrink-0 sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto'
+            : 'hidden md:block fixed top-[57px] left-0 w-52 h-[calc(100vh-57px)] bg-gray-50 border-r z-20 overflow-y-auto pt-3'
         }`}
       >
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
-          <div className="flex items-center gap-2">
-            <LogoIcon size={28} />
-            <span className="text-lg font-bold text-gray-900">MegaBanx</span>
-          </div>
-          <button className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 lg:hidden" onClick={() => setSidebarOpen(false)}>
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {navItems.map(({ to, label, icon: Icon }) => {
-            const active = location.pathname === to || location.pathname.startsWith(to + '/')
+        <nav className={`space-y-1 ${isLanding ? 'p-4' : 'px-3'}`}>
+          {items.map(({ to, label, icon: Icon }) => {
+            const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
             return (
               <NavLink
                 key={to}
                 to={to}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                   active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                 }`}
               >
-                <Icon size={20} />
+                <Icon size={16} className="flex-shrink-0" />
                 {label}
               </NavLink>
             )
           })}
         </nav>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-3">
-          <button
-            onClick={logout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-          >
-            <LogOut size={20} />
-            Изход
-          </button>
-        </div>
       </aside>
+
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-20 pt-[49px]" onClick={() => setSidebarOpen(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative w-64 h-full bg-white border-r overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b">
+              <span className="text-sm font-medium text-gray-500">Навигация</span>
+              <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <nav className="space-y-1 p-3">
+              {items.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setSidebarOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                >
+                  <Icon size={16} className="flex-shrink-0" /> {label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
     </>
   )
 }

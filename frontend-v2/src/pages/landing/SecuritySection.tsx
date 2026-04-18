@@ -14,7 +14,7 @@ export default function SecuritySection() {
         <div className="mt-12 grid gap-8 md:grid-cols-3">
           {features.map(({ icon: Icon, title, description }, i) => (
             <div key={i} className="rounded-xl border border-gray-200 bg-white p-6">
-              <Icon size={28} className="text-blue-600" />
+              <Icon size={28} className="text-indigo-600" />
               <h3 className="mt-4 text-lg font-semibold text-gray-900">{title}</h3>
               <p className="mt-2 text-sm text-gray-600">{description}</p>
             </div>

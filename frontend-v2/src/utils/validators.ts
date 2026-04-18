@@ -14,11 +14,11 @@ export function isValidEik(eik: string): boolean {
 
   // For 13-digit EIK, validate 13th digit (positions 8-11 → check digit at 12)
   if (digits.length === 13) {
-    const w13a = [1, 2, 3, 4]
+    const w13a = [2, 7, 3, 5]
     sum = digits.slice(8, 12).reduce((s, d, i) => s + d * w13a[i], 0)
     check = sum % 11
     if (check === 10) {
-      const w13b = [3, 4, 5, 6]
+      const w13b = [4, 9, 5, 7]
       sum = digits.slice(8, 12).reduce((s, d, i) => s + d * w13b[i], 0)
       check = (sum % 11) % 10
     }

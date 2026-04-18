@@ -3,11 +3,11 @@ import { ROUTES } from '@/utils/constants'
 
 export default function HeroSection() {
   return (
-    <section id="hero" className="bg-gradient-to-b from-blue-50 to-white py-20 lg:py-32">
+    <section id="hero" className="bg-gradient-to-br from-indigo-50 via-white to-blue-50 py-20 lg:py-32">
       <div className="mx-auto max-w-7xl px-4 text-center lg:px-8">
         <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
           Електронно фактуриране
-          <span className="block text-blue-600">за българския бизнес</span>
+          <span className="block text-indigo-600">за българския бизнес</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
           Качвайте, обработвайте и организирайте фактурите си автоматично.
@@ -16,13 +16,13 @@ export default function HeroSection() {
         <div className="mt-10 flex items-center justify-center gap-4">
           <Link
             to={ROUTES.REGISTER}
-            className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg hover:bg-blue-700"
+            className="rounded-lg bg-indigo-600 px-8 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 transition"
           >
             Безплатен старт
           </Link>
           <Link
             to={ROUTES.HOW}
-            className="rounded-lg border border-gray-300 px-8 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-8 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
           >
             Как работи
           </Link>
