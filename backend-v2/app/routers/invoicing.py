@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.models.company import Company
 from app.models.invoicing import (
     InvClient, InvItem, InvStub,
     InvCompanySettings, InvInvoiceMeta, InvInvoiceLine, InvSyncSettings,
@@ -33,6 +34,15 @@ def _verify_ownership(profile_id: str, user: User) -> None:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
 
+async def _verify_company_access(company_id: str, profile_id: str, db: AsyncSession) -> None:
+    """Verify that company_id belongs to the given profile."""
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+
+
 # ──────────────────── Clients ────────────────────
 
 @router.get("/clients")
@@ -44,6 +54,7 @@ async def list_clients(
 ):
     """List clients for a company."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvClient).where(
             InvClient.company_id == company_id,
@@ -62,6 +73,7 @@ async def create_client(
 ):
     """Create a new client."""
     _verify_ownership(req.profile_id, user)
+    await _verify_company_access(req.company_id, req.profile_id, db)
     client = InvClient(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -133,6 +145,7 @@ async def list_items(
 ):
     """List items for a company."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvItem).where(
             InvItem.company_id == company_id,
@@ -151,6 +164,7 @@ async def create_item(
 ):
     """Create a new item."""
     _verify_ownership(req.profile_id, user)
+    await _verify_company_access(req.company_id, req.profile_id, db)
     item = InvItem(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -219,6 +233,7 @@ async def list_stubs(
 ):
     """List stubs for a company."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvStub).where(
             InvStub.company_id == company_id,
@@ -237,6 +252,7 @@ async def create_stub(
 ):
     """Create a new stub."""
     _verify_ownership(req.profile_id, user)
+    await _verify_company_access(req.company_id, req.profile_id, db)
     stub = InvStub(
         id=str(uuid.uuid4()),
         company_id=req.company_id,
@@ -301,6 +317,7 @@ async def list_issued_invoices(
 ):
     """List issued invoices for a company."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvInvoiceMeta).where(
             InvInvoiceMeta.company_id == company_id,
@@ -319,6 +336,7 @@ async def create_issued_invoice(
 ):
     """Create a new issued invoice with lines."""
     _verify_ownership(req.profile_id, user)
+    await _verify_company_access(req.company_id, req.profile_id, db)
     invoice_id = str(uuid.uuid4())
 
     # Handle invoice number from stub
@@ -510,6 +528,7 @@ async def get_company_settings(
 ):
     """Get company invoicing settings."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvCompanySettings).where(
             InvCompanySettings.company_id == company_id,
@@ -532,6 +551,7 @@ async def update_company_settings(
 ):
     """Create or update company invoicing settings."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvCompanySettings).where(
             InvCompanySettings.company_id == company_id,
@@ -570,6 +590,7 @@ async def get_sync_settings(
 ):
     """Get company sync settings."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvSyncSettings).where(
             InvSyncSettings.company_id == company_id,
@@ -592,6 +613,7 @@ async def update_sync_settings(
 ):
     """Create or update company sync settings."""
     _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
         select(InvSyncSettings).where(
             InvSyncSettings.company_id == company_id,

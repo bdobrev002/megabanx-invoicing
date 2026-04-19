@@ -1,5 +1,6 @@
 """Google Gemini AI invoice analysis service."""
 
+import asyncio
 import os
 import json
 import logging
@@ -74,12 +75,16 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported file format: {file_ext}")
 
-    try:
-        response = client.models.generate_content(
+    def _sync_generate() -> str:
+        """Run the synchronous Gemini SDK call in a thread."""
+        resp = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=parts,
         )
-        response_text = response.text.strip() if response.text else ""
+        return resp.text.strip() if resp.text else ""
+
+    try:
+        response_text = await asyncio.to_thread(_sync_generate)
 
         # Strip markdown code fences if present
         if response_text.startswith("```"):

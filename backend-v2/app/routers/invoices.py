@@ -314,7 +314,7 @@ async def download_invoice(
     return StreamingResponse(
         iterfile(),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{invoice.new_filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")}"'},
     )
 
 
