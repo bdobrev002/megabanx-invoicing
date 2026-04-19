@@ -109,9 +109,8 @@ async def share_company(
     )
     db.add(share)
 
-    # Send notification/invitation
+    # Add in-app notification for existing users
     if target_user:
-        # Existing user — send notification
         db.add(Notification(
             profile_id=target_user.profile_id,
             type="company_shared",
@@ -120,12 +119,16 @@ async def share_company(
             filename="",
             source="sharing",
         ))
+
+    # Flush DB first so share + notification are persisted before sending email
+    await db.flush()
+
+    # Send email AFTER successful flush to avoid notifying about a failed share
+    if target_user:
         await send_share_notification_email(target_email, user.name, company.name)
     else:
-        # Non-registered user — send invitation
         await send_share_invitation_email(target_email, user.name, company.name)
 
-    await db.flush()
     return {"message": f"Фирмата е споделена с {target_email}", "share_id": share.id}
 
 

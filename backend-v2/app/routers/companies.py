@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.profile import Profile
 from app.models.company import Company
 from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyOut
-from app.services.file_manager import create_company_folders
+from app.services.file_manager import create_company_folders, sanitize_path_component
 from app.services.eik_lookup import lookup_eik as _lookup_eik
 
 router = APIRouter(prefix="/api/profiles/{profile_id}/companies", tags=["companies"])
@@ -54,10 +54,11 @@ async def create_company(
     """Create a new company."""
     await _verify_profile(profile_id, user, db)
 
+    safe_name = sanitize_path_component(req.name.strip())
     company = Company(
         id=str(uuid.uuid4()),
         profile_id=profile_id,
-        name=req.name.strip(),
+        name=safe_name,
         eik=req.eik.strip(),
         vat_number=req.vat_number.strip(),
         address=req.address.strip(),
@@ -70,7 +71,7 @@ async def create_company(
     db.add(company)
 
     # Create company folders on disk
-    create_company_folders(profile_id, req.name.strip())
+    create_company_folders(profile_id, safe_name)
 
     await db.flush()
     return CompanyOut.model_validate(company)
@@ -95,7 +96,11 @@ async def update_company(
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
     for field, value in req.model_dump(exclude_unset=True).items():
-        setattr(company, field, value.strip() if isinstance(value, str) else value)
+        if isinstance(value, str):
+            value = value.strip()
+            if field == "name":
+                value = sanitize_path_component(value)
+        company.__dict__[field] = value
 
     await db.flush()
     return CompanyOut.model_validate(company)

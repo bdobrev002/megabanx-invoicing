@@ -22,7 +22,7 @@ from app.schemas.invoice import InvoiceOut, BatchDownloadRequest
 from app.services.encryption import write_encrypted_file, read_decrypted_file
 from app.services.gemini import analyze_invoice_with_gemini
 from app.services.file_manager import (
-    get_profile_dir, get_inbox_dir, SUPPORTED_EXTENSIONS,
+    get_profile_dir, get_inbox_dir, SUPPORTED_EXTENSIONS, sanitize_path_component,
 )
 from app.utils.helpers import sanitize_filename
 
@@ -155,7 +155,7 @@ async def upload_invoice(
     # Determine destination path
     dest_subdir = "Фактури покупки" if invoice_type == "purchase" else "Фактури продажби"
     if matched_company_name:
-        dest_path = os.path.join(get_profile_dir(profile_id), matched_company_name, dest_subdir, new_filename)
+        dest_path = os.path.join(get_profile_dir(profile_id), sanitize_path_component(matched_company_name), dest_subdir, new_filename)
     else:
         dest_path = os.path.join(inbox_dir, new_filename)
 

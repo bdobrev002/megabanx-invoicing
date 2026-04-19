@@ -329,8 +329,14 @@ async def create_issued_invoice(
         )
         stub = result.scalar_one_or_none()
         if stub:
+            if stub.next_number > stub.end_number:
+                raise HTTPException(status_code=409, detail="Кочанът е изчерпан. Моля, създайте нов кочан.")
             invoice_number = stub.next_number
             stub.next_number += 1
+
+    # Require at least one line
+    if not req.lines:
+        raise HTTPException(status_code=400, detail="Фактурата трябва да съдържа поне един ред.")
 
     # Calculate line subtotals first
     subtotal = Decimal("0")
@@ -345,6 +351,9 @@ async def create_issued_invoice(
     discount_val = Decimal(str(req.discount))
     if req.discount_type in ("%", "percent"):
         discount_val = subtotal * discount_val / Decimal("100")
+    # Ensure discount does not exceed subtotal
+    if discount_val > subtotal:
+        raise HTTPException(status_code=400, detail="Отстъпката не може да надвишава междинната сума.")
     discounted_subtotal = subtotal - discount_val
 
     # Calculate VAT on discounted base
