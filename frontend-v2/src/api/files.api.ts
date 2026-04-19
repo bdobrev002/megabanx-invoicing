@@ -1,43 +1,46 @@
 import { apiFetch, uploadFetch } from './client'
-import type { FolderItem, InvoiceRecord } from '@/types/file.types'
+import type { InvoiceRecord } from '@/types/file.types'
 
+/** Invoice file endpoints — all scoped to profile_id. */
 export const filesApi = {
-  getFolderStructure: () =>
-    apiFetch<FolderItem[]>('/files/folder-structure'),
-
-  upload: (files: File[]) => {
-    const fd = new FormData()
-    files.forEach((f) => fd.append('files', f))
-    return uploadFetch('/files/upload', fd)
-  },
-
-  process: (filenames: string[]) =>
-    apiFetch<{ task_id: string }>('/files/process', {
-      method: 'POST',
-      body: JSON.stringify({ filenames }),
-    }),
-
-  getProcessStatus: (taskId: string) =>
-    apiFetch<{ status: string; results: InvoiceRecord[] }>(
-      `/files/process/${taskId}/status`,
+  getFolderStructure: (profileId: string) =>
+    apiFetch<{ folders: { name: string; subfolders: { name: string; file_count: number }[] }[] }>(
+      `/profiles/${profileId}/folder-structure`,
     ),
 
-  download: (driveId: string) =>
-    apiFetch<Blob>(`/files/download/${driveId}`, { responseType: 'blob' }),
+  upload: (profileId: string, file: File, companyId?: string, invoiceType?: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const params = new URLSearchParams()
+    if (companyId) params.set('company_id', companyId)
+    if (invoiceType) params.set('invoice_type', invoiceType)
+    const qs = params.toString()
+    return uploadFetch(`/profiles/${profileId}/upload${qs ? `?${qs}` : ''}`, fd)
+  },
 
-  remove: (driveId: string) =>
-    apiFetch<void>(`/files/${driveId}`, { method: 'DELETE' }),
+  list: (profileId: string, companyId?: string, invoiceType?: string) => {
+    const params = new URLSearchParams()
+    if (companyId) params.set('company_id', companyId)
+    if (invoiceType) params.set('invoice_type', invoiceType)
+    const qs = params.toString()
+    return apiFetch<InvoiceRecord[]>(
+      `/profiles/${profileId}/invoices${qs ? `?${qs}` : ''}`,
+    )
+  },
 
-  batchDelete: (driveIds: string[]) =>
-    apiFetch<void>('/files/batch-delete', {
-      method: 'POST',
-      body: JSON.stringify({ drive_ids: driveIds }),
+  getById: (profileId: string, invoiceId: string) =>
+    apiFetch<InvoiceRecord>(`/profiles/${profileId}/invoices/${invoiceId}`),
+
+  download: (profileId: string, invoiceId: string) =>
+    apiFetch<Blob>(`/profiles/${profileId}/invoices/${invoiceId}/download`, {
+      responseType: 'blob',
     }),
 
-  getInbox: () => apiFetch<string[]>('/files/inbox'),
-
-  removeFromInbox: (filename: string) =>
-    apiFetch<void>(`/files/inbox/${encodeURIComponent(filename)}`, {
+  remove: (profileId: string, invoiceId: string) =>
+    apiFetch<void>(`/profiles/${profileId}/invoices/${invoiceId}`, {
       method: 'DELETE',
     }),
+
+  getInbox: (profileId: string) =>
+    apiFetch<InvoiceRecord[]>(`/profiles/${profileId}/inbox`),
 }

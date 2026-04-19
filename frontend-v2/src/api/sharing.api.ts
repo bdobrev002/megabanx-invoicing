@@ -1,28 +1,37 @@
 import { apiFetch } from './client'
 import type { CompanyShare, SharedCompanyInfo } from '@/types/company.types'
 
+/** Sharing endpoints — scoped to profile_id + company_id. */
 export const sharingApi = {
-  getShares: (companyId: string) =>
-    apiFetch<CompanyShare[]>(`/sharing/company/${companyId}`),
+  getShares: (profileId: string, companyId: string) =>
+    apiFetch<CompanyShare[]>(
+      `/profiles/${profileId}/companies/${companyId}/shares`,
+    ),
 
-  share: (companyId: string, email: string, canUpload: boolean) =>
-    apiFetch<CompanyShare>('/sharing', {
-      method: 'POST',
-      body: JSON.stringify({ company_id: companyId, email, can_upload: canUpload }),
-    }),
+  share: (profileId: string, companyId: string, email: string, canUpload: boolean) =>
+    apiFetch<CompanyShare>(
+      `/profiles/${profileId}/companies/${companyId}/shares`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, can_upload: canUpload }),
+      },
+    ),
 
-  updatePermission: (shareId: string, canUpload: boolean) =>
-    apiFetch<void>(`/sharing/${shareId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ can_upload: canUpload }),
-    }),
+  updatePermission: (profileId: string, companyId: string, shareId: string, canUpload: boolean) =>
+    apiFetch<void>(
+      `/profiles/${profileId}/companies/${companyId}/shares/${shareId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ can_upload: canUpload }),
+      },
+    ),
 
-  removeShare: (shareId: string) =>
-    apiFetch<void>(`/sharing/${shareId}`, { method: 'DELETE' }),
+  removeShare: (profileId: string, companyId: string, shareId: string) =>
+    apiFetch<void>(
+      `/profiles/${profileId}/companies/${companyId}/shares/${shareId}`,
+      { method: 'DELETE' },
+    ),
 
   getSharedWithMe: () =>
-    apiFetch<SharedCompanyInfo[]>('/sharing/shared-with-me'),
-
-  leaveShared: (shareId: string) =>
-    apiFetch<void>(`/sharing/leave/${shareId}`, { method: 'POST' }),
+    apiFetch<SharedCompanyInfo[]>('/shared-companies'),
 }
