@@ -108,7 +108,7 @@ async def upload_invoice(
     inbox_dir = get_inbox_dir(profile_id)
     os.makedirs(inbox_dir, exist_ok=True)
 
-    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    safe_name = f"{uuid.uuid4().hex[:8]}_{sanitize_path_component(file.filename)}"
     inbox_path = os.path.join(inbox_dir, safe_name)
     write_encrypted_file(inbox_path, content)
 

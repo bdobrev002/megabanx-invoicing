@@ -100,7 +100,7 @@ async def update_company(
             value = value.strip()
             if field == "name":
                 value = sanitize_path_component(value)
-        company.__dict__[field] = value
+        setattr(company, field, value)
 
     await db.flush()
     return CompanyOut.model_validate(company)
