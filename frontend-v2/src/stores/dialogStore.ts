@@ -78,6 +78,15 @@ type DialogStore = DialogState & DialogActions
 // We store the resolve function outside of Zustand to avoid serialization issues
 let currentResolve: ((value: boolean | string | null) => void) | null = null
 
+/** Settle any pending dialog Promise before opening a new one */
+function settlePending() {
+  if (currentResolve) {
+    // Resolve with a "cancelled" value so the awaiting caller unblocks
+    currentResolve(false)
+    currentResolve = null
+  }
+}
+
 const initialState: DialogState = {
   open: false,
   variant: 'alert',
@@ -95,6 +104,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
 
   showConfirm: (opts) =>
     new Promise<boolean>((res) => {
+      settlePending()
       currentResolve = res as (value: boolean | string | null) => void
       set({
         open: true,
@@ -109,6 +119,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
 
   showAlert: (opts) =>
     new Promise<void>((res) => {
+      settlePending()
       currentResolve = (() => res()) as unknown as (value: boolean | string | null) => void
       set({
         open: true,
@@ -122,6 +133,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
 
   showPrompt: (opts) =>
     new Promise<string | null>((res) => {
+      settlePending()
       currentResolve = res as (value: boolean | string | null) => void
       set({
         open: true,
@@ -138,6 +150,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
 
   showError: (opts) =>
     new Promise<void>((res) => {
+      settlePending()
       currentResolve = (() => res()) as unknown as (value: boolean | string | null) => void
       set({
         open: true,
@@ -151,6 +164,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
 
   showSuccess: (opts) =>
     new Promise<void>((res) => {
+      settlePending()
       currentResolve = (() => res()) as unknown as (value: boolean | string | null) => void
       set({
         open: true,
@@ -163,7 +177,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
     }),
 
   showLoading: (opts) => {
-    currentResolve = null
+    settlePending()
     set({
       open: true,
       variant: 'loading',
@@ -184,7 +198,7 @@ export const useDialogStore = create<DialogStore>((set) => ({
   setPromptValue: (value) => set({ promptValue: value }),
 
   close: () => {
-    currentResolve = null
+    settlePending()
     set({ ...initialState })
   },
 }))
