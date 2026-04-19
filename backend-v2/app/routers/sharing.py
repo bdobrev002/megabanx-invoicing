@@ -145,6 +145,13 @@ async def update_share(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
+    # Verify company ownership
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+
     result = await db.execute(
         select(CompanyShare).where(
             CompanyShare.id == share_id,
@@ -171,6 +178,13 @@ async def revoke_share(
     """Revoke a company share."""
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
+
+    # Verify company ownership
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
     result = await db.execute(
         select(CompanyShare).where(

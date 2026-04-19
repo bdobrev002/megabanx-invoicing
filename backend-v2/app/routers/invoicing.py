@@ -325,7 +325,10 @@ async def create_issued_invoice(
     invoice_number = req.invoice_number
     if req.stub_id and not invoice_number:
         result = await db.execute(
-            select(InvStub).where(InvStub.id == req.stub_id).with_for_update()
+            select(InvStub).where(
+                InvStub.id == req.stub_id,
+                InvStub.profile_id == req.profile_id,
+            ).with_for_update()
         )
         stub = result.scalar_one_or_none()
         if stub:
