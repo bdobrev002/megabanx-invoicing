@@ -34,18 +34,35 @@
 | Zod | — | Runtime validation |
 | Lucide React | — | Иконки |
 
-### Backend (без промени)
+### Backend v1 (текущ production)
 
 | Технология | Роля |
 |-----------|------|
 | Python | Backend runtime |
 | FastAPI | Web framework + REST API |
-| PostgreSQL | Релационна база данни |
+| PostgreSQL | Релационна база данни (2 отделни бази) |
 | Stripe | Плащания и абонаменти |
 | Google Drive API | Съхранение на файлове |
 | OpenAI API | AI разпознаване на фактури |
 | WebSocket | Real-time известия |
 | Nginx | Reverse proxy |
+
+### Backend v2 (нов — в PR #5)
+
+| Технология | Версия | Роля |
+|-----------|--------|------|
+| Python | 3.11+ | Backend runtime |
+| FastAPI | 0.115+ | Web framework + REST API |
+| SQLAlchemy | 2.0 | Async ORM (mapped_column синтаксис) |
+| asyncpg | — | PostgreSQL async драйвер |
+| PostgreSQL | 16 | Единна база `megabanx_v2` (25 таблици) |
+| Pydantic | v2 | Request/Response валидация |
+| Alembic | — | Database миграции |
+| Stripe | — | Плащания и абонаменти |
+| Google Gemini | — | AI разпознаване на фактури |
+| Google Drive API | — | Съхранение на файлове |
+| SMTP (Gmail) | — | Email известия |
+| Nginx | — | Reverse proxy |
 
 ---
 
@@ -126,6 +143,7 @@ users ──1:1──> subscriptions ──1:N──> payments
 | **Фаза 4 — Dashboard** | Предстои | Company CRUD, Upload + AI, Files browser, History, Notifications, Billing |
 | **Фаза 5 — Фактуриране** | Предстои | Invoice form (5 doc types), Clients, Items, Stubs, Settings, Sync, PDF |
 | **Фаза 6 — Admin панел** | Предстои | Users, Companies, Verifications, Billing, Logs, Settings |
+| **Backend v2 — Скелет** | ✅ Готов (PR #5) | 25 модела, 10 рутера, 6 сервиса, 46 бъга поправени |
 
 ---
 
@@ -265,7 +283,9 @@ frontend-v2/src/
 
 ## 6. Backend API структура
 
-Backend-ът (Python/FastAPI) предоставя ~72 endpoint функции, организирани в 18 групи:
+### 6.1 Backend v1 API (текущ — порт 8004)
+
+Backend v1 предоставя ~72 endpoint функции, организирани в 18 групи:
 
 | # | Група | Endpoints | Описание |
 |---|-------|-----------|----------|
@@ -288,7 +308,77 @@ Backend-ът (Python/FastAPI) предоставя ~72 endpoint функции, 
 | 17 | WebSocket | 1 | ws?token=... (real-time notifications) |
 | 18 | Invoicing Module | 18 | clients CRUD, items CRUD, invoices CRUD, stubs CRUD, settings, sync, email |
 
-**Общо: ~72 endpoint функции**
+**Общо v1: ~72 endpoint функции**
+
+### 6.2 Backend v2 API (нов — в разработка)
+
+**Архитектура**: Async-first, единна PostgreSQL база `megabanx_v2` (25 таблици), SQLAlchemy 2.0 ORM.
+
+**Файлова структура**:
+```
+backend-v2/app/
+├── main.py              — FastAPI app, CORS, lifespan, router включване
+├── config.py            — Pydantic Settings (DATABASE_URL, SMTP, Stripe, Gemini keys)
+├── database.py          — AsyncSession factory, create_all_tables
+├── dependencies.py      — get_current_user (session token + expiry проверка)
+├── models/              — 25 SQLAlchemy ORM модела
+│   ├── base.py          — DeclarativeBase
+│   ├── user.py          — User, Session, AuthCode
+│   ├── profile.py       — Profile
+│   ├── company.py       — Company, BankAccount, Verification
+│   ├── invoice.py       — Invoice, InvoiceMonthlyUsage
+│   ├── drive.py         — DriveFile
+│   ├── notification.py  — Notification
+│   ├── billing.py       — Billing, BillingPlan, Payment
+│   ├── sharing.py       — CompanyShare
+│   ├── invoicing.py     — InvClient, InvItem, InvStub, InvSettings, IssuedInvoice
+│   ├── contact.py       — ContactMessage
+│   ├── email_link.py    — EmailLoginLink
+│   └── admin.py         — SystemLog
+├── schemas/             — Pydantic v2 request/response модели
+│   ├── invoice.py       — UploadInvoice, InvoiceOut, InboxItem, FolderStructure
+│   ├── invoicing.py     — Client/Item/Stub/Settings/IssuedInvoice schemas
+│   └── contact.py       — ContactCreate
+├── routers/             — 10 FastAPI рутера
+│   ├── auth.py          — POST register, login, verify, GET me, POST logout
+│   ├── profiles.py      — CRUD profiles (delete блокирано — 400)
+│   ├── companies.py     — CRUD companies + bank accounts + verification
+│   ├── invoices.py      — Upload (AI), list, download, delete + usage limits
+│   ├── invoicing.py     — Clients, Items, Stubs, Settings, Issued invoices CRUD
+│   ├── notifications.py — List, read, delete notifications
+│   ├── billing.py       — Plans, subscribe, checkout, cancel + Stripe webhooks
+│   ├── sharing.py       — Share, update, revoke, list shares
+│   ├── contact.py       — Submit contact form
+│   └── admin.py         — Users, companies, verifications, logs, settings
+├── services/            — Бизнес логика
+│   ├── auth_service.py  — OTP генерация, верификация, сесии
+│   ├── email_service.py — SMTP email (HTML escaped templates)
+│   └── file_manager.py  — Filesystem операции (sanitized paths)
+└── utils/
+    └── __init__.py      — sanitize_path_component(), helpers
+```
+
+**Ключови разлики v1 → v2**:
+
+| Аспект | v1 | v2 |
+|--------|----|----|  
+| База данни | 2 отделни (bginvoices + invoicing) | 1 единна `megabanx_v2` (25 таблици) |
+| ORM | Сурови SQL заявки | SQLAlchemy 2.0 async ORM |
+| Валидация | Ръчна | Pydantic v2 schemas |
+| AI Engine | OpenAI GPT | Google Gemini |
+| Конкурентност | Sync | Async/await (asyncpg) |
+| Числа | Float | Decimal/Numeric (financial precision) |
+| Auth | JWT tokens | Session tokens (30-day expiry) |
+| Security | Базова | XSS prevention, path traversal protection, row-level locking |
+
+**Сигурност (46 бъга поправени в 9 рунда Devin Review)**:
+- Path traversal защита (sanitize_path_component)
+- XSS prevention (HTML escape в email templates)
+- Race condition prevention (INSERT ON CONFLICT upsert)
+- Ownership verification на всички multi-tenant операции
+- Expired session cleanup с commit safety
+- AI null coalescing за Gemini JSON responses
+- Stub number range overflow protection
 
 ---
 
@@ -375,26 +465,37 @@ Admin (admin-only):
 │                ТЕКУЩО (v1)                    │
 │                                              │
 │   megabanx.com  →  VPS 144.91.122.208       │
-│   /opt/bginvoices/backend/ (Python/FastAPI)   │
+│   /opt/bginvoices/backend/ (порт 8004)       │
 │   /opt/bginvoices/frontend/ (React build)     │
-│   Nginx reverse proxy                        │
+│   Nginx reverse proxy + SSL (Certbot)        │
 │   PostgreSQL database                        │
 │   GitHub: bdobrev002/megabanx-invoicing      │
 │   Branch: main                               │
 └──────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
+│              V2 PREVIEW                      │
+│                                              │
+│   new.megabanx.com → /opt/megabanx-v2/       │
+│   megabanx.duckdns.org → /opt/megabanx-v2/   │
+│   frontend-dist/ (React v2 build)            │
+│   source/ (пълен source код)                 │
+│   Backend v2: backend-v2/ (не е пуснат още)  │
+│   Branch: devin/1776499727-megabanx-v2-skel  │
+│   PR: #5                                     │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
 │              MEGABANX 2.0 ПЛАН               │
 │                                              │
-│   Стъпка 1: new.megabanx.com                │
-│   - Нов Nginx vhost на същия VPS             │
-│   - Нова frontend директория                 │
-│   - Същия backend (shared API)               │
-│   - Нов GitHub branch: v2.0                  │
+│   Стъпка 1: Preview на megabanx.duckdns.org │
+│   - Frontend v2 + Backend v2 source код      │
+│   - Тестване и review                        │
 │                                              │
-│   Стъпка 2: Тестване                         │
-│   - Паралелна работа на двата сайта          │
-│   - A/B тестване с реални потребители        │
+│   Стъпка 2: Backend v2 deploy               │
+│   - PostgreSQL миграция (alembic)            │
+│   - Backend v2 на порт 8007                  │
+│   - Nginx proxy за API                       │
 │                                              │
 │   Стъпка 3: Превключване                     │
 │   - new.megabanx.com → megabanx.com          │
@@ -491,4 +592,4 @@ scp -r dist/* server:/opt/bginvoices/frontend-v2/
 
 ---
 
-*Документ генериран на 18.04.2026 г. от Megabanx 2.0 Architecture Analysis*
+*Документ генериран на 18.04.2026 г., обновен на 19.04.2026 г. — добавена Backend v2 архитектура*
