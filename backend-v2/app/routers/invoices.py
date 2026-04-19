@@ -7,8 +7,9 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -42,7 +43,11 @@ async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) 
 
 
 async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
-    """Atomically check billing limit and increment usage counter."""
+    """Atomically check billing limit and increment usage counter.
+
+    Uses INSERT ... ON CONFLICT DO UPDATE (upsert) so that even when no
+    row exists yet the operation is atomic and safe under concurrency.
+    """
     result = await db.execute(select(Billing).where(Billing.user_id == user_id))
     billing = result.scalar_one_or_none()
     if not billing:
@@ -50,28 +55,48 @@ async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
 
     now = datetime.utcnow()
 
-    # Lock the row to prevent concurrent reads from getting stale counts
-    result = await db.execute(
-        select(InvoiceMonthlyUsage).where(
-            InvoiceMonthlyUsage.user_id == user_id,
-            InvoiceMonthlyUsage.year == now.year,
-            InvoiceMonthlyUsage.month == now.month,
-        ).with_for_update()
+    # Atomic upsert: INSERT new row with count=1, or increment existing row.
+    # RETURNING gives us the post-increment count so we can check the limit.
+    stmt = (
+        pg_insert(InvoiceMonthlyUsage)
+        .values(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            year=now.year,
+            month=now.month,
+            count=1,
+        )
+        .on_conflict_do_update(
+            index_elements=["user_id", "year", "month"],
+            set_={"count": InvoiceMonthlyUsage.count + 1},
+        )
+        .returning(InvoiceMonthlyUsage.count)
     )
-    usage = result.scalar_one_or_none()
-    current_count = usage.count if usage else 0
+    result = await db.execute(stmt)
+    new_count = result.scalar_one()
 
-    if billing.invoices_limit > 0 and current_count >= billing.invoices_limit:
+    # If the new count exceeds the limit, roll back the increment
+    if billing.invoices_limit > 0 and new_count > billing.invoices_limit:
+        # Decrement back since we already incremented
+        await db.execute(
+            select(InvoiceMonthlyUsage).where(
+                InvoiceMonthlyUsage.user_id == user_id,
+                InvoiceMonthlyUsage.year == now.year,
+                InvoiceMonthlyUsage.month == now.month,
+            ).with_for_update()
+        )
+        usage_row = (await db.execute(
+            select(InvoiceMonthlyUsage).where(
+                InvoiceMonthlyUsage.user_id == user_id,
+                InvoiceMonthlyUsage.year == now.year,
+                InvoiceMonthlyUsage.month == now.month,
+            )
+        )).scalar_one()
+        usage_row.count -= 1
         raise HTTPException(
             status_code=429,
             detail=f"Достигнат е лимитът от {billing.invoices_limit} фактури за месеца. Надградете плана си.",
         )
-
-    # Increment atomically
-    if usage:
-        usage.count += 1
-    else:
-        db.add(InvoiceMonthlyUsage(user_id=user_id, year=now.year, month=now.month, count=1))
 
 
 @router.post("/upload")

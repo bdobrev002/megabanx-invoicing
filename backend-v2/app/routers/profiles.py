@@ -78,14 +78,15 @@ async def delete_profile(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a profile."""
-    result = await db.execute(select(Profile).where(Profile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Профилът не е намерен")
+    """Delete a profile.
 
-    if profile_id != user.profile_id:
-        raise HTTPException(status_code=403, detail="Нямате достъп до този профил")
-
-    await db.delete(profile)
-    return {"message": "Профилът е изтрит"}
+    V2 uses one profile per user.  Deleting the profile would orphan all
+    associated data (companies, invoices, notifications, shares, billing)
+    and leave the User.profile_id pointing at a non-existent row.  Instead
+    of allowing that, we reject the request and direct the user to contact
+    support for full account deletion.
+    """
+    raise HTTPException(
+        status_code=400,
+        detail="Изтриването на профил не е поддържано. Моля, свържете се с нас за изтриване на акаунт.",
+    )

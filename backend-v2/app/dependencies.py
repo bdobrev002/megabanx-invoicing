@@ -29,8 +29,11 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     # Check session expiry — commit deletion independently so the rollback
     # triggered by HTTPException does not undo it.
     if datetime.utcnow() > session.expires_at:
-        await db.delete(session)
-        await db.commit()
+        try:
+            await db.delete(session)
+            await db.commit()
+        except Exception:
+            await db.rollback()
         raise HTTPException(status_code=401, detail="Сесията ви е изтекла. Моля, влезте отново.")
 
     result = await db.execute(select(User).where(User.id == session.user_id))
