@@ -33,7 +33,7 @@ async def get_notifications(
             "filename": n.filename,
             "source": n.source,
             "is_read": n.read,
-            "created_at": n.timestamp.isoformat(),
+            "timestamp": n.timestamp.isoformat(),
         }
         for n in notifications
     ]

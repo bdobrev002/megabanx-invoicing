@@ -2,60 +2,95 @@ import { apiFetch } from './client'
 import type { InvoiceClient, InvoiceItem, InvoiceStub, InvoiceFormData } from '@/types/invoicing.types'
 
 export const invoicingApi = {
-  getClients: (companyId: string) =>
-    apiFetch<InvoiceClient[]>(`/invoicing/${companyId}/clients`),
+  getClients: (companyId: string, profileId: string) =>
+    apiFetch<InvoiceClient[]>(`/invoicing/clients?company_id=${companyId}&profile_id=${profileId}`),
 
-  createClient: (companyId: string, data: Partial<InvoiceClient>) =>
-    apiFetch<InvoiceClient>(`/invoicing/${companyId}/clients`, {
+  createClient: (companyId: string, profileId: string, data: Partial<InvoiceClient>) =>
+    apiFetch<InvoiceClient>('/invoicing/clients', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
     }),
 
-  updateClient: (companyId: string, clientId: string, data: Partial<InvoiceClient>) =>
-    apiFetch<InvoiceClient>(`/invoicing/${companyId}/clients/${clientId}`, {
+  updateClient: (clientId: string, data: Partial<InvoiceClient>) =>
+    apiFetch<InvoiceClient>(`/invoicing/clients/${clientId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  removeClient: (companyId: string, clientId: string) =>
-    apiFetch<void>(`/invoicing/${companyId}/clients/${clientId}`, { method: 'DELETE' }),
+  removeClient: (clientId: string) =>
+    apiFetch<void>(`/invoicing/clients/${clientId}`, { method: 'DELETE' }),
 
-  getItems: (companyId: string) =>
-    apiFetch<InvoiceItem[]>(`/invoicing/${companyId}/items`),
+  getItems: (companyId: string, profileId: string) =>
+    apiFetch<InvoiceItem[]>(`/invoicing/items?company_id=${companyId}&profile_id=${profileId}`),
 
-  createItem: (companyId: string, data: Partial<InvoiceItem>) =>
-    apiFetch<InvoiceItem>(`/invoicing/${companyId}/items`, {
+  createItem: (companyId: string, profileId: string, data: Partial<InvoiceItem>) =>
+    apiFetch<InvoiceItem>('/invoicing/items', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
     }),
 
-  updateItem: (companyId: string, itemId: string, data: Partial<InvoiceItem>) =>
-    apiFetch<InvoiceItem>(`/invoicing/${companyId}/items/${itemId}`, {
+  updateItem: (itemId: string, data: Partial<InvoiceItem>) =>
+    apiFetch<InvoiceItem>(`/invoicing/items/${itemId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  removeItem: (companyId: string, itemId: string) =>
-    apiFetch<void>(`/invoicing/${companyId}/items/${itemId}`, { method: 'DELETE' }),
+  removeItem: (itemId: string) =>
+    apiFetch<void>(`/invoicing/items/${itemId}`, { method: 'DELETE' }),
 
-  getStubs: (companyId: string) =>
-    apiFetch<InvoiceStub[]>(`/invoicing/${companyId}/stubs`),
+  getStubs: (companyId: string, profileId: string) =>
+    apiFetch<InvoiceStub[]>(`/invoicing/stubs?company_id=${companyId}&profile_id=${profileId}`),
 
-  createInvoice: (companyId: string, data: InvoiceFormData) =>
-    apiFetch<{ pdf_url: string; invoice_id: string }>(`/invoicing/${companyId}/create`, {
+  createStub: (companyId: string, profileId: string, data: Partial<InvoiceStub>) =>
+    apiFetch<InvoiceStub>('/invoicing/stubs', {
       method: 'POST',
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
+    }),
+
+  updateStub: (stubId: string, data: Partial<InvoiceStub>) =>
+    apiFetch<InvoiceStub>(`/invoicing/stubs/${stubId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  previewPdf: (companyId: string, data: InvoiceFormData) =>
-    apiFetch<Blob>(`/invoicing/${companyId}/preview`, {
+  removeStub: (stubId: string) =>
+    apiFetch<void>(`/invoicing/stubs/${stubId}`, { method: 'DELETE' }),
+
+  getInvoices: (companyId: string, profileId: string) =>
+    apiFetch<InvoiceFormData[]>(`/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`),
+
+  createInvoice: (companyId: string, profileId: string, data: InvoiceFormData) =>
+    apiFetch<{ pdf_url: string; invoice_id: string }>('/invoicing/invoices', {
       method: 'POST',
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
+    }),
+
+  getInvoice: (invoiceId: string) =>
+    apiFetch<{ meta: unknown; lines: unknown[] }>(`/invoicing/invoices/${invoiceId}`),
+
+  removeInvoice: (invoiceId: string) =>
+    apiFetch<void>(`/invoicing/invoices/${invoiceId}`, { method: 'DELETE' }),
+
+  getCompanySettings: (companyId: string, profileId: string) =>
+    apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`),
+
+  updateCompanySettings: (companyId: string, profileId: string, data: unknown) =>
+    apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
-      responseType: 'blob',
+    }),
+
+  getSyncSettings: (companyId: string, profileId: string) =>
+    apiFetch<unknown>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`),
+
+  updateSyncSettings: (companyId: string, profileId: string, data: unknown) =>
+    apiFetch<unknown>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   sendEmail: (invoiceId: string, to: string, subject: string, body: string) =>
-    apiFetch<void>(`/invoicing/send-email`, {
+    apiFetch<void>('/invoicing/send-email', {
       method: 'POST',
       body: JSON.stringify({ invoice_id: invoiceId, to, subject, body }),
     }),
