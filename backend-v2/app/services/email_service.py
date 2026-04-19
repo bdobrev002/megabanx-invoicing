@@ -1,5 +1,6 @@
 """Email sending service (OTP codes, share invitations, notifications)."""
 
+import asyncio
 import uuid
 import logging
 import smtplib
@@ -11,8 +12,8 @@ from app.config import settings
 logger = logging.getLogger("megabanx.email")
 
 
-def _send_email(to_email: str, subject: str, html: str, text: str) -> bool:
-    """Send an email via SMTP."""
+def _send_email_sync(to_email: str, subject: str, html: str, text: str) -> bool:
+    """Send an email via SMTP (synchronous, internal)."""
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -36,6 +37,11 @@ def _send_email(to_email: str, subject: str, html: str, text: str) -> bool:
     except Exception as e:
         logger.error(f"[EMAIL] Error sending to {to_email}: {e}")
         return False
+
+
+async def send_email(to_email: str, subject: str, html: str, text: str) -> bool:
+    """Send an email via SMTP in a thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(_send_email_sync, to_email, subject, html, text)
 
 
 def send_otp_email(to_email: str, code: str) -> bool:
@@ -70,7 +76,7 @@ def send_otp_email(to_email: str, code: str) -> bool:
         f"---\n{settings.APP_NAME} | megabanx.com"
     )
 
-    return _send_email(to_email, f"{settings.APP_NAME} - \u041a\u043e\u0434 \u0437\u0430 \u0432\u0445\u043e\u0434 \u0432 \u0441\u0438\u0441\u0442\u0435\u043c\u0430\u0442\u0430", html, text)
+    return _send_email_sync(to_email, f"{settings.APP_NAME} - \u041a\u043e\u0434 \u0437\u0430 \u0432\u0445\u043e\u0434 \u0432 \u0441\u0438\u0441\u0442\u0435\u043c\u0430\u0442\u0430", html, text)
 
 
 def send_share_invitation_email(to_email: str, owner_name: str, company_name: str) -> bool:
@@ -97,7 +103,7 @@ def send_share_invitation_email(to_email: str, owner_name: str, company_name: st
 </html>"""
 
     text = f"{settings.APP_NAME}\n\n{owner_name} shared company {company_name} with you.\nLogin at {settings.BASE_URL} with email {to_email}"
-    return _send_email(to_email, f"{settings.APP_NAME} - {owner_name} \u0441\u043f\u043e\u0434\u0435\u043b\u0438 \u0444\u0438\u0440\u043c\u0430 \u0441 \u0432\u0430\u0441", html, text)
+    return _send_email_sync(to_email, f"{settings.APP_NAME} - {owner_name} \u0441\u043f\u043e\u0434\u0435\u043b\u0438 \u0444\u0438\u0440\u043c\u0430 \u0441 \u0432\u0430\u0441", html, text)
 
 
 def send_share_notification_email(to_email: str, owner_name: str, company_name: str) -> bool:
@@ -120,4 +126,4 @@ def send_share_notification_email(to_email: str, owner_name: str, company_name: 
 </html>"""
 
     text = f"{owner_name} shared company {company_name} with you in {settings.APP_NAME}.\nLogin at {settings.BASE_URL}"
-    return _send_email(to_email, f"{settings.APP_NAME} - New shared company from {owner_name}", html, text)
+    return _send_email_sync(to_email, f"{settings.APP_NAME} - New shared company from {owner_name}", html, text)

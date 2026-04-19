@@ -41,8 +41,8 @@ async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) 
     return profile
 
 
-async def _check_billing_limit(user_id: str, db: AsyncSession) -> None:
-    """Check if user has remaining invoice quota for this month."""
+async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
+    """Atomically check billing limit and increment usage counter."""
     result = await db.execute(select(Billing).where(Billing.user_id == user_id))
     billing = result.scalar_one_or_none()
     if not billing:
@@ -50,12 +50,13 @@ async def _check_billing_limit(user_id: str, db: AsyncSession) -> None:
 
     now = datetime.utcnow()
 
+    # Lock the row to prevent concurrent reads from getting stale counts
     result = await db.execute(
         select(InvoiceMonthlyUsage).where(
             InvoiceMonthlyUsage.user_id == user_id,
             InvoiceMonthlyUsage.year == now.year,
             InvoiceMonthlyUsage.month == now.month,
-        )
+        ).with_for_update()
     )
     usage = result.scalar_one_or_none()
     current_count = usage.count if usage else 0
@@ -66,19 +67,7 @@ async def _check_billing_limit(user_id: str, db: AsyncSession) -> None:
             detail=f"Достигнат е лимитът от {billing.invoices_limit} фактури за месеца. Надградете плана си.",
         )
 
-
-async def _increment_usage(user_id: str, db: AsyncSession) -> None:
-    """Increment monthly invoice usage counter."""
-    now = datetime.utcnow()
-
-    result = await db.execute(
-        select(InvoiceMonthlyUsage).where(
-            InvoiceMonthlyUsage.user_id == user_id,
-            InvoiceMonthlyUsage.year == now.year,
-            InvoiceMonthlyUsage.month == now.month,
-        )
-    )
-    usage = result.scalar_one_or_none()
+    # Increment atomically
     if usage:
         usage.count += 1
     else:
@@ -96,7 +85,7 @@ async def upload_invoice(
 ):
     """Upload an invoice file, analyze with AI, and store."""
     await _verify_profile_access(profile_id, user, db)
-    await _check_billing_limit(user.id, db)
+    await _check_and_increment_usage(user.id, db)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Не е предоставен файл")
@@ -196,13 +185,10 @@ async def upload_invoice(
         total_amount=str(analysis.get("total_amount", "")),
         vat_amount=str(analysis.get("vat_amount", "")),
         destination_path=dest_path,
-        status="completed" if matched_company_id else "unmatched",
-        source="upload",
+        status="processed" if matched_company_id else "unmatched",
+        source="scan",
     )
     db.add(invoice)
-
-    # Increment usage
-    await _increment_usage(user.id, db)
 
     # Notify if unmatched
     if not matched_company_id:
