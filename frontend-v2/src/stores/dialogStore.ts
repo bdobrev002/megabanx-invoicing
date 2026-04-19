@@ -81,8 +81,9 @@ let currentResolve: ((value: boolean | string | null) => void) | null = null
 /** Settle any pending dialog Promise before opening a new one */
 function settlePending() {
   if (currentResolve) {
-    // Resolve with a "cancelled" value so the awaiting caller unblocks
-    currentResolve(false)
+    // Resolve with null so prompt callers get the expected cancellation value.
+    // For showConfirm this is falsy (treated as "not confirmed"), for showPrompt it matches the null contract.
+    currentResolve(null)
     currentResolve = null
   }
 }
