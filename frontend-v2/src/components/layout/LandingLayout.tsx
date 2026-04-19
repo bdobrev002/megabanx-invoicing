@@ -54,6 +54,10 @@ export default function LandingLayout() {
           <div className="flex items-center gap-4 text-sm text-gray-400">
             <Link to={ROUTES.TERMS} className="hover:text-white transition">Общи условия</Link>
             <span className="text-gray-600">|</span>
+            <Link to={ROUTES.PRIVACY} className="hover:text-white transition">Поверителност</Link>
+            <span className="text-gray-600">|</span>
+            <Link to={ROUTES.COOKIES} className="hover:text-white transition">Бисквитки</Link>
+            <span className="text-gray-600">|</span>
             <a href="mailto:info@megabanx.com" className="hover:text-white transition">info@megabanx.com</a>
           </div>
         </div>

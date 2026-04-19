@@ -8,6 +8,7 @@ import { sharingApi } from '@/api/sharing.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useCompanyStore } from '@/stores/companyStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useDialogStore } from '@/stores/dialogStore'
 import type { Company } from '@/types/company.types'
 import CompanyCard from './CompanyCard'
 import OwnCompanyForm from './OwnCompanyForm'
@@ -18,6 +19,7 @@ export default function CompaniesPage() {
   const { companies, setCompanies, sharedCompanies, setSharedCompanies } =
     useCompanyStore()
   const setError = useUiStore((s) => s.setError)
+  const showConfirm = useDialogStore((s) => s.showConfirm)
 
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -55,7 +57,13 @@ export default function CompaniesPage() {
   }, [profileId])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Сигурни ли сте, че искате да изтриете тази фирма?')) return
+    const confirmed = await showConfirm({
+      title: 'Изтриване на фирма',
+      message: 'Сигурни ли сте, че искате да изтриете тази фирма?',
+      confirmLabel: 'Изтрий',
+      cancelLabel: 'Отказ',
+    })
+    if (!confirmed) return
     try {
       await companiesApi.remove(profileId, id)
       setCompanies(companies.filter((c) => c.id !== id))
