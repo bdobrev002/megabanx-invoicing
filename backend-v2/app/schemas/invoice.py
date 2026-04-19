@@ -36,7 +36,6 @@ class InvoiceOut(BaseModel):
     invoice_number: str
     total_amount: str
     vat_amount: str
-    destination_path: str
     status: str
     error_message: Optional[str]
     cross_copy_status: str

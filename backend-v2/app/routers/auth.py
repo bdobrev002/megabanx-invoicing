@@ -1,7 +1,7 @@
 """Auth router: register, login (OTP), verify, me, logout."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
@@ -71,7 +71,7 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
     # Generate and send OTP (after DB success)
     code = generate_otp()
     store_otp(email, code)
-    send_otp_email(email, code)
+    await send_otp_email(email, code)
 
     return {
         "message": "Регистрацията е успешна. Изпратен е код за потвърждение на имейла ви.",
@@ -92,7 +92,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     code = generate_otp()
     store_otp(email, code)
-    send_otp_email(email, code)
+    await send_otp_email(email, code)
 
     return {"message": "Кодът е изпратен на имейла ви.", "email": email}
 
@@ -115,9 +115,13 @@ async def verify_code(req: VerifyCodeRequest, response: Response, db: AsyncSessi
     if not user:
         raise HTTPException(status_code=404, detail="Потребителят не е намерен")
 
-    # Create session
+    # Create session (30-day expiry to match cookie max_age)
     token = generate_session_token()
-    session = Session(token=token, user_id=user.id)
+    session = Session(
+        token=token,
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(days=30),
+    )
     db.add(session)
 
     # Ensure profile dirs exist

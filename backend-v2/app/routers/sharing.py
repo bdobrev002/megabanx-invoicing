@@ -120,10 +120,10 @@ async def share_company(
             filename="",
             source="sharing",
         ))
-        send_share_notification_email(target_email, user.name, company.name)
+        await send_share_notification_email(target_email, user.name, company.name)
     else:
         # Non-registered user — send invitation
-        send_share_invitation_email(target_email, user.name, company.name)
+        await send_share_invitation_email(target_email, user.name, company.name)
 
     await db.flush()
     return {"message": f"Фирмата е споделена с {target_email}", "share_id": share.id}

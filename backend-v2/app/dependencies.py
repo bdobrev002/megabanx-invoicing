@@ -1,5 +1,7 @@
 """FastAPI dependencies: DB session, current user."""
 
+from datetime import datetime
+
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,12 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=401, detail="Не сте влезли в системата")
+
+    # Check session expiry
+    if datetime.utcnow() > session.expires_at:
+        await db.delete(session)
+        await db.flush()
+        raise HTTPException(status_code=401, detail="Сесията ви е изтекла. Моля, влезте отново.")
 
     result = await db.execute(select(User).where(User.id == session.user_id))
     user = result.scalar_one_or_none()
