@@ -1,0 +1,18 @@
+{
+  "name": "megabanx-invoicing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MegaBanx v2 — repo root. Holds pre-commit tooling; app code lives in frontend-v2/ and backend-v2/.",
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "check:no-dist": "node scripts/check-no-dist.js",
+    "lint": "npm --prefix frontend-v2 run lint",
+    "build": "npm --prefix frontend-v2 run build",
+    "validate-build": "bash scripts/validate-build.sh"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11"
+  }
+}

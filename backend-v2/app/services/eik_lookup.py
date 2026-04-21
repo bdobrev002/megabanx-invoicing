@@ -1,7 +1,7 @@
 """Bulgarian Trade Registry (Търговски регистър) EIK lookup service."""
 
-import re
 import logging
+import re
 
 import httpx
 from fastapi import HTTPException
@@ -12,8 +12,8 @@ TRADE_REGISTRY_API_URL = "https://portal.registryagency.bg/CR/api/Deeds"
 
 
 def _extract_text_from_html(html: str) -> str:
-    text = re.sub(r'<[^>]+>', ' ', html)
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
@@ -27,17 +27,17 @@ def _parse_address_from_field(html: str) -> str:
 
 
 def _extract_city_from_address(text: str) -> str:
-    match = re.search(r'Населено\s+място:\s*([^,]+)', text)
+    match = re.search(r"Населено\s+място:\s*([^,]+)", text)
     if match:
         city = match.group(1).strip()
-        city = re.sub(r'\s*п\.к\.\s*\d+', '', city).strip()
-        city = re.sub(r'^(?:гр\.|с\.|гр |с )\s*', '', city).strip()
+        city = re.sub(r"\s*п\.к\.\s*\d+", "", city).strip()
+        city = re.sub(r"^(?:гр\.|с\.|гр |с )\s*", "", city).strip()
         return city
     return ""
 
 
 def _extract_email_from_text(text: str) -> str:
-    match = re.search(r'[\w.-]+@[\w.-]+\.\w+', text)
+    match = re.search(r"[\w.-]+@[\w.-]+\.\w+", text)
     return match.group(0).lower() if match else ""
 
 
@@ -120,7 +120,7 @@ def _parse_summary_response(items: list, eik: str) -> dict:
 
 async def lookup_eik(eik: str) -> dict:
     """Look up a company by EIK in the Bulgarian Trade Registry."""
-    clean_eik = re.sub(r'\s+', '', eik)
+    clean_eik = re.sub(r"\s+", "", eik)
     if not clean_eik.isdigit() or len(clean_eik) not in (9, 10, 13):
         raise HTTPException(status_code=400, detail="Невалиден ЕИК. Трябва да е 9, 10 или 13 цифри.")
 
@@ -142,8 +142,11 @@ async def lookup_eik(eik: str) -> dict:
             summary_resp = await client.get(
                 f"{TRADE_REGISTRY_API_URL}/Summary",
                 params={
-                    "page": 1, "pageSize": 1, "count": 0,
-                    "ident": clean_eik, "selectedSearchFilter": 1,
+                    "page": 1,
+                    "pageSize": 1,
+                    "count": 0,
+                    "ident": clean_eik,
+                    "selectedSearchFilter": 1,
                     "includeHistory": "true",
                 },
                 headers={"Accept": "application/json"},

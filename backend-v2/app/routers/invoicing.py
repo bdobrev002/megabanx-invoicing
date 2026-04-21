@@ -1,28 +1,42 @@
 """Invoicing module router: clients, items, stubs, invoices, settings, sync."""
 
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.company import Company
 from app.models.invoicing import (
-    InvClient, InvItem, InvStub,
-    InvCompanySettings, InvInvoiceMeta, InvInvoiceLine, InvSyncSettings,
+    InvClient,
+    InvCompanySettings,
+    InvInvoiceLine,
+    InvInvoiceMeta,
+    InvItem,
+    InvStub,
+    InvSyncSettings,
 )
+from app.models.user import User
 from app.schemas.invoicing import (
-    ClientCreate, ClientUpdate, ClientOut,
-    ItemCreate, ItemUpdate, ItemOut,
-    StubCreate, StubUpdate, StubOut,
-    InvoiceCreateSchema, InvoiceMetaOut,
-    CompanySettingsUpdate, CompanySettingsOut,
-    SyncSettingsUpdate, SyncSettingsOut,
+    ClientCreate,
+    ClientOut,
+    ClientUpdate,
+    CompanySettingsOut,
+    CompanySettingsUpdate,
+    InvoiceCreateSchema,
+    InvoiceMetaOut,
+    ItemCreate,
+    ItemOut,
+    ItemUpdate,
+    StubCreate,
+    StubOut,
+    StubUpdate,
+    SyncSettingsOut,
+    SyncSettingsUpdate,
 )
 
 router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
@@ -36,14 +50,13 @@ def _verify_ownership(profile_id: str, user: User) -> None:
 
 async def _verify_company_access(company_id: str, profile_id: str, db: AsyncSession) -> None:
     """Verify that company_id belongs to the given profile."""
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
 
 # ──────────────────── Clients ────────────────────
+
 
 @router.get("/clients")
 async def list_clients(
@@ -56,10 +69,12 @@ async def list_clients(
     _verify_ownership(profile_id, user)
     await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
-        select(InvClient).where(
+        select(InvClient)
+        .where(
             InvClient.company_id == company_id,
             InvClient.profile_id == profile_id,
-        ).order_by(InvClient.name)
+        )
+        .order_by(InvClient.name)
     )
     clients = result.scalars().all()
     return [ClientOut.model_validate(c) for c in clients]
@@ -136,6 +151,7 @@ async def delete_client(
 
 # ──────────────────── Items ────────────────────
 
+
 @router.get("/items")
 async def list_items(
     company_id: str = Query(...),
@@ -147,10 +163,12 @@ async def list_items(
     _verify_ownership(profile_id, user)
     await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
-        select(InvItem).where(
+        select(InvItem)
+        .where(
             InvItem.company_id == company_id,
             InvItem.profile_id == profile_id,
-        ).order_by(InvItem.name)
+        )
+        .order_by(InvItem.name)
     )
     items = result.scalars().all()
     return [ItemOut.model_validate(i) for i in items]
@@ -224,6 +242,7 @@ async def delete_item(
 
 # ──────────────────── Stubs (Кочани) ────────────────────
 
+
 @router.get("/stubs")
 async def list_stubs(
     company_id: str = Query(...),
@@ -235,10 +254,12 @@ async def list_stubs(
     _verify_ownership(profile_id, user)
     await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
-        select(InvStub).where(
+        select(InvStub)
+        .where(
             InvStub.company_id == company_id,
             InvStub.profile_id == profile_id,
-        ).order_by(InvStub.name)
+        )
+        .order_by(InvStub.name)
     )
     stubs = result.scalars().all()
     return [StubOut.model_validate(s) for s in stubs]
@@ -308,6 +329,7 @@ async def delete_stub(
 
 # ──────────────────── Invoices (issued) ────────────────────
 
+
 @router.get("/invoices")
 async def list_issued_invoices(
     company_id: str = Query(...),
@@ -319,10 +341,12 @@ async def list_issued_invoices(
     _verify_ownership(profile_id, user)
     await _verify_company_access(company_id, profile_id, db)
     result = await db.execute(
-        select(InvInvoiceMeta).where(
+        select(InvInvoiceMeta)
+        .where(
             InvInvoiceMeta.company_id == company_id,
             InvInvoiceMeta.profile_id == profile_id,
-        ).order_by(InvInvoiceMeta.created_at.desc())
+        )
+        .order_by(InvInvoiceMeta.created_at.desc())
     )
     invoices = result.scalars().all()
     return [InvoiceMetaOut.model_validate(inv) for inv in invoices]
@@ -343,10 +367,12 @@ async def create_issued_invoice(
     invoice_number = req.invoice_number
     if req.stub_id and not invoice_number:
         result = await db.execute(
-            select(InvStub).where(
+            select(InvStub)
+            .where(
                 InvStub.id == req.stub_id,
                 InvStub.profile_id == req.profile_id,
-            ).with_for_update()
+            )
+            .with_for_update()
         )
         stub = result.scalar_one_or_none()
         if stub:
@@ -388,18 +414,20 @@ async def create_issued_invoice(
         line_total = discounted_line + line_vat
         vat_amount += line_vat
 
-        lines_to_create.append(InvInvoiceLine(
-            id=str(uuid.uuid4()),
-            invoice_id=invoice_id,
-            item_id=line.item_id or "",
-            position=line.position if line.position is not None else idx + 1,
-            description=line.description,
-            quantity=Decimal(str(line.quantity)),
-            unit=line.unit,
-            unit_price=Decimal(str(line.unit_price)),
-            vat_rate=Decimal(str(line.vat_rate)),
-            line_total=line_total,
-        ))
+        lines_to_create.append(
+            InvInvoiceLine(
+                id=str(uuid.uuid4()),
+                invoice_id=invoice_id,
+                item_id=line.item_id or "",
+                position=line.position if line.position is not None else idx + 1,
+                description=line.description,
+                quantity=Decimal(str(line.quantity)),
+                unit=line.unit,
+                unit_price=Decimal(str(line.unit_price)),
+                vat_rate=Decimal(str(line.vat_rate)),
+                line_total=line_total,
+            )
+        )
 
     total = discounted_subtotal + vat_amount
 
@@ -456,36 +484,30 @@ async def get_issued_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Get an issued invoice with its lines."""
-    result = await db.execute(
-        select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id)
-    )
+    result = await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
     meta = result.scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
     _verify_ownership(meta.profile_id, user)
 
-    result = await db.execute(
-        select(InvInvoiceLine)
-        .where(InvInvoiceLine.invoice_id == invoice_id)
-        .order_by(InvInvoiceLine.position)
-    )
+    result = await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id).order_by(InvInvoiceLine.position))
     lines = result.scalars().all()
 
     return {
         "meta": InvoiceMetaOut.model_validate(meta),
         "lines": [
             {
-                "id": l.id,
-                "item_id": l.item_id,
-                "position": l.position,
-                "description": l.description,
-                "quantity": str(l.quantity),
-                "unit": l.unit,
-                "unit_price": str(l.unit_price),
-                "vat_rate": str(l.vat_rate),
-                "line_total": str(l.line_total),
+                "id": line.id,
+                "item_id": line.item_id,
+                "position": line.position,
+                "description": line.description,
+                "quantity": str(line.quantity),
+                "unit": line.unit,
+                "unit_price": str(line.unit_price),
+                "vat_rate": str(line.vat_rate),
+                "line_total": str(line.line_total),
             }
-            for l in lines
+            for line in lines
         ],
     }
 
@@ -497,9 +519,7 @@ async def delete_issued_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete an issued invoice and its lines."""
-    result = await db.execute(
-        select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id)
-    )
+    result = await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
     meta = result.scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -509,14 +529,11 @@ async def delete_issued_invoice(
     if meta.cross_copy_status == "approved":
         raise HTTPException(
             status_code=409,
-            detail="Фактурата е одобрена от контрагента и не може да бъде изтрита. "
-                   "Контрагентът трябва първо да я изтрие.",
+            detail="Фактурата е одобрена от контрагента и не може да бъде изтрита. " "Контрагентът трябва първо да я изтрие.",
         )
 
     # Delete lines
-    result = await db.execute(
-        select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id)
-    )
+    result = await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id))
     lines = result.scalars().all()
     for line in lines:
         await db.delete(line)
@@ -533,9 +550,7 @@ async def update_issued_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an issued invoice. Blocked when counterparty has approved."""
-    result = await db.execute(
-        select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id)
-    )
+    result = await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
     meta = result.scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -545,8 +560,7 @@ async def update_issued_invoice(
     if meta.cross_copy_status == "approved":
         raise HTTPException(
             status_code=409,
-            detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. "
-                   "Контрагентът трябва първо да я изтрие.",
+            detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. " "Контрагентът трябва първо да я изтрие.",
         )
 
     # Update meta fields
@@ -584,9 +598,7 @@ async def update_issued_invoice(
     # Recalculate lines
     if req.lines:
         # Delete old lines
-        old_lines_result = await db.execute(
-            select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id)
-        )
+        old_lines_result = await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id))
         for old_line in old_lines_result.scalars().all():
             await db.delete(old_line)
 
@@ -613,18 +625,20 @@ async def update_issued_invoice(
             line_total = discounted_line + line_vat
             vat_amount += line_vat
 
-            db.add(InvInvoiceLine(
-                id=str(uuid.uuid4()),
-                invoice_id=invoice_id,
-                item_id=line.item_id or "",
-                position=line.position if line.position is not None else idx + 1,
-                description=line.description,
-                quantity=Decimal(str(line.quantity)),
-                unit=line.unit,
-                unit_price=Decimal(str(line.unit_price)),
-                vat_rate=Decimal(str(line.vat_rate)),
-                line_total=line_total,
-            ))
+            db.add(
+                InvInvoiceLine(
+                    id=str(uuid.uuid4()),
+                    invoice_id=invoice_id,
+                    item_id=line.item_id or "",
+                    position=line.position if line.position is not None else idx + 1,
+                    description=line.description,
+                    quantity=Decimal(str(line.quantity)),
+                    unit=line.unit,
+                    unit_price=Decimal(str(line.unit_price)),
+                    vat_rate=Decimal(str(line.vat_rate)),
+                    line_total=line_total,
+                )
+            )
 
         meta.subtotal = subtotal
         meta.discount = discount_val
@@ -637,6 +651,7 @@ async def update_issued_invoice(
 
 
 # ──────────────────── Company Settings ────────────────────
+
 
 @router.get("/company-settings")
 async def get_company_settings(
@@ -699,6 +714,7 @@ async def update_company_settings(
 
 
 # ──────────────────── Sync Settings ────────────────────
+
 
 @router.get("/sync-settings")
 async def get_sync_settings(

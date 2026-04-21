@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# MegaBanx v2 pre-commit — see .agents/RULES.md
+node scripts/check-no-dist.js
+npx --prefix . lint-staged --config .lintstagedrc.json

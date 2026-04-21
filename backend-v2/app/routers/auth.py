@@ -9,11 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User, Session, TosConsent
-from app.models.profile import Profile
 from app.models.billing import Billing
-from app.schemas.auth import RegisterRequest, LoginRequest, VerifyCodeRequest
-from app.services.auth_service import generate_otp, store_otp, verify_otp, generate_session_token
+from app.models.profile import Profile
+from app.models.user import Session, TosConsent, User
+from app.schemas.auth import LoginRequest, RegisterRequest, VerifyCodeRequest
+from app.services.auth_service import generate_otp, generate_session_token, store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.services.file_manager import ensure_profile_dirs
 

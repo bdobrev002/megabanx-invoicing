@@ -1,6 +1,7 @@
 """WebSocket connection manager for real-time notifications."""
 
 import logging
+
 from fastapi import WebSocket
 
 logger = logging.getLogger("megabanx.ws")
@@ -25,9 +26,7 @@ class ConnectionManager:
 
     def disconnect(self, profile_id: str, websocket: WebSocket) -> None:
         if profile_id in self.active_connections:
-            self.active_connections[profile_id] = [
-                ws for ws in self.active_connections[profile_id] if ws is not websocket
-            ]
+            self.active_connections[profile_id] = [ws for ws in self.active_connections[profile_id] if ws is not websocket]
             if not self.active_connections[profile_id]:
                 del self.active_connections[profile_id]
         logger.info("[WS] Profile %s disconnected.", profile_id)
@@ -66,9 +65,7 @@ class ConnectionManager:
         for ws in dead:
             if profile_id not in self.active_connections:
                 break
-            self.active_connections[profile_id] = [
-                w for w in self.active_connections[profile_id] if w is not ws
-            ]
+            self.active_connections[profile_id] = [w for w in self.active_connections[profile_id] if w is not ws]
         if profile_id in self.active_connections and not self.active_connections[profile_id]:
             del self.active_connections[profile_id]
 

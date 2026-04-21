@@ -3,15 +3,15 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.company import Company
-from app.models.sharing import CompanyShare
 from app.models.notification import Notification
+from app.models.sharing import CompanyShare
+from app.models.user import User
 from app.schemas.sharing import ShareCompanyRequest, UpdateShareRequest
 from app.services.email_service import send_share_invitation_email, send_share_notification_email
 
@@ -27,9 +27,7 @@ async def list_shares(
 ):
     """List all shares for a company."""
     # Verify ownership
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
@@ -37,9 +35,7 @@ async def list_shares(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    result = await db.execute(
-        select(CompanyShare).where(CompanyShare.company_id == company_id)
-    )
+    result = await db.execute(select(CompanyShare).where(CompanyShare.company_id == company_id))
     shares = result.scalars().all()
     return [
         {
@@ -65,9 +61,7 @@ async def share_company(
 ):
     """Share a company with another user by email."""
     # Verify ownership
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
@@ -111,14 +105,16 @@ async def share_company(
 
     # Add in-app notification for existing users
     if target_user:
-        db.add(Notification(
-            profile_id=target_user.profile_id,
-            type="company_shared",
-            title="Нова споделена фирма",
-            message=f"{user.name} сподели фирма {company.name} с вас.",
-            filename="",
-            source="sharing",
-        ))
+        db.add(
+            Notification(
+                profile_id=target_user.profile_id,
+                type="company_shared",
+                title="Нова споделена фирма",
+                message=f"{user.name} сподели фирма {company.name} с вас.",
+                filename="",
+                source="sharing",
+            )
+        )
 
     # Flush DB first so share + notification are persisted before sending email
     await db.flush()
@@ -146,9 +142,7 @@ async def update_share(
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
     # Verify company ownership
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -180,9 +174,7 @@ async def revoke_share(
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
     # Verify company ownership
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -222,14 +214,16 @@ async def get_shared_companies(
         result = await db.execute(select(Company).where(Company.id == share.company_id))
         company = result.scalar_one_or_none()
         if company:
-            companies.append({
-                "share_id": share.id,
-                "company_id": company.id,
-                "company_name": company.name,
-                "company_eik": company.eik,
-                "owner_profile_id": share.owner_profile_id,
-                "can_upload": share.can_upload,
-                "shared_at": share.created_at.isoformat(),
-            })
+            companies.append(
+                {
+                    "share_id": share.id,
+                    "company_id": company.id,
+                    "company_name": company.name,
+                    "company_eik": company.eik,
+                    "owner_profile_id": share.owner_profile_id,
+                    "can_upload": share.can_upload,
+                    "shared_at": share.created_at.isoformat(),
+                }
+            )
 
     return companies

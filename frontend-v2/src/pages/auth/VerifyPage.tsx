@@ -55,13 +55,10 @@ export default function VerifyPage() {
     inputRefs.current[focusIdx]?.focus()
   }
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const code = digits.join('')
+  const verifyCode = async (code: string) => {
     if (code.length !== 6) return
     setLoading(true)
     setLocalError(null)
-
     try {
       const result = await authApi.verify(authEmail.trim(), code)
       setToken(result.token)
@@ -74,13 +71,20 @@ export default function VerifyPage() {
     }
   }
 
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault()
+    void verifyCode(digits.join(''))
+  }
+
   // Auto-submit when all 6 digits entered
+  const submittedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (authCode.length === 6 && !loading) {
-      handleVerify(new Event('submit') as unknown as React.FormEvent)
+    if (authCode.length === 6 && !loading && submittedRef.current !== authCode) {
+      submittedRef.current = authCode
+      void verifyCode(authCode)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authCode])
+  }, [authCode, loading])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">

@@ -1,7 +1,7 @@
 """File encryption/decryption using Fernet (AES-256)."""
 
-import os
 import logging
+import os
 
 from cryptography.fernet import Fernet
 

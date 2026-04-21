@@ -11,7 +11,7 @@ import { companiesApi } from '@/api/companies.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useInvoicingStore } from '@/stores/invoicingStore'
 import { useDialogStore } from '@/stores/dialogStore'
-import { onWsMessage } from '@/api/websocket'
+import { useWsRefresh } from '@/hooks/useWsRefresh'
 import { formatDate } from '@/utils/formatters'
 import type { IssuedInvoiceMeta } from '@/types/invoicing.types'
 
@@ -85,18 +85,9 @@ export default function InvoicingModule() {
     return () => { cancelled = true }
   }, [fetchInvoices])
 
-  // WebSocket auto-refresh (only on 'refresh' events, consistent with FilesPage/HistoryPage)
-  useEffect(() => {
-    const unsub = onWsMessage((data) => {
-      if (typeof data === 'object' && data !== null && 'type' in data) {
-        const evt = data as { type: string }
-        if (evt.type === 'refresh') {
-          fetchInvoices()
-        }
-      }
-    })
-    return unsub
-  }, [fetchInvoices])
+  // WebSocket auto-refresh — debounced so rapid `refresh` bursts collapse into
+  // a single fetch (see Devin Review on PR #8).
+  useWsRefresh(fetchInvoices)
 
   const { showConfirm, showError } = useDialogStore()
 

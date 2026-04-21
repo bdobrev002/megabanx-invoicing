@@ -5,7 +5,7 @@ import { History } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
-import { onWsMessage } from '@/api/websocket'
+import { useWsRefresh } from '@/hooks/useWsRefresh'
 import type { InvoiceRecord } from '@/types/file.types'
 import HistoryFilters from './HistoryFilters'
 import HistoryTable from './HistoryTable'
@@ -42,17 +42,8 @@ export default function HistoryPage() {
     return () => { cancelled = true }
   }, [fetchRecords])
 
-  // Refresh on WebSocket events
-  useEffect(() => {
-    return onWsMessage((data) => {
-      if (typeof data === 'object' && data !== null && 'type' in data) {
-        const evt = data as { type: string }
-        if (evt.type === 'refresh') {
-          fetchRecords()
-        }
-      }
-    })
-  }, [fetchRecords])
+  // Refresh on WebSocket events (debounced, see Devin Review on PR #8).
+  useWsRefresh(fetchRecords)
 
   const handleResync = async (invoiceId: string) => {
     if (!profileId) return
