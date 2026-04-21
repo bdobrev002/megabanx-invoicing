@@ -39,24 +39,21 @@ export default function DashboardLayout() {
         <Sidebar variant="landing" />
 
         <div className="flex-1 min-w-0">
-          {/* Stats bar — connected row with dividers (matching original) */}
-          <div className="bg-white border-b">
-            <div className="max-w-5xl mx-auto px-4 py-3">
-              <div className="flex border rounded-lg divide-x">
-                {stats.map((s) => (
-                  <div key={s.label} className="flex-1 py-3 text-center">
-                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                    <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-                  </div>
-                ))}
-              </div>
+          {/* Stats + Tabs sticky header (matching original: sticky bg-gray-50 z-10) */}
+          <div className="sticky top-[57px] z-10 bg-gray-50">
+            {/* Stats row */}
+            <div className="max-w-7xl mx-auto px-2 md:px-4 mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {stats.map((s) => (
+                <div key={s.label} className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+                </div>
+              ))}
             </div>
-          </div>
 
-          {/* Tab navigation — evenly spread (matching original) */}
-          <div className="bg-white border-b shadow-sm">
-            <div className="max-w-5xl mx-auto px-4">
-              <div className="flex py-2">
+            {/* Tab navigation */}
+            <div className="max-w-7xl mx-auto px-2 md:px-4 mt-3 md:mt-4 pb-3">
+              <div className="flex gap-1 bg-white rounded-lg p-1 shadow-sm overflow-x-auto">
                 {tabs.map(({ to, label, icon: Icon }) => {
                   const active = location.pathname === to || location.pathname.startsWith(to + '/')
                   return (
@@ -79,7 +76,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Main content */}
-          <main className="max-w-5xl mx-auto p-4 lg:p-6">
+          <main className="max-w-7xl mx-auto px-2 md:px-4 py-3 md:py-4">
             <Outlet />
           </main>
         </div>
