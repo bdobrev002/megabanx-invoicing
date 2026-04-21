@@ -38,7 +38,7 @@ export default function DashboardLayout() {
       <div className="pt-[57px] flex">
         <Sidebar variant="landing" />
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-5xl">
           {/* Stats bar */}
           <div className="bg-white border-b">
             <div className="px-4 py-3">
