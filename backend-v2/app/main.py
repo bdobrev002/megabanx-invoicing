@@ -93,6 +93,11 @@ async def websocket_endpoint(
     resolves the profile_id from the session.  All events for that
     profile are pushed over this connection.
     """
+    # Accept the WebSocket handshake first so close codes reach the client.
+    # Without accept(), uvicorn responds with HTTP 403 and the browser sees
+    # code 1006 (abnormal closure) instead of our custom 4001.
+    await websocket.accept()
+
     if not token:
         await websocket.close(code=4001, reason="Missing token")
         return
@@ -118,7 +123,15 @@ async def websocket_endpoint(
             return
         profile_id = user.profile_id
 
-    await ws_manager.connect(profile_id, websocket)
+    # Register connection (already accepted above, so skip accept in connect)
+    if profile_id not in ws_manager.active_connections:
+        ws_manager.active_connections[profile_id] = []
+    ws_manager.active_connections[profile_id].append(websocket)
+    logger.info(
+        "[WS] Profile %s connected. Total: %d",
+        profile_id,
+        len(ws_manager.active_connections[profile_id]),
+    )
     try:
         while True:
             data = await websocket.receive_text()
