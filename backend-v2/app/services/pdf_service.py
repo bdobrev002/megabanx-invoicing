@@ -84,9 +84,7 @@ def _format_date(d: date | None) -> str:
 
 
 def _build_context(snap: InvoicePdfSnapshot) -> tuple[dict[str, Any], str]:
-    label_upper, label_title, template_name = DOC_TYPE_LABELS.get(
-        snap.document_type, DOC_TYPE_LABELS["invoice"]
-    )
+    label_upper, label_title, template_name = DOC_TYPE_LABELS.get(snap.document_type, DOC_TYPE_LABELS["invoice"])
     currency_label = CURRENCY_LABELS.get(snap.currency.upper(), snap.currency)
 
     tax_base = max(Decimal("0.00"), snap.subtotal - snap.discount)
@@ -125,12 +123,7 @@ def _build_context(snap: InvoicePdfSnapshot) -> tuple[dict[str, Any], str]:
 
 
 def _resolve_pdf_path(snap: InvoicePdfSnapshot) -> Path:
-    sales_dir = (
-        Path(settings.DATA_DIR)
-        / snap.profile_id
-        / _sanitize_for_path(snap.company_folder_name)
-        / "Фактури продажби"
-    )
+    sales_dir = Path(settings.DATA_DIR) / snap.profile_id / _sanitize_for_path(snap.company_folder_name) / "Фактури продажби"
     sales_dir.mkdir(parents=True, exist_ok=True)
     invoice_number_str = str(snap.invoice_number).zfill(10)
     date_formatted = snap.issue_date.strftime("%Y.%m.%d")

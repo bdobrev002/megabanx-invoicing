@@ -371,7 +371,7 @@ async def delete_invoice(
                     profile_id=src_invoice.profile_id,
                     type="cross_copy_deleted",
                     title="Контрагентът изтри фактура",
-                    message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. " f"Можете да я синхронизирате наново."),
+                    message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. Можете да я синхронизирате наново."),
                     filename=src_invoice.new_filename,
                     source="cross-copy",
                 )

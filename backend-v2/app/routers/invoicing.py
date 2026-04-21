@@ -76,22 +76,16 @@ async def _build_pdf_snapshot(
     if not meta.invoice_number:
         return None
 
-    company_row = (
-        await db.execute(select(Company).where(Company.id == meta.company_id))
-    ).scalar_one_or_none()
+    company_row = (await db.execute(select(Company).where(Company.id == meta.company_id))).scalar_one_or_none()
     if not company_row:
         return None
 
     client_row: InvClient | None = None
     if meta.client_id:
-        client_row = (
-            await db.execute(select(InvClient).where(InvClient.id == meta.client_id))
-        ).scalar_one_or_none()
+        client_row = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
 
     settings_row = (
-        await db.execute(
-            select(InvCompanySettings).where(InvCompanySettings.company_id == meta.company_id)
-        )
+        await db.execute(select(InvCompanySettings).where(InvCompanySettings.company_id == meta.company_id))
     ).scalar_one_or_none()
 
     company_ctx: dict[str, Any] = {
@@ -199,15 +193,11 @@ async def check_counterparty(
 ):
     """Check whether a company with this EIK already exists in MegaBanx."""
     _ = user  # auth only
-    result = await db.execute(
-        select(Company.id, Company.name, Company.profile_id).where(Company.eik == eik)
-    )
+    result = await db.execute(select(Company.id, Company.name, Company.profile_id).where(Company.eik == eik))
     rows = result.all()
     return {
         "exists": bool(rows),
-        "companies": [
-            {"id": row.id, "name": row.name, "profile_id": row.profile_id} for row in rows
-        ],
+        "companies": [{"id": row.id, "name": row.name, "profile_id": row.profile_id} for row in rows],
     }
 
 
@@ -707,7 +697,7 @@ async def delete_issued_invoice(
     if meta.cross_copy_status == "approved":
         raise HTTPException(
             status_code=409,
-            detail="Фактурата е одобрена от контрагента и не може да бъде изтрита. " "Контрагентът трябва първо да я изтрие.",
+            detail="Фактурата е одобрена от контрагента и не може да бъде изтрита. Контрагентът трябва първо да я изтрие.",
         )
 
     # Delete lines
@@ -747,11 +737,7 @@ async def get_editable_invoice(
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
     _verify_ownership(meta.profile_id, user)
 
-    lines_result = await db.execute(
-        select(InvInvoiceLine)
-        .where(InvInvoiceLine.invoice_id == invoice_id)
-        .order_by(InvInvoiceLine.position)
-    )
+    lines_result = await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id).order_by(InvInvoiceLine.position))
     lines = lines_result.scalars().all()
 
     return {
@@ -793,7 +779,7 @@ async def update_issued_invoice(
     if meta.cross_copy_status == "approved":
         raise HTTPException(
             status_code=409,
-            detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. " "Контрагентът трябва първо да я изтрие.",
+            detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. Контрагентът трябва първо да я изтрие.",
         )
 
     old_pdf_path = meta.pdf_path or ""
@@ -884,13 +870,9 @@ async def update_issued_invoice(
     await db.flush()
 
     fresh_lines_result = await db.execute(
-        select(InvInvoiceLine)
-        .where(InvInvoiceLine.invoice_id == invoice_id)
-        .order_by(InvInvoiceLine.position)
+        select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id).order_by(InvInvoiceLine.position)
     )
-    snapshot = await _build_pdf_snapshot(
-        db, meta, list(fresh_lines_result.scalars().all()), old_pdf_path=old_pdf_path
-    )
+    snapshot = await _build_pdf_snapshot(db, meta, list(fresh_lines_result.scalars().all()), old_pdf_path=old_pdf_path)
     if snapshot is not None:
         background_tasks.add_task(render_invoice_pdf, snapshot)
 
