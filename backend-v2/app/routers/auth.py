@@ -115,12 +115,12 @@ async def verify_code(req: VerifyCodeRequest, response: Response, db: AsyncSessi
     if not user:
         raise HTTPException(status_code=404, detail="Потребителят не е намерен")
 
-    # Create session (30-day expiry to match cookie max_age)
+    # Create session (6-month expiry to match cookie max_age)
     token = generate_session_token()
     session = Session(
         token=token,
         user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(days=30),
+        expires_at=datetime.utcnow() + timedelta(days=180),
     )
     db.add(session)
 
@@ -135,7 +135,7 @@ async def verify_code(req: VerifyCodeRequest, response: Response, db: AsyncSessi
         httponly=True,
         secure=True,
         samesite="lax",
-        max_age=60 * 60 * 24 * 30,  # 30 days
+        max_age=60 * 60 * 24 * 180,  # 6 months
     )
 
     return {
