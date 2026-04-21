@@ -379,8 +379,15 @@ export default function InvoiceForm({
       await showError({ message: 'Добавете поне един ред с артикул.' })
       return
     }
-    if (data.no_vat && !data.no_vat_reason) {
-      await showError({ message: 'Изберете основание за неначисляване на ДДС.' })
+    const resolvedNoVatReason =
+      data.no_vat_reason === 'other' ? customNoVatReason : data.no_vat_reason
+    if (data.no_vat && !resolvedNoVatReason) {
+      await showError({
+        message:
+          data.no_vat_reason === 'other'
+            ? 'Въведете основание за неначисляване на ДДС.'
+            : 'Изберете основание за неначисляване на ДДС.',
+      })
       return
     }
 
