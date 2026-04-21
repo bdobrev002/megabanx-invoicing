@@ -16,6 +16,7 @@ import SharedCompanies from './SharedCompanies'
 
 export default function CompaniesPage() {
   const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const userName = useAuthStore((s) => s.user?.name) ?? ''
   const { companies, setCompanies, sharedCompanies, setSharedCompanies } =
     useCompanyStore()
   const setError = useUiStore((s) => s.setError)
@@ -97,12 +98,9 @@ export default function CompaniesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900">
-          Фирми{' '}
-          <span className="text-base font-normal text-gray-400">
-            ({companies.length})
-          </span>
+          Фирми в профил &ldquo;{userName}&rdquo;{' '}
         </h1>
         <Button size="sm" onClick={() => setShowForm(true)}>
           <Plus size={16} className="mr-1" /> Добави фирма

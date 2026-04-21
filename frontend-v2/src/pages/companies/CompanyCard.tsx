@@ -33,7 +33,7 @@ export default function CompanyCard({ company, onEdit, onDelete }: Props) {
           </div>
         </div>
 
-        {/* Details — full width, matching original megabanx.com layout */}
+        {/* Details — matching original megabanx.com layout exactly */}
         <div className="space-y-1 text-sm text-gray-600">
           <p>
             <span className="font-medium">ЕИК: </span>
@@ -47,15 +47,21 @@ export default function CompanyCard({ company, onEdit, onDelete }: Props) {
             )}
           </p>
           {company.address && (
-            <p>
+            <div className="whitespace-pre-wrap">
               <span className="font-medium">Адрес: </span>
               {company.address}
-            </p>
+            </div>
           )}
           {company.mol && (
             <p>
               <span className="font-medium">Управител/и: </span>
               <span className="font-bold uppercase">{company.mol}</span>
+            </p>
+          )}
+          {company.partners && company.partners.length > 0 && (
+            <p>
+              <span className="font-medium">Съдружник/ци: </span>
+              <span className="font-bold uppercase">{company.partners.join(', ')}</span>
             </p>
           )}
         </div>
