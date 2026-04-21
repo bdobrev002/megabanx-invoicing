@@ -639,6 +639,12 @@ async def create_issued_invoice(
     await db.flush()
 
     snapshot = await _build_pdf_snapshot(db, meta, lines_to_create)
+    # Commit before scheduling the task: FastAPI BackgroundTasks fire inside
+    # ``await response(...)`` (see fastapi.routing.request_response), which runs
+    # *before* generator-dependency cleanup — so ``get_db`` hasn't committed yet
+    # when the task opens its own session. Committing here makes the row visible
+    # and avoids a row-lock deadlock on updates.
+    await db.commit()
     if snapshot is not None:
         background_tasks.add_task(render_invoice_pdf, snapshot)
 
@@ -873,6 +879,8 @@ async def update_issued_invoice(
         select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id).order_by(InvInvoiceLine.position)
     )
     snapshot = await _build_pdf_snapshot(db, meta, list(fresh_lines_result.scalars().all()), old_pdf_path=old_pdf_path)
+    # See POST /invoices for why we commit before scheduling the task.
+    await db.commit()
     if snapshot is not None:
         background_tasks.add_task(render_invoice_pdf, snapshot)
 

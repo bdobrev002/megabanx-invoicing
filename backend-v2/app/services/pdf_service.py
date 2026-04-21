@@ -180,9 +180,12 @@ def _render_pdf_sync(snap: InvoicePdfSnapshot) -> str | None:
 async def render_invoice_pdf(snap: InvoicePdfSnapshot) -> str | None:
     """Render the invoice PDF and persist ``pdf_path``.
 
-    Runs as a FastAPI ``BackgroundTasks`` callback, i.e. after the response
-    (and the owning DB transaction) has committed. Errors are logged but
-    never raised — a failed render must not break the invoice that exists.
+    Runs as a FastAPI ``BackgroundTasks`` callback. The caller is responsible
+    for committing the owning transaction **before** scheduling this task —
+    FastAPI's ``BackgroundTasks`` fire inside ``await response(...)``, which
+    runs before generator-dependency cleanup, so relying on ``get_db`` to
+    commit would race the task's own session. Errors are logged but never
+    raised — a failed render must not break the invoice that exists.
     """
     pdf_path = await asyncio.to_thread(_render_pdf_sync, snap)
     if pdf_path is None:
