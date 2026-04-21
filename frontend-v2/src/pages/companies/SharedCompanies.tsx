@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button'
 import { Building2, LogOut } from 'lucide-react'
 import { sharingApi } from '@/api/sharing.api'
 import { useUiStore } from '@/stores/uiStore'
+import { useDialogStore } from '@/stores/dialogStore'
 import type { SharedCompanyInfo } from '@/types/company.types'
 
 interface Props {
@@ -13,9 +14,16 @@ interface Props {
 
 export default function SharedCompanies({ companies, onRefresh }: Props) {
   const setError = useUiStore((s) => s.setError)
+  const showConfirm = useDialogStore((s) => s.showConfirm)
 
   const handleLeave = async (shareId: string) => {
-    if (!confirm('Сигурни ли сте, че искате да напуснете споделената фирма?')) return
+    const confirmed = await showConfirm({
+      title: 'Напускане на фирма',
+      message: 'Сигурни ли сте, че искате да напуснете споделената фирма?',
+      confirmLabel: 'Напусни',
+      cancelLabel: 'Отказ',
+    })
+    if (!confirmed) return
     try {
       await sharingApi.getSharedWithMe() // verify endpoint available
       // The leave endpoint may differ — for now just remove from UI

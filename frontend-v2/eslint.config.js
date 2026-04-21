@@ -19,5 +19,22 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'alert',
+          message: 'Use useDialogStore().showAlert() instead of browser alert().',
+        },
+        {
+          name: 'confirm',
+          message: 'Use useDialogStore().showConfirm() instead of browser confirm().',
+        },
+        {
+          name: 'prompt',
+          message: 'Use useDialogStore().showPrompt() instead of browser prompt().',
+        },
+      ],
+    },
   },
 ])

@@ -46,6 +46,7 @@ import AdminSettings from '@/pages/admin/AdminSettings'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import Toast from '@/components/ui/Toast'
+import DialogProvider from '@/components/ui/DialogProvider'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -142,6 +143,9 @@ export default function App() {
         {/* Global toast notifications */}
         {error && <Toast type="error" message={error} onClose={() => setError(null)} />}
         {success && <Toast type="success" message={success} onClose={() => setSuccess(null)} />}
+
+        {/* Global dialog provider (replaces browser alert/confirm/prompt) */}
+        <DialogProvider />
       </BrowserRouter>
     </QueryClientProvider>
   )
