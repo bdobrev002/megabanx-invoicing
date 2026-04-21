@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "megabanx-v2-backend"
+version = "2.0.0"
+description = "Megabanx 2.0 Backend — FastAPI + PostgreSQL"
+authors = ["Megabanx <dev@megabanx.com>"]
+readme = "README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.32.0"}
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.36"}
+asyncpg = "^0.30.0"
+alembic = "^1.14.0"
+pydantic = "^2.10.0"
+pydantic-settings = "^2.6.0"
+python-dotenv = "^1.0.1"
+httpx = "^0.28.0"
+google-genai = "^1.0.0"
+pdfplumber = "^0.11.0"
+Pillow = "^11.0.0"
+cryptography = "^44.0.0"
+python-multipart = "^0.0.18"
+passlib = "^1.7.4"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.8.0"
+mypy = "^1.13.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
