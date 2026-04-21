@@ -1,11 +1,13 @@
 """Invoicing module router: clients, items, stubs, invoices, settings, sync."""
 
+import os
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -38,6 +40,8 @@ from app.schemas.invoicing import (
     SyncSettingsOut,
     SyncSettingsUpdate,
 )
+from app.services.eik_lookup import lookup_eik
+from app.services.pdf_service import InvoicePdfSnapshot, render_invoice_pdf
 
 router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
 
@@ -48,11 +52,179 @@ def _verify_ownership(profile_id: str, user: User) -> None:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
 
-async def _verify_company_access(company_id: str, profile_id: str, db: AsyncSession) -> None:
-    """Verify that company_id belongs to the given profile."""
+async def _verify_company_access(company_id: str, profile_id: str, db: AsyncSession) -> Company:
+    """Verify that company_id belongs to the given profile and return it."""
     result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
-    if not result.scalar_one_or_none():
+    company = result.scalar_one_or_none()
+    if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+    return company
+
+
+async def _build_pdf_snapshot(
+    db: AsyncSession,
+    meta: InvInvoiceMeta,
+    lines: list[InvInvoiceLine],
+    *,
+    old_pdf_path: str = "",
+) -> InvoicePdfSnapshot | None:
+    """Gather company/client/settings rows needed to render a PDF.
+
+    Returns ``None`` when the invoice lacks the minimum data (company or
+    invoice number); the caller should skip scheduling the render.
+    """
+    if not meta.invoice_number:
+        return None
+
+    company_row = (
+        await db.execute(select(Company).where(Company.id == meta.company_id))
+    ).scalar_one_or_none()
+    if not company_row:
+        return None
+
+    client_row: InvClient | None = None
+    if meta.client_id:
+        client_row = (
+            await db.execute(select(InvClient).where(InvClient.id == meta.client_id))
+        ).scalar_one_or_none()
+
+    settings_row = (
+        await db.execute(
+            select(InvCompanySettings).where(InvCompanySettings.company_id == meta.company_id)
+        )
+    ).scalar_one_or_none()
+
+    company_ctx: dict[str, Any] = {
+        "name": company_row.name,
+        "eik": company_row.eik or "",
+        "vat_number": company_row.vat_number or "",
+        "address": company_row.address or "",
+        "mol": company_row.mol or "",
+        "city": "",
+        "iban": settings_row.iban if settings_row else "",
+        "bank_name": settings_row.bank_name if settings_row else "",
+        "bic": settings_row.bic if settings_row else "",
+    }
+    client_ctx: dict[str, Any] = {
+        "name": client_row.name if client_row else "",
+        "eik": (client_row.eik if client_row else "") or "",
+        "vat_number": (client_row.vat_number if client_row else "") or "",
+        "address": (client_row.address if client_row else "") or "",
+        "mol": (client_row.mol if client_row else "") or "",
+        "city": (client_row.city if client_row else "") or "",
+    }
+    lines_ctx = [
+        {
+            "position": line.position,
+            "description": line.description,
+            "quantity": float(line.quantity),
+            "unit": line.unit,
+            "unit_price": float(line.unit_price),
+            "vat_rate": float(line.vat_rate),
+            "line_total": float(line.line_total),
+        }
+        for line in sorted(lines, key=lambda line: line.position)
+    ]
+    return InvoicePdfSnapshot(
+        invoice_id=meta.invoice_id,
+        profile_id=meta.profile_id,
+        document_type=meta.document_type,
+        invoice_number=meta.invoice_number,
+        issue_date=meta.issue_date or date.today(),
+        tax_event_date=meta.tax_event_date,
+        due_date=meta.due_date,
+        company_folder_name=company_row.name,
+        client_display_name=client_row.name if client_row else "Клиент",
+        company=company_ctx,
+        client=client_ctx,
+        lines=lines_ctx,
+        subtotal=meta.subtotal,
+        discount=meta.discount,
+        vat_amount=meta.vat_amount,
+        total=meta.total,
+        vat_rate=meta.vat_rate,
+        no_vat=meta.no_vat,
+        no_vat_reason=meta.no_vat_reason or "",
+        payment_method=meta.payment_method or "",
+        notes=meta.notes or "",
+        currency=meta.currency,
+        composed_by=meta.composed_by or "",
+        old_pdf_path=old_pdf_path,
+    )
+
+
+# ──────────────────── Utility endpoints ────────────────────
+
+
+@router.get("/next-number")
+async def get_next_number(
+    company_id: str = Query(...),
+    profile_id: str = Query(...),
+    document_type: str = Query("invoice"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Preview the next available invoice number for (company, document_type).
+
+    Preview only — the race-safe increment happens inside ``POST /invoices``
+    via ``SELECT ... FOR UPDATE`` on the stub row.
+    """
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+    result = await db.execute(
+        select(func.max(InvInvoiceMeta.invoice_number)).where(
+            InvInvoiceMeta.company_id == company_id,
+            InvInvoiceMeta.document_type == document_type,
+        )
+    )
+    max_number = result.scalar() or 0
+    return {"next_number": max_number + 1}
+
+
+@router.get("/registry/lookup/{eik}")
+async def registry_lookup(
+    eik: str,
+    user: User = Depends(get_current_user),
+):
+    """Look up a Bulgarian company by EIK in the Trade Registry."""
+    _ = user  # auth only
+    return await lookup_eik(eik)
+
+
+@router.get("/check-counterparty/{eik}")
+async def check_counterparty(
+    eik: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check whether a company with this EIK already exists in MegaBanx."""
+    _ = user  # auth only
+    result = await db.execute(
+        select(Company.id, Company.name, Company.profile_id).where(Company.eik == eik)
+    )
+    rows = result.all()
+    return {
+        "exists": bool(rows),
+        "companies": [
+            {"id": row.id, "name": row.name, "profile_id": row.profile_id} for row in rows
+        ],
+    }
+
+
+@router.get("/client-emails/{client_id}")
+async def list_client_emails(
+    client_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the list of known emails for a client (used when sending invoices)."""
+    result = await db.execute(select(InvClient).where(InvClient.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Клиентът не е намерен")
+    _verify_ownership(client.profile_id, user)
+    emails = [e.strip() for e in (client.email or "").split(",") if e.strip()]
+    return {"client_id": client_id, "emails": emails}
 
 
 # ──────────────────── Clients ────────────────────
@@ -355,6 +527,7 @@ async def list_issued_invoices(
 @router.post("/invoices")
 async def create_issued_invoice(
     req: InvoiceCreateSchema,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -474,6 +647,11 @@ async def create_issued_invoice(
         db.add(line)
 
     await db.flush()
+
+    snapshot = await _build_pdf_snapshot(db, meta, lines_to_create)
+    if snapshot is not None:
+        background_tasks.add_task(render_invoice_pdf, snapshot)
+
     return InvoiceMetaOut.model_validate(meta)
 
 
@@ -538,14 +716,69 @@ async def delete_issued_invoice(
     for line in lines:
         await db.delete(line)
 
+    pdf_path = meta.pdf_path or ""
     await db.delete(meta)
+
+    if pdf_path:
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except OSError:
+            pass
+
     return {"message": "Фактурата е изтрита"}
+
+
+@router.get("/invoices/{invoice_id}/editable")
+async def get_editable_invoice(
+    invoice_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the invoice shaped for the edit form (meta + lines + guard flag).
+
+    Frontend uses this to hydrate the invoice form. When ``editable`` is
+    ``False`` the UI must switch to read-only — a counterparty-approved
+    invoice cannot be edited (see PUT guard below).
+    """
+    result = await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
+    meta = result.scalar_one_or_none()
+    if not meta:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    _verify_ownership(meta.profile_id, user)
+
+    lines_result = await db.execute(
+        select(InvInvoiceLine)
+        .where(InvInvoiceLine.invoice_id == invoice_id)
+        .order_by(InvInvoiceLine.position)
+    )
+    lines = lines_result.scalars().all()
+
+    return {
+        "editable": meta.cross_copy_status != "approved",
+        "meta": InvoiceMetaOut.model_validate(meta),
+        "lines": [
+            {
+                "id": line.id,
+                "item_id": line.item_id,
+                "position": line.position,
+                "description": line.description,
+                "quantity": float(line.quantity),
+                "unit": line.unit,
+                "unit_price": float(line.unit_price),
+                "vat_rate": float(line.vat_rate),
+                "line_total": float(line.line_total),
+            }
+            for line in lines
+        ],
+    }
 
 
 @router.put("/invoices/{invoice_id}")
 async def update_issued_invoice(
     invoice_id: str,
     req: InvoiceCreateSchema,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -562,6 +795,8 @@ async def update_issued_invoice(
             status_code=409,
             detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. " "Контрагентът трябва първо да я изтрие.",
         )
+
+    old_pdf_path = meta.pdf_path or ""
 
     # Update meta fields
     meta.client_id = req.client_id
@@ -647,6 +882,18 @@ async def update_issued_invoice(
         meta.vat_rate = Decimal(str(req.vat_rate))
 
     await db.flush()
+
+    fresh_lines_result = await db.execute(
+        select(InvInvoiceLine)
+        .where(InvInvoiceLine.invoice_id == invoice_id)
+        .order_by(InvInvoiceLine.position)
+    )
+    snapshot = await _build_pdf_snapshot(
+        db, meta, list(fresh_lines_result.scalars().all()), old_pdf_path=old_pdf_path
+    )
+    if snapshot is not None:
+        background_tasks.add_task(render_invoice_pdf, snapshot)
+
     return InvoiceMetaOut.model_validate(meta)
 
 

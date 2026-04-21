@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4 portrait; margin: 12mm 15mm 15mm 15mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 9pt; color: #2d3748; line-height: 1.4; background: #fff; }
+
+    /* -- Header: accent bar + doc type -- */
+    .header-bar {
+        background: linear-gradient(135deg, #2563eb, #1e40af);
+        color: #fff;
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 4px;
+        margin-bottom: 14px;
+    }
+    .header-bar .doc-type-title {
+        font-size: 18pt;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .header-bar .doc-copy-label {
+        font-size: 11pt;
+        font-weight: 600;
+        opacity: 0.85;
+        font-style: italic;
+    }
+
+    /* -- Parties -- */
+    .parties { display: flex; gap: 16px; margin-bottom: 10px; }
+    .party-box { flex: 1; }
+    .party-label {
+        font-size: 7.5pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #2563eb;
+        margin-bottom: 5px;
+    }
+    .party-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #f8fafc;
+    }
+    .party-info { padding: 8px 10px 4px 10px; }
+    .party-info .company-name { font-size: 10pt; font-weight: 700; color: #1e293b; margin-bottom: 1px; }
+    .party-info .detail-line { font-size: 8.5pt; color: #475569; }
+    .party-card table.party-fields { width: 100%; border-collapse: collapse; }
+    .party-card table.party-fields td {
+        font-size: 8.5pt;
+        padding: 3px 10px;
+        vertical-align: top;
+        border-top: 1px solid #e2e8f0;
+        color: #334155;
+    }
+    .party-card table.party-fields td:first-child { width: 80px; color: #64748b; font-size: 8pt; }
+
+    /* -- Doc info row (number, dates) - BELOW parties -- */
+    .doc-info-strip {
+        display: flex;
+        justify-content: flex-start;
+        gap: 28px;
+        margin-bottom: 14px;
+        padding: 8px 12px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+    }
+    .doc-info-item { font-size: 9pt; }
+    .doc-info-item .label { color: #64748b; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 1px; }
+    .doc-info-item .value { font-weight: 700; font-size: 9.5pt; color: #1e293b; }
+    .doc-info-item.dates-item .value { font-size: 8.5pt; font-weight: 600; }
+
+    /* -- Items table -- */
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    table.items th {
+        background: #e2e8f0;
+        color: #334155;
+        padding: 5px 8px;
+        font-size: 7.5pt;
+        font-weight: 600;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    table.items th:first-child { border-radius: 4px 0 0 0; }
+    table.items th:last-child { border-radius: 0 4px 0 0; }
+    table.items th.right { text-align: right; }
+    table.items th.center { text-align: center; }
+    table.items td {
+        padding: 4px 8px;
+        font-size: 8.5pt;
+        vertical-align: middle;
+        border-bottom: 1px solid #e2e8f0;
+        color: #334155;
+    }
+    table.items td.num { text-align: center; width: 24px; color: #94a3b8; font-weight: 600; }
+    table.items td.right { text-align: right; }
+    table.items td.center { text-align: center; }
+    table.items tbody tr:nth-child(even) { background: #f8fafc; }
+
+    /* -- Bank + Totals row -- */
+    .bank-totals { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .bank-box {
+        flex: 1;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #f8fafc;
+    }
+    .bank-box .bank-title {
+        font-size: 7.5pt;
+        font-weight: 700;
+        padding: 5px 10px;
+        background: #e2e8f0;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .bank-box table { width: 100%; border-collapse: collapse; }
+    .bank-box table td { font-size: 8.5pt; padding: 3px 10px; vertical-align: top; color: #334155; }
+    .bank-box table td:first-child { width: 70px; color: #64748b; font-size: 8pt; }
+
+    .totals-box { width: 260px; flex-shrink: 0; }
+    .totals-box table { width: 100%; border-collapse: collapse; }
+    .totals-box table td { padding: 3px 6px; font-size: 9pt; color: #475569; }
+    .totals-box table td:first-child { text-align: right; white-space: nowrap; }
+    .totals-box table td:last-child { text-align: right; font-weight: 600; width: 110px; white-space: nowrap; color: #1e293b; }
+    .totals-box table tr.total-final td {
+        font-size: 12pt;
+        font-weight: 800;
+        padding: 6px 6px 3px 6px;
+        color: #1e293b;
+        border-top: 2px solid #2563eb;
+    }
+
+    /* -- Info rows -- */
+    .info-row-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 8.5pt;
+        margin-bottom: 3px;
+        background: #f8fafc;
+        color: #475569;
+    }
+    .info-row-box strong { color: #1e293b; }
+
+    /* -- Signatures -- */
+    .signatures {
+        display: flex;
+        justify-content: space-between;
+        margin: 16px 0 10px 0;
+        padding-top: 8px;
+    }
+    .signature-box {
+        font-size: 8.5pt;
+        color: #64748b;
+        text-align: center;
+        width: 200px;
+    }
+    .signature-box .sig-name {
+        font-weight: 700;
+        color: #1e293b;
+        display: block;
+        margin-top: 4px;
+        padding-top: 5px;
+        border-top: 1px solid #cbd5e1;
+    }
+
+    /* -- Notes -- */
+    .dashed-line { border-top: 1px dashed #cbd5e1; margin: 10px 0; }
+    .notes-section { font-size: 8.5pt; color: #64748b; }
+    .notes-section strong { color: #475569; }
+</style>
+</head>
+<body>
+
+<!-- HEADER BAR -->
+<div class="header-bar">
+    <div class="doc-type-title">{{ doc_type_label }}</div>
+    <div class="doc-copy-label">{{ doc_copy_label }}</div>
+</div>
+
+<!-- PARTIES -->
+<div class="parties">
+    <div class="party-box">
+        <div class="party-label">Получател</div>
+        <div class="party-card">
+            <div class="party-info">
+                <div class="company-name">{{ client.name }}</div>
+                {% if client.address %}<div class="detail-line">{{ client.address }}</div>{% endif %}
+                {% if client.city %}<div class="detail-line">{{ client.city }}</div>{% endif %}
+            </div>
+            <table class="party-fields">
+                {% if client.eik %}<tr><td>ЕИК:</td><td>{{ client.eik }}</td></tr>{% endif %}
+                {% if client.vat_number %}<tr><td>ДДС №:</td><td>{{ client.vat_number }}</td></tr>{% endif %}
+                {% if client.mol %}<tr><td>МОЛ:</td><td>{{ client.mol }}</td></tr>{% endif %}
+            </table>
+        </div>
+    </div>
+    <div class="party-box">
+        <div class="party-label">Доставчик</div>
+        <div class="party-card">
+            <div class="party-info">
+                <div class="company-name">{{ company.name }}</div>
+                {% if company.address %}<div class="detail-line">{{ company.address }}</div>{% endif %}
+                {% if company.city %}<div class="detail-line">{{ company.city }}</div>{% endif %}
+            </div>
+            <table class="party-fields">
+                <tr><td>ЕИК:</td><td>{{ company.eik }}</td></tr>
+                {% if company.vat_number %}<tr><td>ДДС №:</td><td>{{ company.vat_number }}</td></tr>{% endif %}
+                {% if company.mol %}<tr><td>МОЛ:</td><td>{{ company.mol }}</td></tr>{% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- DOCUMENT INFO STRIP - below parties -->
+<div class="doc-info-strip">
+    <div class="doc-info-item">
+        <span class="label">Номер</span>
+        <span class="value">{{ invoice_number }}</span>
+    </div>
+    <div class="doc-info-item dates-item">
+        <span class="label">Дата на издаване</span>
+        <span class="value">{{ issue_date_formatted }}</span>
+    </div>
+    <div class="doc-info-item dates-item">
+        <span class="label">Дата на данъчно събитие</span>
+        <span class="value">{{ tax_event_date_formatted }}</span>
+    </div>
+    {% if due_date %}
+    <div class="doc-info-item dates-item">
+        <span class="label">Дата на падеж</span>
+        <span class="value">{{ due_date_formatted }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ITEMS TABLE - with VAT % per row -->
+<table class="items">
+    <thead>
+        <tr>
+            <th style="width:24px">&#8470;</th>
+            <th>Наименование</th>
+            <th class="right" style="width:60px">К-во</th>
+            <th class="center" style="width:40px">Мярка</th>
+            <th class="right" style="width:70px">Ед. цена</th>
+            {% if not no_vat %}
+            <th class="center" style="width:45px">ДДС %</th>
+            {% endif %}
+            <th class="right" style="width:85px">Стойност</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for line in lines %}
+        <tr>
+            <td class="num">{{ loop.index }}</td>
+            <td>{{ line.description }}</td>
+            <td class="right">{{ "%.2f"|format(line.quantity) }}</td>
+            <td class="center">{{ line.unit }}</td>
+            <td class="right">{{ "%.2f"|format(line.unit_price) }}</td>
+            {% if not no_vat %}
+            <td class="center">{{ line.vat_rate|int }}%</td>
+            {% endif %}
+            <td class="right">{{ "%.2f"|format(line.line_total) }} {{ currency_label }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- BANK + TOTALS -->
+<div class="bank-totals">
+    <div class="bank-box">
+        <div class="bank-title">Банкови детайли на доставчика</div>
+        <table>
+            <tr><td>Банка:</td><td>{{ company.bank_name or "" }}</td></tr>
+            <tr><td>IBAN:</td><td>{{ company.iban or "" }}</td></tr>
+            <tr><td>BIC:</td><td>{{ company.bic or "" }}</td></tr>
+        </table>
+    </div>
+    <div class="totals-box">
+        <table>
+            <tr><td>Данъчна основа:</td><td>{{ tax_base }} {{ currency_label }}</td></tr>
+            {% if not no_vat %}
+            <tr><td>ДДС:</td><td>{{ vat_amount }} {{ currency_label }}</td></tr>
+            {% else %}
+            <tr><td>ДДС:</td><td>Не се начислява</td></tr>
+            {% endif %}
+            <tr class="total-final"><td>За плащане:</td><td>{{ total }} {{ currency_label }}</td></tr>
+        </table>
+    </div>
+</div>
+
+{% if total_words %}
+<div class="info-row-box">Словом: <strong>{{ total_words }}</strong></div>
+{% endif %}
+
+{% if payment_method %}
+<div class="info-row-box">Метод на плащане: <strong>{{ payment_method }}</strong></div>
+{% endif %}
+
+{% if no_vat and no_vat_reason %}
+<div class="info-row-box">Основание за неначисляване на ДДС: <strong>{{ no_vat_reason }}</strong></div>
+{% endif %}
+
+<!-- SIGNATURES -->
+<div class="signatures">
+    <div class="signature-box">
+        Получател
+        <span class="sig-name">{{ client.mol or client.name }}</span>
+    </div>
+    <div class="signature-box">
+        Съставил
+        <span class="sig-name">{{ composed_by or company.mol or company.name }}</span>
+    </div>
+</div>
+
+<div class="dashed-line"></div>
+<div class="notes-section"><strong>Забележки:</strong>{% if notes %}<br>{{ notes }}{% endif %}</div>
+
+</body>
+</html>
