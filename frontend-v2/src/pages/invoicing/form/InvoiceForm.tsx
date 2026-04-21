@@ -334,18 +334,17 @@ export default function InvoiceForm({
   }) => setData((d) => ({ ...d, ...patch }))
 
   const handleSyncChange = (patch: { sync_mode?: SyncMode; delay_minutes?: number }) => {
-    setData((d) => {
-      const next = { ...d, ...patch }
-      // Persist to company-level sync settings. Fire-and-forget; non-fatal on error.
-      void invoicingApi
-        .updateSyncSettings(companyId, profileId, {
-          sync_mode: next.sync_mode,
-          delay_minutes: next.delay_minutes,
-        })
-        .catch(() => {
-          // swallow — UI already reflects user's choice; retry on next change
-        })
-      return next
+    // Compute the merged values from the current committed state BEFORE
+    // dispatching setData. Do NOT call APIs inside a setState updater — React
+    // StrictMode invokes updaters twice in dev, which would duplicate requests.
+    const merged = {
+      sync_mode: patch.sync_mode ?? data.sync_mode,
+      delay_minutes: patch.delay_minutes ?? data.delay_minutes,
+    }
+    setData((d) => ({ ...d, ...patch }))
+    // Persist to company-level sync settings. Fire-and-forget; non-fatal on error.
+    void invoicingApi.updateSyncSettings(companyId, profileId, merged).catch(() => {
+      // swallow — UI already reflects user's choice; retry on next change
     })
   }
 
@@ -418,11 +417,11 @@ export default function InvoiceForm({
     setSubmitting(true)
     try {
       if (mode === 'edit' && invoiceId) {
-        // Preserve the invoice's current status — editing a draft must NOT
-        // silently promote it to issued, and vice versa. If the user explicitly
-        // chooses "Чернова" while editing an issued invoice, allow demotion.
-        const targetStatus: 'issued' | 'draft' =
-          status === 'draft' && currentStatus === 'draft' ? 'draft' : currentStatus
+        // Allow demotion issued→draft if the user explicitly clicks "Чернова",
+        // otherwise preserve the current persisted status (never silently
+        // promote a draft to issued just because FormActions defaults to
+        // 'issued' on its primary submit button).
+        const targetStatus: 'issued' | 'draft' = status === 'draft' ? 'draft' : currentStatus
         await invoicingApi.updateInvoice(invoiceId, companyId, profileId, payload, targetStatus)
       } else if (status === 'draft') {
         await invoicingApi.createDraftInvoice(companyId, profileId, payload)
