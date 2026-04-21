@@ -1,40 +1,49 @@
 export interface InvoiceClient {
   id: string
   name: string
-  eik: string
-  vat_number: string
-  address: string
-  mol: string
-  email?: string
-  phone?: string
+  eik?: string | null
+  egn?: string | null
+  vat_number?: string | null
+  is_vat_registered?: boolean
+  is_individual?: boolean
+  mol?: string | null
+  city?: string | null
+  address?: string | null
+  email?: string | null
+  phone?: string | null
 }
 
 export interface InvoiceItem {
   id: string
   name: string
   unit: string
-  price: number
-  vat_rate: number
-  description?: string
+  default_price?: number | string
+  price?: number
+  vat_rate: number | string
+  description?: string | null
 }
 
 export interface InvoiceLine {
+  id?: string
+  item_id?: string | null
+  position?: number
   description: string
   quantity: number
   unit: string
+  /** Unit price WITHOUT VAT (canonical model; UI may display with VAT via PriceModeToggle) */
   price: number
   vat_rate: number
-  value: number
+  /** Computed: quantity * price (without VAT) */
+  value?: number
 }
 
 export interface InvoiceStub {
   id: string
   name: string
-  prefix: string
   start_number: number
   end_number: number
-  current_number: number
-  doc_type: string
+  next_number: number
+  is_active: boolean
 }
 
 export type CrossCopyStatus = 'none' | 'pending' | 'approved' | 'no_subscriber' | 'deleted_by_recipient'
@@ -75,23 +84,31 @@ export type DocType = 'invoice' | 'proforma' | 'debit_note' | 'credit_note'
 
 export type SyncMode = 'manual' | 'immediate' | 'delayed'
 
+export type DiscountType = 'EUR' | '%'
+
 export interface InvoiceFormData {
   doc_type: DocType
   client_id: string
   stub_id: string
+  /** Invoice number as a string (to preserve leading zeros while editing) */
   invoice_number: string
+  /** Issue date — mapped to backend ``issue_date`` */
   date: string
   due_date: string
+  /** Tax event date — mapped to backend ``tax_event_date`` */
   delivery_date: string
   lines: InvoiceLine[]
   notes: string
+  notes_en: string
   internal_notes: string
-  discount_type: 'eur' | 'percent'
+  discount_type: DiscountType
   discount_value: number
   no_vat: boolean
   no_vat_reason: string
+  /** UI-only flag controlling the price-column display mode */
   price_with_vat: boolean
   payment_method: string
+  composed_by: string
   sync_mode: SyncMode
   delay_minutes: number
 }
