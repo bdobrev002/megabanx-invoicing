@@ -159,10 +159,16 @@ export const invoicingApi = {
   getEditableInvoice: (invoiceId: string) =>
     apiFetch<EditableInvoiceResponse>(`/invoicing/invoices/${invoiceId}/editable`),
 
-  updateInvoice: (invoiceId: string, companyId: string, profileId: string, data: InvoiceFormData) =>
+  updateInvoice: (
+    invoiceId: string,
+    companyId: string,
+    profileId: string,
+    data: InvoiceFormData,
+    status: 'issued' | 'draft' = 'issued',
+  ) =>
     apiFetch<IssuedInvoiceMeta>(`/invoicing/invoices/${invoiceId}`, {
       method: 'PUT',
-      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId, status: 'issued' }),
+      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId, status }),
     }),
 
   removeInvoice: (invoiceId: string) =>

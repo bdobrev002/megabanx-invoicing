@@ -97,6 +97,8 @@ export default function InvoiceForm({
   const [submitting, setSubmitting] = useState(false)
   const [readOnly, setReadOnly] = useState(false)
   const [showItemPicker, setShowItemPicker] = useState<number | null>(null)
+  /** Current persisted status of the invoice being edited ('issued' or 'draft'). */
+  const [currentStatus, setCurrentStatus] = useState<'issued' | 'draft'>('issued')
 
   const hydrateFromEditable = useCallback(
     (resp: EditableInvoiceResponse, allClients: InvoiceClient[]) => {
@@ -142,6 +144,7 @@ export default function InvoiceForm({
         delay_minutes: 30,
       })
       setShowDueDate(Boolean(m.due_date))
+      setCurrentStatus(m.status === 'draft' ? 'draft' : 'issued')
       if (m.client_id) {
         const c = allClients.find((x) => x.id === m.client_id)
         if (c) {
@@ -208,6 +211,19 @@ export default function InvoiceForm({
           } catch {
             // non-fatal — user can type number manually
           }
+        }
+        // Preload company-level sync settings so the controls reflect reality
+        try {
+          const sync = await invoicingApi.getSyncSettings(companyId, profileId)
+          if (!cancelled) {
+            setData((d) => ({
+              ...d,
+              sync_mode: sync.sync_mode,
+              delay_minutes: sync.delay_minutes,
+            }))
+          }
+        } catch {
+          // non-fatal — controls will just show defaults
         }
       } catch (err) {
         if (cancelled) return
@@ -317,8 +333,21 @@ export default function InvoiceForm({
     payment_method?: string
   }) => setData((d) => ({ ...d, ...patch }))
 
-  const handleSyncChange = (patch: { sync_mode?: SyncMode; delay_minutes?: number }) =>
-    setData((d) => ({ ...d, ...patch }))
+  const handleSyncChange = (patch: { sync_mode?: SyncMode; delay_minutes?: number }) => {
+    setData((d) => {
+      const next = { ...d, ...patch }
+      // Persist to company-level sync settings. Fire-and-forget; non-fatal on error.
+      void invoicingApi
+        .updateSyncSettings(companyId, profileId, {
+          sync_mode: next.sync_mode,
+          delay_minutes: next.delay_minutes,
+        })
+        .catch(() => {
+          // swallow — UI already reflects user's choice; retry on next change
+        })
+      return next
+    })
+  }
 
   const pickItem = (item: InvoiceItem) => {
     if (showItemPicker == null) return
@@ -333,7 +362,7 @@ export default function InvoiceForm({
               description: item.name,
               unit: item.unit || l.unit,
               price: Number(item.default_price ?? item.price ?? l.price) || 0,
-              vat_rate: Number(item.vat_rate) || l.vat_rate,
+              vat_rate: item.vat_rate != null ? Number(item.vat_rate) : l.vat_rate,
             }
           : l,
       ),
@@ -389,7 +418,12 @@ export default function InvoiceForm({
     setSubmitting(true)
     try {
       if (mode === 'edit' && invoiceId) {
-        await invoicingApi.updateInvoice(invoiceId, companyId, profileId, payload)
+        // Preserve the invoice's current status — editing a draft must NOT
+        // silently promote it to issued, and vice versa. If the user explicitly
+        // chooses "Чернова" while editing an issued invoice, allow demotion.
+        const targetStatus: 'issued' | 'draft' =
+          status === 'draft' && currentStatus === 'draft' ? 'draft' : currentStatus
+        await invoicingApi.updateInvoice(invoiceId, companyId, profileId, payload, targetStatus)
       } else if (status === 'draft') {
         await invoicingApi.createDraftInvoice(companyId, profileId, payload)
       } else {
