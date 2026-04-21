@@ -25,6 +25,7 @@ export default function Navbar() {
           {user && (
             <>
               <span className="hidden md:inline text-gray-500">|</span>
+              <span className="hidden md:inline text-sm font-medium text-white truncate">{user.name}</span>
               <span className="text-xs md:text-sm font-medium text-indigo-300 truncate">{user.email}</span>
             </>
           )}

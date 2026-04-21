@@ -32,8 +32,10 @@ class Invoice(Base):
     destination_path: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="processed")  # processed, unmatched, error
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    cross_copy_status: Mapped[str] = mapped_column(String(20), default="none")
+    cross_copy_status: Mapped[str] = mapped_column(String(30), default="none")
+    # Possible values: none, no_subscriber, pending, approved, deleted_by_recipient
     cross_copied_from: Mapped[str] = mapped_column(String(255), default="")
+    source_invoice_id: Mapped[str] = mapped_column(String(36), default="")  # Links cross-copied invoice back to source
     is_credit_note: Mapped[bool] = mapped_column(Boolean, default=False)
     source: Mapped[str] = mapped_column(String(20), default="scan")  # scan, software
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

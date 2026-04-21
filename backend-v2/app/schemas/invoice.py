@@ -40,6 +40,7 @@ class InvoiceOut(BaseModel):
     error_message: Optional[str]
     cross_copy_status: str
     cross_copied_from: str
+    source_invoice_id: str
     is_credit_note: bool
     source: str
     created_at: datetime

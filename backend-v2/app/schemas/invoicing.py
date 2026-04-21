@@ -185,6 +185,8 @@ class InvoiceMetaOut(BaseModel):
     pdf_path: Optional[str]
     sync_status: str
     status: str
+    cross_copy_status: str = "none"
+    source_invoice_id: str = ""
     composed_by: Optional[str]
     created_at: datetime
     updated_at: datetime

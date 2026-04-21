@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Spinner from '@/components/ui/Spinner'
 import { History } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
+import { onWsMessage } from '@/api/websocket'
 import type { InvoiceRecord } from '@/types/file.types'
 import HistoryFilters from './HistoryFilters'
 import HistoryTable from './HistoryTable'
@@ -17,24 +18,52 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const setSuccess = useUiStore((s) => s.setSuccess)
+
+  const fetchRecords = useCallback(async () => {
+    if (!profileId) return
+    try {
+      const list = await filesApi.list(profileId)
+      setRecords(list)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при зареждане')
+    } finally {
+      setLoading(false)
+    }
+  }, [profileId, setError])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      if (!profileId) return
-      try {
-        const list = await filesApi.list(profileId)
-        if (!cancelled) setRecords(list)
-      } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Грешка при зареждане')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      await fetchRecords()
+      if (cancelled) return
     }
     load()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId])
+  }, [fetchRecords])
+
+  // Refresh on WebSocket events
+  useEffect(() => {
+    return onWsMessage((data) => {
+      if (typeof data === 'object' && data !== null && 'type' in data) {
+        const evt = data as { type: string }
+        if (evt.type === 'refresh') {
+          fetchRecords()
+        }
+      }
+    })
+  }, [fetchRecords])
+
+  const handleResync = async (invoiceId: string) => {
+    if (!profileId) return
+    try {
+      await filesApi.resync(profileId, invoiceId)
+      setSuccess('Фактурата е маркирана за повторна синхронизация')
+      fetchRecords()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при ресинхронизация')
+    }
+  }
 
   if (loading) {
     return (
@@ -76,7 +105,7 @@ export default function HistoryPage() {
           </div>
         </Card>
       ) : (
-        <HistoryTable records={filtered} />
+        <HistoryTable records={filtered} onResync={handleResync} />
       )}
     </div>
   )

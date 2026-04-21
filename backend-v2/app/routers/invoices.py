@@ -26,6 +26,7 @@ from app.services.file_manager import (
     get_profile_dir, get_inbox_dir, SUPPORTED_EXTENSIONS, sanitize_path_component,
 )
 from app.utils.helpers import sanitize_filename
+from app.services.ws_manager import ws_manager
 
 logger = logging.getLogger("megabanx.invoices")
 
@@ -228,6 +229,12 @@ async def upload_invoice(
 
     await db.flush()
 
+    # Real-time notification via WebSocket
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "invoice_uploaded"},
+    )
+
     return {
         "invoice": InvoiceOut.model_validate(invoice),
         "analysis": analysis,
@@ -325,7 +332,13 @@ async def delete_invoice(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete an invoice and its file."""
+    """Delete an invoice and its file.
+
+    If this invoice was cross-copied from another profile, update the
+    source invoice's cross_copy_status to 'deleted_by_recipient' and
+    notify the source profile via WebSocket so the resync button
+    becomes active.
+    """
     await _verify_profile_access(profile_id, user, db)
 
     result = await db.execute(
@@ -335,6 +348,30 @@ async def delete_invoice(
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
 
+    # If this invoice was cross-copied, notify the source profile
+    source_invoice_id = invoice.source_invoice_id
+    source_profile_id: str | None = None
+    if source_invoice_id:
+        src_result = await db.execute(
+            select(Invoice).where(Invoice.id == source_invoice_id)
+        )
+        src_invoice = src_result.scalar_one_or_none()
+        if src_invoice:
+            src_invoice.cross_copy_status = "deleted_by_recipient"
+            source_profile_id = src_invoice.profile_id
+            # Add notification to source profile
+            db.add(Notification(
+                profile_id=src_invoice.profile_id,
+                type="cross_copy_deleted",
+                title="Контрагентът изтри фактура",
+                message=(
+                    f"Контрагентът изтри копието на фактура {invoice.new_filename}. "
+                    f"Можете да я синхронизирате наново."
+                ),
+                filename=src_invoice.new_filename,
+                source="cross-copy",
+            ))
+
     # Delete file from disk
     if invoice.destination_path and os.path.exists(invoice.destination_path):
         try:
@@ -343,7 +380,60 @@ async def delete_invoice(
             logger.warning(f"Failed to delete file {invoice.destination_path}: {e}")
 
     await db.delete(invoice)
+    await db.flush()
+
+    # Notify via WebSocket (sent before transaction commit; low risk of commit failure)
+    if source_profile_id:
+        await ws_manager.notify_profile(
+            source_profile_id,
+            {"type": "refresh", "reason": "cross_copy_deleted"},
+        )
+    # Notify current profile too
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "invoice_deleted"},
+    )
+
     return {"message": "Фактурата е изтрита"}
+
+
+@router.post("/invoices/{invoice_id}/resync")
+async def resync_invoice(
+    profile_id: str,
+    invoice_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-sync an invoice whose cross-copy was deleted by the recipient.
+
+    Resets cross_copy_status back to 'none' so the auto-sync process
+    will pick it up again and re-create the cross-copy.
+    """
+    await _verify_profile_access(profile_id, user, db)
+
+    result = await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+
+    if invoice.cross_copy_status != "deleted_by_recipient":
+        raise HTTPException(
+            status_code=400,
+            detail="Фактурата не може да бъде ресинхронизирана — статусът не е 'изтрита от контрагента'.",
+        )
+
+    # Reset status so auto-sync picks it up
+    invoice.cross_copy_status = "none"
+    await db.flush()
+
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "invoice_resync"},
+    )
+
+    return {"message": "Фактурата е маркирана за повторна синхронизация", "invoice": InvoiceOut.model_validate(invoice)}
 
 
 @router.get("/inbox")

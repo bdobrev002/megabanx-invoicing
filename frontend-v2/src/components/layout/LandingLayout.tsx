@@ -1,12 +1,15 @@
 import { Outlet, Link } from 'react-router-dom'
-import { Menu } from 'lucide-react'
+import { Menu, LogOut, User } from 'lucide-react'
 import LogoFull from '@/components/branding/LogoFull'
 import Sidebar from './Sidebar'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/utils/constants'
 
 export default function LandingLayout() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar)
+  const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
 
   return (
     <div className="min-h-screen bg-white">
@@ -22,15 +25,28 @@ export default function LandingLayout() {
             </Link>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <Link to={ROUTES.LOGIN} className="px-3 py-1.5 text-sm font-medium text-indigo-300 hover:text-white transition">
-              Вход
-            </Link>
-            <Link
-              to={ROUTES.REGISTER}
-              className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition"
-            >
-              Регистрация
-            </Link>
+            {user ? (
+              <>
+                <Link to={ROUTES.COMPANIES} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-indigo-300 hover:text-white transition">
+                  <User size={16} /> Моят профил
+                </Link>
+                <button onClick={logout} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white transition">
+                  <LogOut size={16} /> Изход
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to={ROUTES.LOGIN} className="px-3 py-1.5 text-sm font-medium text-indigo-300 hover:text-white transition">
+                  Вход
+                </Link>
+                <Link
+                  to={ROUTES.REGISTER}
+                  className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition"
+                >
+                  Регистрация
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -53,6 +69,10 @@ export default function LandingLayout() {
           <p className="text-sm text-gray-400">&copy; {new Date().getFullYear()} MegaBanx. Всички права запазени.</p>
           <div className="flex items-center gap-4 text-sm text-gray-400">
             <Link to={ROUTES.TERMS} className="hover:text-white transition">Общи условия</Link>
+            <span className="text-gray-600">|</span>
+            <Link to={ROUTES.PRIVACY} className="hover:text-white transition">Поверителност</Link>
+            <span className="text-gray-600">|</span>
+            <Link to={ROUTES.COOKIES} className="hover:text-white transition">Бисквитки</Link>
             <span className="text-gray-600">|</span>
             <a href="mailto:info@megabanx.com" className="hover:text-white transition">info@megabanx.com</a>
           </div>

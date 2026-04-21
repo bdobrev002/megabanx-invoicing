@@ -43,4 +43,10 @@ export const filesApi = {
 
   getInbox: (profileId: string) =>
     apiFetch<InvoiceRecord[]>(`/profiles/${profileId}/inbox`),
+
+  resync: (profileId: string, invoiceId: string) =>
+    apiFetch<{ message: string; invoice: InvoiceRecord }>(
+      `/profiles/${profileId}/invoices/${invoiceId}/resync`,
+      { method: 'POST' },
+    ),
 }

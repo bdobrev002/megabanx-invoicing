@@ -27,7 +27,7 @@ class Session(Base):
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(days=30)
+        DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(days=180)
     )
 
 

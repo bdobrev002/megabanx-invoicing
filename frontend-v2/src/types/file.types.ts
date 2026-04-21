@@ -46,6 +46,7 @@ export interface InvoiceRecord {
   error_message?: string
   cross_copied_from?: string
   cross_copy_status?: string
+  source_invoice_id?: string
   is_credit_note?: boolean
 }
 
