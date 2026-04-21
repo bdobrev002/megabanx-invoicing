@@ -39,9 +39,11 @@ export function connectWebSocket() {
     } catch { /* ignore parse errors */ }
   }
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
     if (pingInterval) { clearInterval(pingInterval); pingInterval = null }
     if (reconnectTimer) clearTimeout(reconnectTimer)
+    // Don't reconnect on auth failures (code 4001) to avoid infinite loop
+    if (event.code === 4001) return
     reconnectTimer = setTimeout(connectWebSocket, 3000)
   }
 

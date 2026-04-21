@@ -64,6 +64,8 @@ class ConnectionManager:
             profile_id,
         )
         for ws in dead:
+            if profile_id not in self.active_connections:
+                break
             self.active_connections[profile_id] = [
                 w for w in self.active_connections[profile_id] if w is not ws
             ]
