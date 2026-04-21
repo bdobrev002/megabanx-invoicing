@@ -34,11 +34,11 @@ export default function DashboardLayout() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* Sidebar + content area side by side */}
-      <div className="pt-[57px] flex">
+      {/* Sidebar + content area side by side, constrained like landing layout */}
+      <div className="pt-[57px] flex max-w-7xl mx-auto">
         <Sidebar variant="landing" />
 
-        <div className="flex-1 min-w-0 max-w-5xl">
+        <div className="flex-1 min-w-0">
           {/* Stats bar */}
           <div className="bg-white border-b">
             <div className="px-4 py-3">
