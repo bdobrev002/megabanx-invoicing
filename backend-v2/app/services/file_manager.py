@@ -1,8 +1,8 @@
 """File system operations for profiles, companies, and invoices."""
 
+import logging
 import os
 import re
-import logging
 
 from app.config import settings
 
@@ -50,4 +50,4 @@ def create_company_folders(profile_id: str, company_name: str) -> None:
     os.makedirs(os.path.join(company_dir, "Фактури за одобрение"), exist_ok=True)
 
 
-SUPPORTED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"]

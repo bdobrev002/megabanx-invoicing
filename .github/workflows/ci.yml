@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (lint + build + validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-v2/package-lock.json
+
+      - name: Install root tooling (husky / lint-staged are dev-only, skipped in CI)
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Install frontend deps
+        working-directory: frontend-v2
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        working-directory: frontend-v2
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend-v2
+        run: npm run build
+
+      - name: Validate build output
+        run: bash scripts/validate-build.sh
+
+      - name: Guard against staged dist/ or patch files in HEAD
+        run: |
+          # Re-run the same guard against the committed tree so PRs can't sneak dist/ past the hook.
+          if git ls-files | grep -E '^(frontend-v2|backend-v2|frontend)?/?dist(/|$)|(^|/)patch_.+\.(py|js|ts|tsx|mjs|cjs)$|\.patch$|\.inject\.(js|ts|tsx|html|mjs|cjs)$'; then
+            echo "::error::Forbidden files present in repo — see .agents/RULES.md §1.1/§1.5"
+            exit 1
+          fi
+
+  backend:
+    name: Backend (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff==0.8.6
+
+      - name: Ruff check
+        working-directory: backend-v2
+        run: ruff check app
+
+      - name: Ruff format (check only)
+        working-directory: backend-v2
+        run: ruff format --check app

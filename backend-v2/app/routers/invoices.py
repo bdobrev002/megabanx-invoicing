@@ -1,32 +1,35 @@
 """Invoices router: upload, AI analysis, list, download, delete, batch operations."""
 
+import logging
 import os
 import uuid
-import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, and_, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
-from app.models.profile import Profile
-from app.models.company import Company
-from app.models.invoice import Invoice, PendingInvoice
-from app.models.notification import Notification
 from app.models.billing import Billing, InvoiceMonthlyUsage
-from app.schemas.invoice import InvoiceOut, BatchDownloadRequest
-from app.services.encryption import write_encrypted_file, read_decrypted_file
-from app.services.gemini import analyze_invoice_with_gemini
+from app.models.company import Company
+from app.models.invoice import Invoice
+from app.models.notification import Notification
+from app.models.profile import Profile
+from app.models.user import User
+from app.schemas.invoice import InvoiceOut
+from app.services.encryption import read_decrypted_file, write_encrypted_file
 from app.services.file_manager import (
-    get_profile_dir, get_inbox_dir, SUPPORTED_EXTENSIONS, sanitize_path_component,
+    SUPPORTED_EXTENSIONS,
+    get_inbox_dir,
+    get_profile_dir,
+    sanitize_path_component,
 )
-from app.utils.helpers import sanitize_filename
+from app.services.gemini import analyze_invoice_with_gemini
 from app.services.ws_manager import ws_manager
+from app.utils.helpers import sanitize_filename
 
 logger = logging.getLogger("megabanx.invoices")
 
@@ -80,19 +83,23 @@ async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
     if billing.invoices_limit > 0 and new_count > billing.invoices_limit:
         # Decrement back since we already incremented
         await db.execute(
-            select(InvoiceMonthlyUsage).where(
-                InvoiceMonthlyUsage.user_id == user_id,
-                InvoiceMonthlyUsage.year == now.year,
-                InvoiceMonthlyUsage.month == now.month,
-            ).with_for_update()
-        )
-        usage_row = (await db.execute(
-            select(InvoiceMonthlyUsage).where(
+            select(InvoiceMonthlyUsage)
+            .where(
                 InvoiceMonthlyUsage.user_id == user_id,
                 InvoiceMonthlyUsage.year == now.year,
                 InvoiceMonthlyUsage.month == now.month,
             )
-        )).scalar_one()
+            .with_for_update()
+        )
+        usage_row = (
+            await db.execute(
+                select(InvoiceMonthlyUsage).where(
+                    InvoiceMonthlyUsage.user_id == user_id,
+                    InvoiceMonthlyUsage.year == now.year,
+                    InvoiceMonthlyUsage.month == now.month,
+                )
+            )
+        ).scalar_one()
         usage_row.count -= 1
         raise HTTPException(
             status_code=429,
@@ -218,14 +225,16 @@ async def upload_invoice(
 
     # Notify if unmatched
     if not matched_company_id:
-        db.add(Notification(
-            profile_id=profile_id,
-            type="unmatched_invoice",
-            title="Несъответстваща фактура",
-            message=f"Фактура {file.filename} не може да бъде съпоставена с фирма.",
-            filename=file.filename,
-            source="upload",
-        ))
+        db.add(
+            Notification(
+                profile_id=profile_id,
+                type="unmatched_invoice",
+                title="Несъответстваща фактура",
+                message=f"Фактура {file.filename} не може да бъде съпоставена с фирма.",
+                filename=file.filename,
+                source="upload",
+            )
+        )
 
     await db.flush()
 
@@ -274,9 +283,7 @@ async def get_invoice(
     """Get a single invoice by ID."""
     await _verify_profile_access(profile_id, user, db)
 
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id)
-    )
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -294,9 +301,7 @@ async def download_invoice(
     """Download an invoice file (decrypted)."""
     await _verify_profile_access(profile_id, user, db)
 
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id)
-    )
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -308,20 +313,25 @@ async def download_invoice(
     ext = os.path.splitext(invoice.new_filename)[1].lower()
     media_types = {
         ".pdf": "application/pdf",
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png", ".gif": "image/gif",
-        ".bmp": "image/bmp", ".webp": "image/webp",
-        ".tiff": "image/tiff", ".tif": "image/tiff",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".tiff": "image/tiff",
+        ".tif": "image/tiff",
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
     def iterfile():
         yield content
 
+    safe_filename = invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")
     return StreamingResponse(
         iterfile(),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")}"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
     )
 
 
@@ -341,9 +351,7 @@ async def delete_invoice(
     """
     await _verify_profile_access(profile_id, user, db)
 
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id)
-    )
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -352,25 +360,22 @@ async def delete_invoice(
     source_invoice_id = invoice.source_invoice_id
     source_profile_id: str | None = None
     if source_invoice_id:
-        src_result = await db.execute(
-            select(Invoice).where(Invoice.id == source_invoice_id)
-        )
+        src_result = await db.execute(select(Invoice).where(Invoice.id == source_invoice_id))
         src_invoice = src_result.scalar_one_or_none()
         if src_invoice:
             src_invoice.cross_copy_status = "deleted_by_recipient"
             source_profile_id = src_invoice.profile_id
             # Add notification to source profile
-            db.add(Notification(
-                profile_id=src_invoice.profile_id,
-                type="cross_copy_deleted",
-                title="Контрагентът изтри фактура",
-                message=(
-                    f"Контрагентът изтри копието на фактура {invoice.new_filename}. "
-                    f"Можете да я синхронизирате наново."
-                ),
-                filename=src_invoice.new_filename,
-                source="cross-copy",
-            ))
+            db.add(
+                Notification(
+                    profile_id=src_invoice.profile_id,
+                    type="cross_copy_deleted",
+                    title="Контрагентът изтри фактура",
+                    message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. " f"Можете да я синхронизирате наново."),
+                    filename=src_invoice.new_filename,
+                    source="cross-copy",
+                )
+            )
 
     # Delete file from disk
     if invoice.destination_path and os.path.exists(invoice.destination_path):
@@ -411,9 +416,7 @@ async def resync_invoice(
     """
     await _verify_profile_access(profile_id, user, db)
 
-    result = await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id)
-    )
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
@@ -446,10 +449,12 @@ async def list_inbox(
     await _verify_profile_access(profile_id, user, db)
 
     result = await db.execute(
-        select(Invoice).where(
+        select(Invoice)
+        .where(
             Invoice.profile_id == profile_id,
             Invoice.status == "unmatched",
-        ).order_by(Invoice.created_at.desc())
+        )
+        .order_by(Invoice.created_at.desc())
     )
     invoices = result.scalars().all()
     return [InvoiceOut.model_validate(inv) for inv in invoices]
@@ -476,10 +481,7 @@ async def get_folder_structure(
             for sub in sorted(os.listdir(item_path)):
                 sub_path = os.path.join(item_path, sub)
                 if os.path.isdir(sub_path):
-                    file_count = len([
-                        f for f in os.listdir(sub_path)
-                        if os.path.isfile(os.path.join(sub_path, f))
-                    ])
+                    file_count = len([f for f in os.listdir(sub_path) if os.path.isfile(os.path.join(sub_path, f))])
                     subfolders.append({"name": sub, "file_count": file_count})
             folders.append({"name": item, "subfolders": subfolders})
 

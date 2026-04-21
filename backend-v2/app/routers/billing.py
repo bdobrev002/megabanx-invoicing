@@ -2,14 +2,14 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.billing import Billing, InvoiceMonthlyUsage
+from app.models.user import User
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 

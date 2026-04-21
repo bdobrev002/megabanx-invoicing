@@ -1,7 +1,6 @@
 """Companies router: CRUD + EIK lookup."""
 
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -9,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
-from app.models.profile import Profile
 from app.models.company import Company
-from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyOut
-from app.services.file_manager import create_company_folders, sanitize_path_component
+from app.models.profile import Profile
+from app.models.user import User
+from app.schemas.company import CompanyCreate, CompanyOut, CompanyUpdate
 from app.services.eik_lookup import lookup_eik as _lookup_eik
+from app.services.file_manager import create_company_folders, sanitize_path_component
 
 router = APIRouter(prefix="/api/profiles/{profile_id}/companies", tags=["companies"])
 
@@ -37,9 +36,7 @@ async def get_companies(
 ):
     """List all companies for a profile."""
     await _verify_profile(profile_id, user, db)
-    result = await db.execute(
-        select(Company).where(Company.profile_id == profile_id).order_by(Company.name)
-    )
+    result = await db.execute(select(Company).where(Company.profile_id == profile_id).order_by(Company.name))
     companies = result.scalars().all()
     return [CompanyOut.model_validate(c) for c in companies]
 
@@ -88,9 +85,7 @@ async def update_company(
     """Update a company."""
     await _verify_profile(profile_id, user, db)
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
@@ -116,9 +111,7 @@ async def delete_company(
     """Delete a company."""
     await _verify_profile(profile_id, user, db)
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")

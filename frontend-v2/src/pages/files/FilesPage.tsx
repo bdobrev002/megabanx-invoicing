@@ -6,7 +6,7 @@ import { filesApi } from '@/api/files.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useUiStore } from '@/stores/uiStore'
-import { onWsMessage } from '@/api/websocket'
+import { useWsRefresh } from '@/hooks/useWsRefresh'
 import FileFilters from './FileFilters'
 import FileList from './FileList'
 import FileActions from './FileActions'
@@ -45,17 +45,8 @@ export default function FilesPage() {
     return () => { cancelled = true }
   }, [fetchFolders])
 
-  // Refresh on WebSocket events
-  useEffect(() => {
-    return onWsMessage((data) => {
-      if (typeof data === 'object' && data !== null && 'type' in data) {
-        const evt = data as { type: string }
-        if (evt.type === 'refresh') {
-          fetchFolders()
-        }
-      }
-    })
-  }, [fetchFolders])
+  // Refresh on WebSocket events (debounced, see Devin Review on PR #8).
+  useWsRefresh(fetchFolders)
 
   const handleDeleteSelected = async () => {
     if (selectedFiles.size === 0) return

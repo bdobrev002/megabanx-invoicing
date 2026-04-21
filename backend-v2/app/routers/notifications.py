@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.notification import Notification
+from app.models.user import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -19,9 +19,7 @@ async def get_notifications(
 ):
     """Get all notifications for the current user."""
     result = await db.execute(
-        select(Notification)
-        .where(Notification.profile_id == user.profile_id)
-        .order_by(Notification.timestamp.desc())
+        select(Notification).where(Notification.profile_id == user.profile_id).order_by(Notification.timestamp.desc())
     )
     notifications = result.scalars().all()
     return [
@@ -48,7 +46,7 @@ async def get_unread_count(
     result = await db.execute(
         select(Notification).where(
             Notification.profile_id == user.profile_id,
-            Notification.read == False,
+            Notification.read.is_(False),
         )
     )
     notifications = result.scalars().all()
@@ -83,11 +81,7 @@ async def mark_all_read(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark all notifications as read."""
-    await db.execute(
-        update(Notification)
-        .where(Notification.profile_id == user.profile_id, Notification.read == False)
-        .values(read=True)
-    )
+    await db.execute(update(Notification).where(Notification.profile_id == user.profile_id, Notification.read.is_(False)).values(read=True))
     return {"message": "Всички известия са маркирани като прочетени"}
 
 

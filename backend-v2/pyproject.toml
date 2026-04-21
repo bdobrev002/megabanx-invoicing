@@ -34,10 +34,18 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 target-version = "py311"
-line-length = 120
+line-length = 140
+extend-exclude = ["alembic/versions/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+ignore = [
+    # HTML email templates legitimately embed long inline-style strings.
+    # E501 is enforced everywhere else.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/services/email_service.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

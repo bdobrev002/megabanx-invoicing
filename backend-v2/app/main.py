@@ -4,24 +4,50 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine
-from app.models.base import Base
 
 # Import all models so they're registered with Base.metadata
 from app.models import (  # noqa: F401
-    user, profile, company, invoice, notification,
-    sharing, billing, invoicing, drive, email_link,
-    contact, admin,
+    admin,
+    billing,
+    company,
+    contact,
+    drive,
+    email_link,
+    invoice,
+    invoicing,
+    notification,
+    profile,
+    sharing,
+    user,
 )
-
-# Import routers
-from app.routers import auth, profiles, companies, invoices
-from app.routers import notifications, sharing as sharing_router, billing as billing_router
-from app.routers import contact, admin as admin_router, invoicing as invoicing_router
+from app.models.base import Base
+from app.routers import (
+    admin as admin_router,
+)
+from app.routers import (
+    auth,
+    companies,
+    invoices,
+    notifications,
+    profiles,
+)
+from app.routers import (
+    billing as billing_router,
+)
+from app.routers import (
+    contact as contact_router,
+)
+from app.routers import (
+    invoicing as invoicing_router,
+)
+from app.routers import (
+    sharing as sharing_router,
+)
 from app.services.ws_manager import ws_manager
 
 logging.basicConfig(
@@ -33,11 +59,17 @@ logger = logging.getLogger("megabanx")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create tables on startup (dev mode). Use Alembic for production migrations."""
+    """Application lifespan.
+
+    Schema is owned by Alembic (``backend-v2/alembic/versions/*.py``); the app
+    does not call ``Base.metadata.create_all`` on startup. Deploys must run
+    ``alembic upgrade head`` before starting the service — see
+    ``backend-v2/alembic/README.md`` and ``.agents/RULES.md`` §1.1.
+    """
     logger.info(f"Starting {settings.APP_NAME} v2 backend...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables ensured.")
+    # ``Base`` is imported above so every model module is registered at import
+    # time; referenced here to keep the import alive for Alembic autogenerate.
+    _ = Base.metadata
     yield
     await engine.dispose()
     logger.info("Shutdown complete.")
@@ -76,7 +108,7 @@ app.include_router(notifications.router)
 app.include_router(sharing_router.router)
 app.include_router(sharing_router.shared_router)
 app.include_router(billing_router.router)
-app.include_router(contact.router)
+app.include_router(contact_router.router)
 app.include_router(admin_router.router)
 app.include_router(invoicing_router.router)
 
@@ -103,9 +135,10 @@ async def websocket_endpoint(
         return
 
     # Resolve profile_id from session token
-    from app.database import async_session_factory
     from sqlalchemy import select
-    from app.models.user import User, Session
+
+    from app.database import async_session_factory
+    from app.models.user import Session, User
 
     async with async_session_factory() as db:
         result = await db.execute(select(Session).where(Session.token == token))

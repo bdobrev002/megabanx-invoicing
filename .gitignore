@@ -1,0 +1,35 @@
+# Node
+node_modules/
+frontend-v2/node_modules/
+
+# Build output (also blocked by scripts/check-no-dist.js + validate-build.sh)
+frontend-v2/dist/
+backend-v2/dist/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+backend-v2/.venv/
+*.egg-info/
+
+# Alembic temp
+backend-v2/alembic/versions/__pycache__/
+
+# Env files
+.env
+.env.local
+.env.*.local
+backend-v2/.env
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
