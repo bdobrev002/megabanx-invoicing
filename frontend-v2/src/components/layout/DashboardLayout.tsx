@@ -76,10 +76,10 @@ export default function DashboardLayout() {
         </div>
       </div>
 
-      {/* Main content area with sidebar */}
+      {/* Main content area with sidebar (landing sidebar is w-64 / sticky) */}
       <div className="flex">
-        <Sidebar variant="dashboard" />
-        <main className="flex-1 md:ml-52 p-4 lg:p-6">
+        <Sidebar variant="landing" />
+        <main className="flex-1 p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
