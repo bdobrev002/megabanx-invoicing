@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import Badge from '@/components/ui/Badge'
-import { Pencil, Trash2, Share2, Building2 } from 'lucide-react'
+import { Pencil, Trash2, Share2 } from 'lucide-react'
 import type { Company } from '@/types/company.types'
 import ShareDialog from './ShareDialog'
 
@@ -17,35 +16,48 @@ export default function CompanyCard({ company, onEdit, onDelete }: Props) {
 
   return (
     <>
-      <Card className="flex flex-col gap-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 size={18} className="text-indigo-500" />
-            <h3 className="font-semibold text-gray-900">{company.name}</h3>
+      <Card className="p-4">
+        {/* Header row: company name + action buttons */}
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="text-lg font-bold text-gray-900">&ldquo;{company.name}&rdquo;</h3>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button size="sm" variant="outline" onClick={() => setShowShare(true)}>
+              <Share2 size={14} className="mr-1" /> Споделяне
+            </Button>
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              <Pencil size={14} className="mr-1" /> Редактирай
+            </Button>
+            <button onClick={onDelete} className="text-red-400 hover:text-red-600 p-1">
+              <Trash2 size={16} />
+            </button>
           </div>
-          <Badge variant="info">ЕИК {company.eik}</Badge>
         </div>
 
-        {company.address && (
-          <p className="text-sm text-gray-500">{company.address}</p>
-        )}
-        {company.mol && (
-          <p className="text-sm text-gray-500">МОЛ: {company.mol}</p>
-        )}
-        {company.vat_number && (
-          <p className="text-sm text-gray-500">ДДС: {company.vat_number}</p>
-        )}
-
-        <div className="mt-auto flex gap-2 border-t border-gray-100 pt-3">
-          <Button size="sm" variant="ghost" onClick={onEdit}>
-            <Pencil size={14} className="mr-1" /> Редакция
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setShowShare(true)}>
-            <Share2 size={14} className="mr-1" /> Споделяне
-          </Button>
-          <Button size="sm" variant="ghost" className="ml-auto text-red-500" onClick={onDelete}>
-            <Trash2 size={14} />
-          </Button>
+        {/* Details — full width, matching original megabanx.com layout */}
+        <div className="space-y-1 text-sm text-gray-600">
+          <p>
+            <span className="font-medium">ЕИК: </span>
+            <span className="font-bold">{company.eik}</span>
+            {company.vat_number && (
+              <>
+                {'    '}
+                <span className="font-medium">ДДС: </span>
+                <span>{company.vat_number}</span>
+              </>
+            )}
+          </p>
+          {company.address && (
+            <p>
+              <span className="font-medium">Адрес: </span>
+              {company.address}
+            </p>
+          )}
+          {company.mol && (
+            <p>
+              <span className="font-medium">Управител/и: </span>
+              <span className="font-bold uppercase">{company.mol}</span>
+            </p>
+          )}
         </div>
       </Card>
 
