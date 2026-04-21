@@ -20,9 +20,10 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
+from app.database import async_session_factory
+from app.services.file_manager import sanitize_path_component
 
 logger = logging.getLogger("megabanx.invoicing.pdf")
 
@@ -73,12 +74,6 @@ class InvoicePdfSnapshot:
     old_pdf_path: str = ""
 
 
-def _sanitize_for_path(name: str) -> str:
-    """Remove characters that cannot be safely used as a filesystem segment."""
-    cleaned = name.strip().replace("/", " ").replace("\\", " ")
-    return cleaned or "company"
-
-
 def _format_date(d: date | None) -> str:
     return d.strftime("%d.%m.%Y") if d else ""
 
@@ -123,24 +118,26 @@ def _build_context(snap: InvoicePdfSnapshot) -> tuple[dict[str, Any], str]:
 
 
 def _resolve_pdf_path(snap: InvoicePdfSnapshot) -> Path:
-    sales_dir = Path(settings.DATA_DIR) / snap.profile_id / _sanitize_for_path(snap.company_folder_name) / "Фактури продажби"
+    sales_dir = (
+        Path(settings.DATA_DIR)
+        / sanitize_path_component(snap.profile_id)
+        / sanitize_path_component(snap.company_folder_name)
+        / "Фактури продажби"
+    )
     sales_dir.mkdir(parents=True, exist_ok=True)
     invoice_number_str = str(snap.invoice_number).zfill(10)
     date_formatted = snap.issue_date.strftime("%Y.%m.%d")
-    filename = f"{date_formatted} {invoice_number_str} - {_sanitize_for_path(snap.client_display_name)}.pdf"
+    filename = f"{date_formatted} {invoice_number_str} - {sanitize_path_component(snap.client_display_name)}.pdf"
     return sales_dir / filename
 
 
 async def _persist_pdf_path(invoice_id: str, pdf_path: str) -> None:
-    engine = create_async_engine(settings.DATABASE_URL, future=True, pool_pre_ping=True)
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(
-                text("UPDATE inv_invoice_meta SET pdf_path = :p WHERE invoice_id = :id"),
-                {"p": pdf_path, "id": invoice_id},
-            )
-    finally:
-        await engine.dispose()
+    async with async_session_factory() as session:
+        await session.execute(
+            text("UPDATE inv_invoice_meta SET pdf_path = :p WHERE invoice_id = :id"),
+            {"p": pdf_path, "id": invoice_id},
+        )
+        await session.commit()
 
 
 def _render_pdf_sync(snap: InvoicePdfSnapshot) -> str | None:
