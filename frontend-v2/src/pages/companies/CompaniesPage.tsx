@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react'
-import Card from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
 import Spinner from '@/components/ui/Spinner'
 import { Plus } from 'lucide-react'
 import { companiesApi } from '@/api/companies.api'
@@ -97,22 +95,23 @@ export default function CompaniesPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Фирми в профил &ldquo;{userName}&rdquo;{' '}
-        </h1>
-        <Button size="sm" onClick={() => setShowForm(true)}>
-          <Plus size={16} className="mr-1" /> Добави фирма
-        </Button>
+    <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <h2 className="text-base md:text-lg font-semibold">
+          Фирми в профил &ldquo;{userName}&rdquo;
+        </h2>
+        <button
+          className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 self-start sm:self-auto"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus size={16} /> Добави фирма
+        </button>
       </div>
 
       {companies.length === 0 && (
-        <Card className="mt-6">
-          <p className="py-12 text-center text-gray-400">
-            Все още нямате добавени фирми.
-          </p>
-        </Card>
+        <div className="py-12 text-center text-gray-400">
+          Все още нямате добавени фирми.
+        </div>
       )}
 
       <div className="space-y-4">

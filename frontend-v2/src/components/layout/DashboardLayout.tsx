@@ -60,10 +60,10 @@ export default function DashboardLayout() {
                     <NavLink
                       key={to}
                       to={to}
-                      className={`flex-1 flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+                      className={`flex-1 min-w-0 flex items-center justify-center gap-1 md:gap-1.5 px-2 md:px-3 py-2 text-xs md:text-sm rounded-md transition whitespace-nowrap cursor-pointer ${
                         active
                           ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                          : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
                       <Icon size={14} />
