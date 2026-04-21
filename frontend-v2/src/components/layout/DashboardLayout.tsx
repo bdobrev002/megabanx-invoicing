@@ -41,7 +41,7 @@ export default function DashboardLayout() {
         <div className="flex-1 min-w-0">
           {/* Stats bar */}
           <div className="bg-white border-b">
-            <div className="max-w-4xl px-4 py-3">
+            <div className="px-4 py-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {stats.map((s) => (
                   <div key={s.label} className="bg-white rounded-xl border p-3 text-center">
@@ -55,7 +55,7 @@ export default function DashboardLayout() {
 
           {/* Tab navigation */}
           <div className="bg-white border-b shadow-sm">
-            <div className="max-w-4xl px-4">
+            <div className="px-4">
               <div className="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
                 {tabs.map(({ to, label, icon: Icon }) => {
                   const active = location.pathname === to || location.pathname.startsWith(to + '/')
@@ -79,7 +79,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Main content */}
-          <main className="max-w-4xl p-4 lg:p-6">
+          <main className="p-4 lg:p-6">
             <Outlet />
           </main>
         </div>
