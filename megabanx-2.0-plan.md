@@ -715,48 +715,55 @@ POST   /api/invoicing/proforma-received     — Record received proforma
 
 ### 2.9 Приоритети за имплементация
 
-#### Фаза 1 — Скелет (1-2 дни)
+#### Фаза 1 — Скелет ✅ ГОТОВА (PR #5)
 1. Project setup (Vite + React + TypeScript + Tailwind + Router + Zustand + TanStack Query)
-2. API layer (разбиване на api.ts на модули)
-3. Types дефиниции
-4. Stores setup
-5. Layout компоненти (Navbar, Sidebar, DashboardLayout)
+2. API layer (20 модула + WebSocket)
+3. Types дефиниции (16 файла)
+4. Stores setup (13 Zustand stores)
+5. Layout компоненти (Navbar, Sidebar, DashboardLayout, LandingLayout)
 6. Route structure
-7. Auth flow (Login, Register, Verify)
+7. Auth flow (Login, Register, Verify) + Auth API интеграция
 
-#### Фаза 2 — Core Features (3-5 дни)
-1. Landing page (всички 8 секции)
-2. Dashboard + Stats
-3. Companies tab (CRUD + EIK + Verification)
-4. Upload tab (Drag & Drop + AI Processing)
-5. Files tab (File browser + multi-select)
-6. History tab
-7. Notifications tab
-8. Billing tab
-9. WebSocket integration
+#### Фаза 2 — Дизайн + Съдържание ✅ ГОТОВА (PR #5)
+1. Landing page (8 секции с реално съдържание от megabanx.com)
+2. Navbar (dark gradient), Logo (SVG), 13 CSS анимации
+3. Auth pages визия, UI компоненти (10)
+4. Footer
 
-#### Фаза 3 — Invoicing Module (2-3 дни)
-1. Invoice form (5 document types)
-2. Clients management
-3. Items management
-4. Stubs management
-5. Settings
-6. Sync functionality
-7. PDF preview
+#### Фаза 3 — Dashboard Core ✅ ГОТОВА (PR #6)
+1. Company CRUD (CompaniesPage, CompanyCard, OwnCompanyForm, ShareDialog)
+2. Upload page
+3. Files browser (FilesPage)
+4. History (HistoryPage, HistoryTable)
+5. Notifications + Billing pages
+6. 42 компонента общо
 
-#### Фаза 4 — New Features (2-3 дни)
-1. Periodic invoices
-2. Enhanced email (templates, compose, history)
-3. Enhanced notifications (preferences, categories)
-4. PDF templates
-5. Proforma type 2 (received)
+#### Фаза 4 — WebSocket + Invoicing ✅ ГОТОВА (PR #8)
+1. Real-time WebSocket delivery tracking (delivery ticks)
+2. InvoicingModule — Clients, Items, Stubs, Settings, Invoices CRUD
+3. Session expiry увеличен на 180 дни
+4. Backend invoicing router + schemas + models
 
-#### Фаза 5 — Deploy & Switch (1 ден)
-1. Setup new.megabanx.com на VPS
-2. Nginx config
-3. Build & deploy
-4. Testing
-5. DNS switch при готовност
+#### Фаза 4.5 — Layout 1:1 copy + Legal ✅ ГОТОВА (PR #7, #8)
+1. CSS класове копирани 1:1 от megabanx.com с Playwright
+2. Privacy, Terms, Cookies pages + unified popup module
+3. XSS fix: address rendering с React елементи
+
+#### Фаза 5 — Production Deploy ✅ ГОТОВА
+1. Backend v2 деплойнат на megabanx.duckdns.org (порт 8007, systemd)
+2. Frontend v2 деплойнат (Nginx + SSL)
+3. Пълен source код на сървъра (/opt/megabanx-v2/source/)
+
+#### Фаза 6 — Admin панел (ПРЕДСТОИ)
+1. Users management (search, ban, impersonate)
+2. Companies overview + Verification review
+3. Billing overview + System logs
+4. Admin settings
+
+#### Фаза 7 — DNS Switch (ПРЕДСТОИ)
+1. megabanx.duckdns.org → megabanx.com
+2. Старият сайт → old.megabanx.com
+3. DNS switch
 
 ### 2.10 Файлова статистика за 2.0
 
@@ -1627,14 +1634,18 @@ Needs porting from v1.
 - **Round 6**: Path traversal, stub overflow, email-before-commit, empty invoice lines
 - **Round 7**: SQLAlchemy change tracking, expired session rollback, upload filename sanitization
 
-#### Фаза 7 — Предстои
-1. Alembic initial migration (25 таблици)
-2. Тест срещу реална PostgreSQL база
-3. Smoke test: register → login → verify → me → logout
-4. Google Drive sync port от v1
-5. WebSocket endpoint за real-time notifications
-6. Stripe billing integration port от v1
-7. Production deployment setup (uvicorn + nginx)
+#### Фаза 7 — Production Deploy ✅ ГОТОВА
+1. Backend v2 деплойнат на VPS (uvicorn + systemd, порт 8007)
+2. Nginx reverse proxy + SSL (Certbot)
+3. PostgreSQL база megabanx_v2
+4. WebSocket endpoint за real-time notifications
+5. Session expiry 180 дни
+
+#### Фаза 8 — Предстои
+1. Google Drive sync port от v1
+2. Stripe billing integration port от v1
+3. Admin панел frontend
+4. DNS switch: megabanx.duckdns.org → megabanx.com
 
 ### 6.9 Зависимости (pyproject.toml)
 
@@ -1673,32 +1684,33 @@ ALLOWED_ORIGINS=https://megabanx.com,https://new.megabanx.com
 DATA_DIR=/opt/bginvoices/data
 ```
 
-### 6.11 Deployment план
+### 6.11 Deployment план (ИЗПЪЛНЕН)
 
 ```
-1. PostgreSQL 16 на VPS (144.91.122.208)
+1. PostgreSQL 16 на VPS (144.91.122.208)              ✅
    CREATE DATABASE megabanx_v2;
 
-2. Alembic migration
-   cd backend-v2 && alembic upgrade head
+2. Backend v2 deploy (порт 8007)                     ✅
+   systemd service: megabanx-v2-backend.service
+   uvicorn app.main:app --host 127.0.0.1 --port 8007 --workers 2
 
-3. Uvicorn за backend-v2
-   uvicorn app.main:app --host 0.0.0.0 --port 8001
+3. Frontend v2 deploy                                  ✅
+   /opt/megabanx-v2/frontend-dist/ (Vite production build)
 
-4. Nginx reverse proxy
-   new.megabanx.com/api → localhost:8001
-   new.megabanx.com     → frontend-v2/dist/
+4. Nginx reverse proxy                                 ✅
+   megabanx.duckdns.org/api → localhost:8007
+   megabanx.duckdns.org     → frontend-dist/
 
-5. SSL с certbot
-   certbot --nginx -d new.megabanx.com
+5. SSL с certbot                                       ✅
+   certbot --nginx -d megabanx.duckdns.org
+
+6. Пълен source код на сървъра                        ✅
+   /opt/megabanx-v2/source/backend-v2/
+   /opt/megabanx-v2/source/frontend-v2/
+   /opt/megabanx-v2/source/Architecture-2.0.md
+   /opt/megabanx-v2/source/megabanx-2.0-plan.md
 ```
 
 ---
 
-**ЧАКАМ ТВОЕТО ОДОБРЕНИЕ ПРЕДИ ДА ЗАПОЧНА КАКВОТО И ДА Е.**
-
-Кажи ми:
-1. Одобряваш ли плана?
-2. Искаш ли промени по структурата?
-3. Искаш ли да добавим/премахнем нещо?
-4. Да започна ли с Фаза 1 (скелета)?
+*Обновен на 21.04.2026 г. — всички фази 1-5 завършени, production deploy на megabanx.duckdns.org*

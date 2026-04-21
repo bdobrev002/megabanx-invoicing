@@ -5,15 +5,17 @@
 | Параметър | Стойност |
 |-----------|----------|
 | **Проект** | MegaBanx 2.0 — AI-базирана система за управление на фактури |
-| **Текущ URL** | megabanx.com (v1) |
-| **Нов URL** | new.megabanx.com (v2, предстои) |
+| **Текущ URL (v1)** | megabanx.com |
+| **Production URL (v2)** | megabanx.duckdns.org |
 | **GitHub** | github.com/bdobrev002/megabanx-invoicing |
-| **Branch** | devin/1776499727-megabanx-v2-skeleton |
-| **PR** | #5 |
+| **Branch** | devin/1776763253-phase5-websocket-delivery-ticks |
+| **PR** | #8 (Phase 5 + layout fixes) |
 | **Сървър** | VPS 144.91.122.208 |
-| **Backend** | /opt/bginvoices/backend/ (Python/FastAPI) |
+| **Backend v1** | /opt/bginvoices/backend/ (Python/FastAPI, порт 8004) |
+| **Backend v2** | /opt/megabanx-v2/source/backend-v2/ (FastAPI, порт 8007) |
 | **Frontend v1** | /opt/bginvoices/frontend/ (React monolith) |
-| **Frontend v2** | frontend-v2/ (нова модулна архитектура) |
+| **Frontend v2 source** | /opt/megabanx-v2/source/frontend-v2/ |
+| **Frontend v2 dist** | /opt/megabanx-v2/frontend-dist/ (production build) |
 | **Фирма** | Д-РЕНТ ЕООД, ЕИК: 200551856 |
 
 ---
@@ -133,17 +135,20 @@ users ──1:1──> subscriptions ──1:N──> payments
 | 9 | Без error boundaries | Грешка срива всичко | ErrorBoundary компонент |
 | 10 | Без admin панел | — | Пълен admin панел (6 секции) |
 
-### 4.2 Какво е направено до момента (Фази 1-3)
+### 4.2 Какво е направено до момента (Фази 1-5)
 
-| Фаза | Статус | Описание |
-|------|--------|----------|
-| **Фаза 1 — Скелет** | Готова | Project setup, API layer (20 модула), Zustand stores (13), Types (16), Layout компоненти, Route structure, 80+ page компоненти |
-| **Фаза 2 — Дизайн** | Готова | Navbar (dark gradient), Logo (SVG), Sidebar (landing/dashboard), DashboardLayout, Auth pages визия, Landing sections визия, UI компоненти |
-| **Фаза 3 — Съдържание + Auth** | Готова | Auth API интеграция (email+code flow), 8 landing секции с реално съдържание от megabanx.com, 13 CSS анимации, Footer |
-| **Фаза 4 — Dashboard** | Предстои | Company CRUD, Upload + AI, Files browser, History, Notifications, Billing |
-| **Фаза 5 — Фактуриране** | Предстои | Invoice form (5 doc types), Clients, Items, Stubs, Settings, Sync, PDF |
-| **Фаза 6 — Admin панел** | Предстои | Users, Companies, Verifications, Billing, Logs, Settings |
-| **Backend v2 — Скелет** | ✅ Готов (PR #5) | 25 модела, 10 рутера, 6 сервиса, 46 бъга поправени |
+| Фаза | Статус | PR | Описание |
+|------|--------|-----|----------|
+| **Фаза 1 — Скелет** | ✅ Готова | #5 | Project setup, API layer (20 модула), Zustand stores (13), Types (16), Layout компоненти, Route structure, 80+ page компоненти |
+| **Фаза 2 — Дизайн** | ✅ Готова | #5 | Navbar (dark gradient), Logo (SVG), Sidebar (landing/dashboard), DashboardLayout, Auth pages визия, Landing sections визия, UI компоненти |
+| **Фаза 3 — Съдържание + Auth** | ✅ Готова | #5 | Auth API интеграция (email+code flow), 8 landing секции с реално съдържание от megabanx.com, 13 CSS анимации, Footer |
+| **Фаза 4 — Dashboard** | ✅ Готова | #6 | Company CRUD, Files browser, History, UploadPage, компоненти за всички dashboard табове (42 компонента) |
+| **Фаза 5 — WebSocket + Invoicing** | ✅ Готова | #8 | Real-time WebSocket delivery ticks, InvoicingModule (клиенти, артикули, кочани, настройки, фактури), session expiry 180 дни |
+| **Фаза 5.5 — Layout 1:1 copy** | ✅ Готова | #8 | Точно копие на CSS от megabanx.com — tabs, stats bar, company cards, heading, бутони |
+| **Правни страници** | ✅ Готова | #7 | Privacy, Terms, Cookies pages + unified popup module + ESLint |
+| **Backend v2 — Скелет** | ✅ Готов | #5 | 25 модела, 10 рутера, 6 сервиса, 46 бъга поправени |
+| **Backend v2 — Production** | ✅ Деплойнат | #8 | Backend v2 работи на megabanx.duckdns.org:8007 (systemd service) |
+| **Фаза 6 — Admin панел** | Предстои | — | Users, Companies, Verifications, Billing, Logs, Settings |
 
 ---
 
@@ -251,16 +256,31 @@ frontend-v2/src/
 │   │   ├── RegisterPage.tsx          — Name + Email + ToS → verify redirect
 │   │   └── VerifyPage.tsx            — 6-digit code, auto-submit, auto-focus
 │   │
-│   ├── dashboard/                    — Dashboard (placeholder за Фаза 4)
-│   │   ├── CompaniesPage.tsx
-│   │   ├── UploadPage.tsx
-│   │   ├── FilesPage.tsx
+│   ├── companies/                    — Фирми (Фаза 4, пълна функционалност)
+│   │   ├── CompaniesPage.tsx         — Списък фирми в профил + heading + бутон
+│   │   ├── CompanyCard.tsx           — Карта фирма (ЕИК, ДДС, адрес, управители, съдружници)
+│   │   ├── OwnCompanyForm.tsx        — Форма за създаване/редактиране на фирма
+│   │   ├── SharedCompanies.tsx       — Споделени фирми
+│   │   └── ShareDialog.tsx           — Диалог за споделяне
+│   │
+│   ├── upload/                       — Качване (Фаза 4)
+│   │   └── UploadPage.tsx
+│   │
+│   ├── files/                        — Файлове (Фаза 4)
+│   │   └── FilesPage.tsx
+│   │
+│   ├── history/                      — История (Фаза 4)
 │   │   ├── HistoryPage.tsx
-│   │   ├── NotificationsPage.tsx
+│   │   └── HistoryTable.tsx
+│   │
+│   ├── notifications/                — Известия (Фаза 4)
+│   │   └── NotificationsPage.tsx
+│   │
+│   ├── billing/                      — Абонамент (Фаза 4)
 │   │   └── BillingPage.tsx
 │   │
-│   ├── invoicing/                    — Фактуриране (placeholder за Фаза 5)
-│   │   └── InvoicingPage.tsx
+│   ├── invoicing/                    — Фактуриране (Фаза 5, пълен модул)
+│   │   └── InvoicingModule.tsx       — Клиенти, артикули, кочани, настройки, фактури CRUD
 │   │
 │   └── admin/                        — Admin панел (placeholder за Фаза 6)
 │       ├── AdminDashboardPage.tsx
@@ -368,7 +388,7 @@ backend-v2/app/
 | AI Engine | OpenAI GPT | Google Gemini |
 | Конкурентност | Sync | Async/await (asyncpg) |
 | Числа | Float | Decimal/Numeric (financial precision) |
-| Auth | JWT tokens | Session tokens (30-day expiry) |
+| Auth | JWT tokens | Session tokens (180-day expiry) |
 | Security | Базова | XSS prevention, path traversal protection, row-level locking |
 
 **Сигурност (46 бъга поправени в 9 рунда Devin Review)**:
@@ -474,15 +494,16 @@ Admin (admin-only):
 └──────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
-│              V2 PREVIEW                      │
+│              V2 PRODUCTION                   │
 │                                              │
-│   new.megabanx.com → /opt/megabanx-v2/       │
 │   megabanx.duckdns.org → /opt/megabanx-v2/   │
 │   frontend-dist/ (React v2 build)            │
-│   source/ (пълен source код)                 │
-│   Backend v2: backend-v2/ (не е пуснат още)  │
-│   Branch: devin/1776499727-megabanx-v2-skel  │
-│   PR: #5                                     │
+│   source/backend-v2/ (пълен source код)      │
+│   source/frontend-v2/ (пълен source код)     │
+│   Backend v2: порт 8007 (systemd service)    │
+│   Nginx reverse proxy + SSL (Certbot)        │
+│   Branch: devin/1776763253-phase5-ws-ticks   │
+│   PR: #8                                     │
 └──────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
@@ -548,21 +569,26 @@ Email+Code (без пароли):
 
 ## 13. Бъдещи фази
 
-### Фаза 4 — Dashboard функционалност
-- Company CRUD + EIK Lookup + Verification (3 метода)
-- Upload + AI Processing (SSE streaming)
-- File Browser (multi-select, keyboard nav)
-- History + Notifications
-- Billing (Stripe checkout, trial, cancel)
+### Фаза 4 — Dashboard функционалност ✅ ГОТОВА
+- Company CRUD (CompaniesPage, CompanyCard, OwnCompanyForm, ShareDialog)
+- Files browser (FilesPage)
+- History (HistoryPage, HistoryTable)
+- Upload (UploadPage)
+- Notifications + Billing pages
+- 42 компонента общо
 
-### Фаза 5 — Фактуриране модул
-- Invoice form (5 doc types)
-- Clients / Items / Stubs CRUD
-- PDF preview + templates
-- Sync + Email
-- Periodic invoices
+### Фаза 5 — WebSocket + Фактуриране ✅ ГОТОВА
+- Real-time WebSocket delivery tracking (delivery ticks)
+- InvoicingModule — Клиенти, Артикули, Кочани, Настройки, Фактури CRUD
+- Session expiry увеличен на 180 дни
+- Backend invoicing router + schemas + models
 
-### Фаза 6 — Admin панел
+### Фаза 5.5 — Layout 1:1 copy ✅ ГОТОВА
+- CSS класове копирани директно от megabanx.com с Playwright
+- Stats bar, tabs, company cards, heading, бутони — всичко 1:1
+- XSS fix: address rendering с React елементи вместо dangerouslySetInnerHTML
+
+### Фаза 6 — Admin панел (ПРЕДСТОИ)
 - Users management (search, ban, impersonate)
 - Companies overview + Verification review
 - Billing overview + System logs
@@ -592,4 +618,4 @@ scp -r dist/* server:/opt/bginvoices/frontend-v2/
 
 ---
 
-*Документ генериран на 18.04.2026 г., обновен на 19.04.2026 г. — добавена Backend v2 архитектура*
+*Документ генериран на 18.04.2026 г., обновен на 21.04.2026 г. — добавени Фази 4-5.5, production deploy на megabanx.duckdns.org, XSS fix*
