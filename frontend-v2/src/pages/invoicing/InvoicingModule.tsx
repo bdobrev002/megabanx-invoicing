@@ -85,10 +85,15 @@ export default function InvoicingModule() {
     return () => { cancelled = true }
   }, [fetchInvoices])
 
-  // WebSocket auto-refresh
+  // WebSocket auto-refresh (only on 'refresh' events, consistent with FilesPage/HistoryPage)
   useEffect(() => {
-    const unsub = onWsMessage(() => {
-      fetchInvoices()
+    const unsub = onWsMessage((data) => {
+      if (typeof data === 'object' && data !== null && 'type' in data) {
+        const evt = data as { type: string }
+        if (evt.type === 'refresh') {
+          fetchInvoices()
+        }
+      }
     })
     return unsub
   }, [fetchInvoices])
