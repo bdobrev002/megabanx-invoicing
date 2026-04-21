@@ -102,6 +102,8 @@ class InvInvoiceMeta(Base):
     pdf_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     sync_status: Mapped[str] = mapped_column(String(20), default="pending")
     status: Mapped[str] = mapped_column(String(20), default="issued")  # draft, issued
+    cross_copy_status: Mapped[str] = mapped_column(String(30), default="none")  # none, pending, approved, no_subscriber, deleted_by_recipient
+    source_invoice_id: Mapped[str] = mapped_column(String(36), default="")  # tracks cross-copy link
     composed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

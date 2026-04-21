@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { InvoiceClient, InvoiceItem, InvoiceStub, InvoiceFormData } from '@/types/invoicing.types'
+import type { InvoiceClient, InvoiceItem, InvoiceStub, InvoiceFormData, IssuedInvoiceMeta } from '@/types/invoicing.types'
 
 export const invoicingApi = {
   getClients: (companyId: string, profileId: string) =>
@@ -57,16 +57,22 @@ export const invoicingApi = {
     apiFetch<void>(`/invoicing/stubs/${stubId}`, { method: 'DELETE' }),
 
   getInvoices: (companyId: string, profileId: string) =>
-    apiFetch<InvoiceFormData[]>(`/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`),
+    apiFetch<IssuedInvoiceMeta[]>(`/invoicing/invoices?company_id=${companyId}&profile_id=${profileId}`),
 
   createInvoice: (companyId: string, profileId: string, data: InvoiceFormData) =>
-    apiFetch<{ pdf_url: string; invoice_id: string }>('/invoicing/invoices', {
+    apiFetch<IssuedInvoiceMeta>('/invoicing/invoices', {
       method: 'POST',
       body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
     }),
 
   getInvoice: (invoiceId: string) =>
-    apiFetch<{ meta: unknown; lines: unknown[] }>(`/invoicing/invoices/${invoiceId}`),
+    apiFetch<{ meta: IssuedInvoiceMeta; lines: unknown[] }>(`/invoicing/invoices/${invoiceId}`),
+
+  updateInvoice: (invoiceId: string, companyId: string, profileId: string, data: InvoiceFormData) =>
+    apiFetch<IssuedInvoiceMeta>(`/invoicing/invoices/${invoiceId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
+    }),
 
   removeInvoice: (invoiceId: string) =>
     apiFetch<void>(`/invoicing/invoices/${invoiceId}`, { method: 'DELETE' }),

@@ -37,6 +37,40 @@ export interface InvoiceStub {
   doc_type: string
 }
 
+export type CrossCopyStatus = 'none' | 'pending' | 'approved' | 'no_subscriber' | 'deleted_by_recipient'
+
+export interface IssuedInvoiceMeta {
+  id: string
+  invoice_id: string
+  company_id: string
+  profile_id: string
+  client_id: string | null
+  document_type: string
+  invoice_number: number | null
+  issue_date: string | null
+  tax_event_date: string | null
+  due_date: string | null
+  subtotal: string
+  discount: string
+  vat_amount: string
+  total: string
+  vat_rate: string
+  no_vat: boolean
+  no_vat_reason: string | null
+  payment_method: string | null
+  notes: string | null
+  internal_notes: string | null
+  currency: string
+  pdf_path: string | null
+  sync_status: string
+  status: string
+  cross_copy_status: CrossCopyStatus
+  source_invoice_id: string
+  composed_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type DocType = 'invoice' | 'proforma' | 'debit_note' | 'credit_note'
 
 export type SyncMode = 'manual' | 'immediate' | 'delayed'

@@ -505,6 +505,14 @@ async def delete_issued_invoice(
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
     _verify_ownership(meta.profile_id, user)
 
+    # Phase 5.2: Block delete when counterparty has approved the invoice
+    if meta.cross_copy_status == "approved":
+        raise HTTPException(
+            status_code=409,
+            detail="Фактурата е одобрена от контрагента и не може да бъде изтрита. "
+                   "Контрагентът трябва първо да я изтрие.",
+        )
+
     # Delete lines
     result = await db.execute(
         select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id)
@@ -515,6 +523,117 @@ async def delete_issued_invoice(
 
     await db.delete(meta)
     return {"message": "Фактурата е изтрита"}
+
+
+@router.put("/invoices/{invoice_id}")
+async def update_issued_invoice(
+    invoice_id: str,
+    req: InvoiceCreateSchema,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an issued invoice. Blocked when counterparty has approved."""
+    result = await db.execute(
+        select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id)
+    )
+    meta = result.scalar_one_or_none()
+    if not meta:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    _verify_ownership(meta.profile_id, user)
+
+    # Phase 5.2: Block edit when counterparty has approved the invoice
+    if meta.cross_copy_status == "approved":
+        raise HTTPException(
+            status_code=409,
+            detail="Фактурата е одобрена от контрагента и не може да бъде редактирана. "
+                   "Контрагентът трябва първо да я изтрие.",
+        )
+
+    # Update meta fields
+    meta.client_id = req.client_id
+    meta.document_type = req.document_type
+    if req.invoice_number is not None:
+        meta.invoice_number = req.invoice_number
+    meta.no_vat = req.no_vat
+    meta.no_vat_reason = req.no_vat_reason or ""
+    meta.payment_method = req.payment_method or ""
+    meta.notes = req.notes or ""
+    meta.internal_notes = req.internal_notes or ""
+    meta.currency = req.currency
+    meta.status = req.status
+    if req.composed_by:
+        meta.composed_by = req.composed_by
+    meta.updated_at = datetime.utcnow()
+
+    # Parse dates
+    def _parse_date(s: str | None) -> date | None:
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except ValueError:
+            try:
+                return datetime.strptime(s, "%Y.%m.%d").date()
+            except ValueError:
+                return None
+
+    meta.issue_date = _parse_date(req.issue_date) or meta.issue_date
+    meta.tax_event_date = _parse_date(req.tax_event_date)
+    meta.due_date = _parse_date(req.due_date)
+
+    # Recalculate lines
+    if req.lines:
+        # Delete old lines
+        old_lines_result = await db.execute(
+            select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id)
+        )
+        for old_line in old_lines_result.scalars().all():
+            await db.delete(old_line)
+
+        subtotal = Decimal("0")
+        lines_data = []
+        for idx, line in enumerate(req.lines):
+            line_subtotal = Decimal(str(line.quantity)) * Decimal(str(line.unit_price))
+            subtotal += line_subtotal
+            lines_data.append((idx, line, line_subtotal))
+
+        discount_val = Decimal(str(req.discount))
+        if req.discount_type in ("%", "percent"):
+            discount_val = subtotal * discount_val / Decimal("100")
+        if discount_val > subtotal:
+            raise HTTPException(status_code=400, detail="Отстъпката не може да надвишава междинната сума.")
+        discounted_subtotal = subtotal - discount_val
+
+        vat_amount = Decimal("0")
+        discount_ratio = discounted_subtotal / subtotal if subtotal else Decimal("1")
+
+        for idx, line, line_subtotal in lines_data:
+            discounted_line = line_subtotal * discount_ratio
+            line_vat = discounted_line * Decimal(str(line.vat_rate)) / Decimal("100") if not req.no_vat else Decimal("0")
+            line_total = discounted_line + line_vat
+            vat_amount += line_vat
+
+            db.add(InvInvoiceLine(
+                id=str(uuid.uuid4()),
+                invoice_id=invoice_id,
+                item_id=line.item_id or "",
+                position=line.position if line.position is not None else idx + 1,
+                description=line.description,
+                quantity=Decimal(str(line.quantity)),
+                unit=line.unit,
+                unit_price=Decimal(str(line.unit_price)),
+                vat_rate=Decimal(str(line.vat_rate)),
+                line_total=line_total,
+            ))
+
+        meta.subtotal = subtotal
+        meta.discount = discount_val
+        meta.vat_amount = vat_amount
+        meta.total = discounted_subtotal + vat_amount
+        meta.vat_rate = Decimal(str(req.vat_rate))
+
+    await db.flush()
+    return InvoiceMetaOut.model_validate(meta)
 
 
 # ──────────────────── Company Settings ────────────────────

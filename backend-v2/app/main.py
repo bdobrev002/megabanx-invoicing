@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -106,6 +107,9 @@ async def websocket_endpoint(
         session = result.scalar_one_or_none()
         if not session:
             await websocket.close(code=4001, reason="Invalid token")
+            return
+        if datetime.utcnow() > session.expires_at:
+            await websocket.close(code=4001, reason="Token expired")
             return
         result = await db.execute(select(User).where(User.id == session.user_id))
         user = result.scalar_one_or_none()

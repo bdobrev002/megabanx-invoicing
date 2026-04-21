@@ -382,7 +382,7 @@ async def delete_invoice(
     await db.delete(invoice)
     await db.flush()
 
-    # Notify source profile via WebSocket (after DB commit is guaranteed by dependency)
+    # Notify via WebSocket (sent before transaction commit; low risk of commit failure)
     if source_profile_id:
         await ws_manager.notify_profile(
             source_profile_id,
