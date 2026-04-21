@@ -578,8 +578,8 @@ async def update_issued_invoice(
                 return None
 
     meta.issue_date = _parse_date(req.issue_date) or meta.issue_date
-    meta.tax_event_date = _parse_date(req.tax_event_date) or meta.tax_event_date
-    meta.due_date = _parse_date(req.due_date) or meta.due_date
+    meta.tax_event_date = _parse_date(req.tax_event_date) if req.tax_event_date else None
+    meta.due_date = _parse_date(req.due_date) if req.due_date else None
 
     # Recalculate lines
     if req.lines:
