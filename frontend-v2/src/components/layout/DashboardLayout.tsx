@@ -41,7 +41,7 @@ export default function DashboardLayout() {
         <div className="flex-1 min-w-0">
           {/* Stats bar — connected row with dividers (matching original) */}
           <div className="bg-white border-b">
-            <div className="px-4 py-3">
+            <div className="max-w-5xl mx-auto px-4 py-3">
               <div className="flex border rounded-lg divide-x">
                 {stats.map((s) => (
                   <div key={s.label} className="flex-1 py-3 text-center">
@@ -55,7 +55,7 @@ export default function DashboardLayout() {
 
           {/* Tab navigation — evenly spread (matching original) */}
           <div className="bg-white border-b shadow-sm">
-            <div className="px-4">
+            <div className="max-w-5xl mx-auto px-4">
               <div className="flex py-2">
                 {tabs.map(({ to, label, icon: Icon }) => {
                   const active = location.pathname === to || location.pathname.startsWith(to + '/')
@@ -79,7 +79,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Main content */}
-          <main className="p-4 lg:p-6">
+          <main className="max-w-5xl mx-auto p-4 lg:p-6">
             <Outlet />
           </main>
         </div>
