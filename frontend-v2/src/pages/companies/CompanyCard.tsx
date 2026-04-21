@@ -64,7 +64,9 @@ export default function CompanyCard({ company, onEdit, onDelete }: Props) {
           {company.address && (
             <div>
               <span className="text-gray-500">Адрес: </span>
-              <span dangerouslySetInnerHTML={{ __html: company.address.replace(/\n/g, '<br/><span class="inline-block w-12"></span>') }} />
+              {company.address.split('\n').map((line, i) => (
+                <span key={i}>{i > 0 && <><br/><span className="inline-block w-12" /></>}{line}</span>
+              ))}
             </div>
           )}
           {company.mol && (
