@@ -1,10 +1,10 @@
 """Invoicing module models (clients, items, stubs, invoices, settings, sync)."""
 
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import String, DateTime, Date, Text, Boolean, Integer, Numeric
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -102,8 +102,10 @@ class InvInvoiceMeta(Base):
     pdf_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     sync_status: Mapped[str] = mapped_column(String(20), default="pending")
     status: Mapped[str] = mapped_column(String(20), default="issued")  # draft, issued
-    cross_copy_status: Mapped[str] = mapped_column(String(30), default="none")  # none, pending, approved, no_subscriber, deleted_by_recipient
-    source_invoice_id: Mapped[str] = mapped_column(String(36), default="")  # tracks cross-copy link
+    # cross_copy_status values: none, pending, approved, no_subscriber, deleted_by_recipient
+    cross_copy_status: Mapped[str] = mapped_column(String(30), default="none")
+    # tracks cross-copy link back to the source issued invoice
+    source_invoice_id: Mapped[str] = mapped_column(String(36), default="")
     composed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

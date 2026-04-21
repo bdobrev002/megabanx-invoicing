@@ -1,0 +1,5 @@
+{
+  "frontend-v2/**/*.{ts,tsx,js,jsx}": [
+    "bash -c 'cd frontend-v2 && npx eslint --no-warn-ignored ${@#frontend-v2/}' --"
+  ]
+}

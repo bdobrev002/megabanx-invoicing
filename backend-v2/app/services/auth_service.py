@@ -1,7 +1,7 @@
 """Auth service: OTP generation, session management."""
 
-import secrets
 import logging
+import secrets
 from datetime import datetime, timedelta
 
 logger = logging.getLogger("megabanx.auth")

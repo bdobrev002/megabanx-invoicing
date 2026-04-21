@@ -1,9 +1,9 @@
 """Google Gemini AI invoice analysis service."""
 
 import asyncio
-import os
 import json
 import logging
+import os
 
 from fastapi import HTTPException
 from google import genai
@@ -58,9 +58,14 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
     if file_ext in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"]:
         image_bytes = read_decrypted_file(file_path)
         mime_map = {
-            ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-            ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp",
-            ".tiff": "image/tiff", ".tif": "image/tiff",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".bmp": "image/bmp",
+            ".webp": "image/webp",
+            ".tiff": "image/tiff",
+            ".tif": "image/tiff",
         }
         mime_type = mime_map.get(file_ext, "image/jpeg")
         parts.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))

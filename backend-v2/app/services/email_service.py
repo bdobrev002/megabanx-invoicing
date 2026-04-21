@@ -2,11 +2,11 @@
 
 import asyncio
 import html as html_mod
-import uuid
 import logging
 import smtplib
-from email.mime.text import MIMEText
+import uuid
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from app.config import settings
 
@@ -112,7 +112,9 @@ async def send_share_invitation_email(to_email: str, owner_name: str, company_na
 </body>
 </html>"""
 
-    text = f"{settings.APP_NAME}\n\n{owner_name} shared company {company_name} with you.\nLogin at {settings.BASE_URL} with email {to_email}"
+    text = (
+        f"{settings.APP_NAME}\n\n{owner_name} shared company {company_name} with you.\nLogin at {settings.BASE_URL} with email {to_email}"
+    )
     return await send_email(to_email, f"{settings.APP_NAME} - {owner_name} сподели фирма с вас", html, text)
 
 
