@@ -7,7 +7,7 @@ function toBackendPayload(data: InvoiceFormData) {
     document_type: data.doc_type,
     client_id: data.client_id,
     stub_id: data.stub_id,
-    invoice_number: data.invoice_number ? parseInt(data.invoice_number, 10) || null : null,
+    invoice_number: data.invoice_number ? (Number.isNaN(parseInt(data.invoice_number, 10)) ? null : parseInt(data.invoice_number, 10)) : null,
     issue_date: data.date,
     due_date: data.due_date,
     tax_event_date: data.delivery_date,

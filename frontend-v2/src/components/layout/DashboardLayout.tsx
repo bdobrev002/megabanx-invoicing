@@ -38,7 +38,7 @@ export default function DashboardLayout() {
       <div className="pt-[57px] flex">
         <Sidebar variant="dashboard" />
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 md:ml-52">
           {/* Stats + Tabs sticky header (matching original: sticky bg-gray-50 z-10) */}
           <div className="sticky top-[57px] z-10 bg-gray-50">
             {/* Stats row */}
