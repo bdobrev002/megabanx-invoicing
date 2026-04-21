@@ -36,7 +36,7 @@ export default function DashboardLayout() {
 
       {/* Sidebar + content area side by side (same structure as LandingLayout) */}
       <div className="pt-[57px] flex">
-        <Sidebar variant="landing" />
+        <Sidebar variant="dashboard" />
 
         <div className="flex-1 min-w-0">
           {/* Stats + Tabs sticky header (matching original: sticky bg-gray-50 z-10) */}
