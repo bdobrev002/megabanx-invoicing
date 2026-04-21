@@ -34,14 +34,14 @@ export default function DashboardLayout() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* Sidebar + content area side by side, constrained like landing layout */}
-      <div className="pt-[57px] flex max-w-7xl mx-auto">
+      {/* Sidebar + content area side by side (same structure as LandingLayout) */}
+      <div className="pt-[57px] flex">
         <Sidebar variant="landing" />
 
         <div className="flex-1 min-w-0">
           {/* Stats bar */}
           <div className="bg-white border-b">
-            <div className="px-4 py-3">
+            <div className="max-w-4xl px-4 py-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {stats.map((s) => (
                   <div key={s.label} className="bg-white rounded-xl border p-3 text-center">
@@ -55,7 +55,7 @@ export default function DashboardLayout() {
 
           {/* Tab navigation */}
           <div className="bg-white border-b shadow-sm">
-            <div className="px-4">
+            <div className="max-w-4xl px-4">
               <div className="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
                 {tabs.map(({ to, label, icon: Icon }) => {
                   const active = location.pathname === to || location.pathname.startsWith(to + '/')
@@ -79,7 +79,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Main content */}
-          <main className="p-4 lg:p-6">
+          <main className="max-w-4xl p-4 lg:p-6">
             <Outlet />
           </main>
         </div>
