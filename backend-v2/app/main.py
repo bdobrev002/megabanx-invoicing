@@ -3,7 +3,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -21,6 +21,7 @@ from app.models import (  # noqa: F401
 from app.routers import auth, profiles, companies, invoices
 from app.routers import notifications, sharing as sharing_router, billing as billing_router
 from app.routers import contact, admin as admin_router, invoicing as invoicing_router
+from app.services.ws_manager import ws_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,6 +78,52 @@ app.include_router(billing_router.router)
 app.include_router(contact.router)
 app.include_router(admin_router.router)
 app.include_router(invoicing_router.router)
+
+
+# --- WebSocket endpoint for real-time notifications ---
+@app.websocket("/ws")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+):
+    """WebSocket endpoint for real-time updates.
+
+    The client connects with ?token=<session_token> and the server
+    resolves the profile_id from the session.  All events for that
+    profile are pushed over this connection.
+    """
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
+        return
+
+    # Resolve profile_id from session token
+    from app.database import async_session_factory
+    from sqlalchemy import select
+    from app.models.user import User, Session
+
+    async with async_session_factory() as db:
+        result = await db.execute(select(Session).where(Session.token == token))
+        session = result.scalar_one_or_none()
+        if not session:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        result = await db.execute(select(User).where(User.id == session.user_id))
+        user = result.scalar_one_or_none()
+        if not user or not user.profile_id:
+            await websocket.close(code=4001, reason="No profile")
+            return
+        profile_id = user.profile_id
+
+    await ws_manager.connect(profile_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(profile_id, websocket)
+    except Exception:
+        ws_manager.disconnect(profile_id, websocket)
 
 
 @app.get("/")

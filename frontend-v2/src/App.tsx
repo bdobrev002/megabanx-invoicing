@@ -47,6 +47,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import Toast from '@/components/ui/Toast'
 import DialogProvider from '@/components/ui/DialogProvider'
+import { connectWebSocket, disconnectWebSocket } from '@/api/websocket'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,7 +59,8 @@ const queryClient = new QueryClient({
   },
 })
 
-/** Fetch current user on app start when a token exists but user is not loaded */
+/** Fetch current user on app start when a token exists but user is not loaded.
+ *  Also connects WebSocket when the user is authenticated. */
 function AuthInitializer() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
@@ -69,6 +71,16 @@ function AuthInitializer() {
       fetchUser()
     }
   }, [token, user, fetchUser])
+
+  // Connect / disconnect WebSocket based on auth state
+  useEffect(() => {
+    if (token && user) {
+      connectWebSocket()
+    } else {
+      disconnectWebSocket()
+    }
+    return () => { disconnectWebSocket() }
+  }, [token, user])
 
   return null
 }

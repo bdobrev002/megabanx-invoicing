@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Spinner from '@/components/ui/Spinner'
 import { FolderOpen } from 'lucide-react'
@@ -6,6 +6,7 @@ import { filesApi } from '@/api/files.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useUiStore } from '@/stores/uiStore'
+import { onWsMessage } from '@/api/websocket'
 import FileFilters from './FileFilters'
 import FileList from './FileList'
 import FileActions from './FileActions'
@@ -22,7 +23,7 @@ export default function FilesPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
 
-  const fetchFolders = async () => {
+  const fetchFolders = useCallback(async () => {
     if (!profileId) return
     try {
       const data = await filesApi.getFolderStructure(profileId)
@@ -32,7 +33,7 @@ export default function FilesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [profileId, setError])
 
   useEffect(() => {
     let cancelled = false
@@ -42,8 +43,19 @@ export default function FilesPage() {
     }
     load()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId])
+  }, [fetchFolders])
+
+  // Refresh on WebSocket events
+  useEffect(() => {
+    return onWsMessage((data) => {
+      if (typeof data === 'object' && data !== null && 'type' in data) {
+        const evt = data as { type: string }
+        if (evt.type === 'refresh') {
+          fetchFolders()
+        }
+      }
+    })
+  }, [fetchFolders])
 
   const handleDeleteSelected = async () => {
     if (selectedFiles.size === 0) return
