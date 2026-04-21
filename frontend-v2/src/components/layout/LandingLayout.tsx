@@ -52,7 +52,7 @@ export default function LandingLayout() {
       </header>
 
       {/* Content area with sidebar */}
-      <div className="flex pt-[57px] max-w-7xl mx-auto">
+      <div className="flex pt-[57px]">
         <Sidebar variant="landing" />
         <main className="flex-1 min-w-0">
           <Outlet />
