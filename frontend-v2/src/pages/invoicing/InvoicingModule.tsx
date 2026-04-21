@@ -5,7 +5,7 @@ import Badge from '@/components/ui/Badge'
 import Spinner from '@/components/ui/Spinner'
 import { Table, Thead, Th, Td, TrBody } from '@/components/ui/Table'
 import DeliveryBolts from '@/components/ui/DeliveryBolts'
-import { FileText, Trash2, Pencil, RefreshCw } from 'lucide-react'
+import { FileText, Trash2, Pencil, RefreshCw, Plus } from 'lucide-react'
 import { invoicingApi } from '@/api/invoicing.api'
 import { companiesApi } from '@/api/companies.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -14,6 +14,7 @@ import { useDialogStore } from '@/stores/dialogStore'
 import { useWsRefresh } from '@/hooks/useWsRefresh'
 import { formatDate } from '@/utils/formatters'
 import type { IssuedInvoiceMeta } from '@/types/invoicing.types'
+import InvoiceForm from './form/InvoiceForm'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: 'Фактура',
@@ -35,6 +36,8 @@ export default function InvoicingModule() {
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [companyId, setCompanyId] = useState(selectedCompanyId ?? '')
+  const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | undefined>(undefined)
 
   // Load companies on mount
   useEffect(() => {
@@ -140,6 +143,18 @@ export default function InvoicingModule() {
           <Button size="sm" variant="outline" onClick={fetchInvoices} title="Опресни">
             <RefreshCw size={16} />
           </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={!companyId}
+            onClick={() => {
+              setEditingInvoiceId(undefined)
+              setFormMode('create')
+            }}
+          >
+            <Plus size={14} className="mr-1" />
+            Нова фактура
+          </Button>
         </div>
       </div>
 
@@ -193,6 +208,11 @@ export default function InvoicingModule() {
                           size="sm"
                           variant="ghost"
                           disabled={!editable}
+                          onClick={() => {
+                            if (!editable) return
+                            setEditingInvoiceId(inv.invoice_id)
+                            setFormMode('edit')
+                          }}
                           title={editable ? 'Редактирай' : 'Одобрена от контрагента — не може да се редактира'}
                         >
                           <Pencil size={14} />
@@ -214,6 +234,21 @@ export default function InvoicingModule() {
             </tbody>
           </Table>
         </div>
+      )}
+
+      {formMode && companyId && (
+        <InvoiceForm
+          open
+          mode={formMode}
+          companyId={companyId}
+          profileId={profileId}
+          invoiceId={editingInvoiceId}
+          onClose={() => setFormMode(null)}
+          onSaved={() => {
+            setFormMode(null)
+            void fetchInvoices()
+          }}
+        />
       )}
     </div>
   )

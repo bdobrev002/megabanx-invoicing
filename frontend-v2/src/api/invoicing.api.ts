@@ -1,34 +1,81 @@
 import { apiFetch } from './client'
-import type { InvoiceClient, InvoiceItem, InvoiceStub, InvoiceFormData, InvoiceLine, IssuedInvoiceMeta } from '@/types/invoicing.types'
+import type {
+  InvoiceClient,
+  InvoiceItem,
+  InvoiceStub,
+  InvoiceFormData,
+  InvoiceLine,
+  IssuedInvoiceMeta,
+} from '@/types/invoicing.types'
+
+/** Row returned by ``GET /invoicing/invoices/{id}/editable`` for the edit form. */
+export interface EditableInvoiceLine {
+  id: string
+  item_id: string | null
+  position: number
+  description: string
+  quantity: number
+  unit: string
+  unit_price: number
+  vat_rate: number
+  line_total: number
+}
+
+export interface EditableInvoiceResponse {
+  editable: boolean
+  meta: IssuedInvoiceMeta
+  lines: EditableInvoiceLine[]
+}
+
+export interface NextNumberResponse {
+  next_number: number
+}
+
+export interface SyncSettings {
+  sync_mode: 'manual' | 'immediate' | 'delayed'
+  delay_minutes: number
+}
 
 /** Map frontend InvoiceFormData field names to backend InvoiceCreateSchema names */
 function toBackendPayload(data: InvoiceFormData) {
+  const invNumParsed = data.invoice_number ? parseInt(data.invoice_number, 10) : NaN
+  // Combine BG + EN notes using the delimiter v1 uses; backend stores a single string.
+  const combinedNotes = data.notes_en
+    ? `${data.notes ?? ''}\n\n---EN---\n${data.notes_en}`
+    : data.notes
+  // Dominant VAT rate: if no_vat -> 0, else first line rate, else 20.
+  const dominantVat = data.no_vat
+    ? 0
+    : data.lines.length > 0
+      ? data.lines[0].vat_rate
+      : 20
   return {
     document_type: data.doc_type,
     client_id: data.client_id,
-    stub_id: data.stub_id,
-    invoice_number: data.invoice_number ? (Number.isNaN(parseInt(data.invoice_number, 10)) ? null : parseInt(data.invoice_number, 10)) : null,
-    issue_date: data.date,
-    due_date: data.due_date,
-    tax_event_date: data.delivery_date,
-    lines: data.lines.map((l: InvoiceLine) => ({
+    stub_id: data.stub_id || null,
+    invoice_number: Number.isFinite(invNumParsed) ? invNumParsed : null,
+    issue_date: data.date || null,
+    due_date: data.due_date || null,
+    tax_event_date: data.delivery_date || null,
+    vat_rate: dominantVat,
+    no_vat: data.no_vat,
+    no_vat_reason: data.no_vat_reason || null,
+    discount: data.discount_value,
+    discount_type: data.discount_type,
+    payment_method: data.payment_method || null,
+    notes: combinedNotes || null,
+    internal_notes: data.internal_notes || null,
+    currency: 'EUR',
+    composed_by: data.composed_by || null,
+    lines: data.lines.map((l: InvoiceLine, i: number) => ({
+      item_id: l.item_id ?? null,
+      position: i,
       description: l.description,
       quantity: l.quantity,
       unit: l.unit,
       unit_price: l.price,
       vat_rate: l.vat_rate,
-      value: l.value,
     })),
-    notes: data.notes,
-    internal_notes: data.internal_notes,
-    discount_type: data.discount_type,
-    discount: data.discount_value,
-    no_vat: data.no_vat,
-    no_vat_reason: data.no_vat_reason,
-    price_with_vat: data.price_with_vat,
-    payment_method: data.payment_method,
-    sync_mode: data.sync_mode,
-    delay_minutes: data.delay_minutes,
   }
 }
 
@@ -50,6 +97,9 @@ export const invoicingApi = {
 
   removeClient: (clientId: string) =>
     apiFetch<void>(`/invoicing/clients/${clientId}`, { method: 'DELETE' }),
+
+  getClientEmails: (clientId: string) =>
+    apiFetch<{ emails: string[] }>(`/invoicing/client-emails/${clientId}`),
 
   getItems: (companyId: string, profileId: string) =>
     apiFetch<InvoiceItem[]>(`/invoicing/items?company_id=${companyId}&profile_id=${profileId}`),
@@ -93,20 +143,54 @@ export const invoicingApi = {
   createInvoice: (companyId: string, profileId: string, data: InvoiceFormData) =>
     apiFetch<IssuedInvoiceMeta>('/invoicing/invoices', {
       method: 'POST',
-      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId }),
+      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId, status: 'issued' }),
+    }),
+
+  createDraftInvoice: (companyId: string, profileId: string, data: InvoiceFormData) =>
+    apiFetch<IssuedInvoiceMeta>('/invoicing/invoices', {
+      method: 'POST',
+      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId, status: 'draft' }),
     }),
 
   getInvoice: (invoiceId: string) =>
     apiFetch<{ meta: IssuedInvoiceMeta; lines: unknown[] }>(`/invoicing/invoices/${invoiceId}`),
 
-  updateInvoice: (invoiceId: string, companyId: string, profileId: string, data: InvoiceFormData) =>
+  /** Fetch an invoice shaped for the edit form (Stage 1.1 backend). */
+  getEditableInvoice: (invoiceId: string) =>
+    apiFetch<EditableInvoiceResponse>(`/invoicing/invoices/${invoiceId}/editable`),
+
+  updateInvoice: (
+    invoiceId: string,
+    companyId: string,
+    profileId: string,
+    data: InvoiceFormData,
+    status: 'issued' | 'draft' = 'issued',
+  ) =>
     apiFetch<IssuedInvoiceMeta>(`/invoicing/invoices/${invoiceId}`, {
       method: 'PUT',
-      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId }),
+      body: JSON.stringify({ ...toBackendPayload(data), company_id: companyId, profile_id: profileId, status }),
     }),
 
   removeInvoice: (invoiceId: string) =>
     apiFetch<void>(`/invoicing/invoices/${invoiceId}`, { method: 'DELETE' }),
+
+  /** Preview the next invoice number for the selected document type. */
+  getNextNumber: (companyId: string, profileId: string, documentType: string) =>
+    apiFetch<NextNumberResponse>(
+      `/invoicing/next-number?company_id=${companyId}&profile_id=${profileId}&document_type=${documentType}`,
+    ),
+
+  /** Bulgarian Trade Registry lookup by EIK. */
+  lookupEik: (eik: string) =>
+    apiFetch<{ eik: string; name?: string; address?: string; mol?: string; vat_number?: string; is_vat_registered?: boolean }>(
+      `/invoicing/registry/lookup/${encodeURIComponent(eik)}`,
+    ),
+
+  /** Check whether an EIK corresponds to an existing MegaBanx company. */
+  checkCounterparty: (eik: string) =>
+    apiFetch<{ exists: boolean; company_id?: string; profile_id?: string }>(
+      `/invoicing/check-counterparty/${encodeURIComponent(eik)}`,
+    ),
 
   getCompanySettings: (companyId: string, profileId: string) =>
     apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`),
@@ -118,12 +202,12 @@ export const invoicingApi = {
     }),
 
   getSyncSettings: (companyId: string, profileId: string) =>
-    apiFetch<unknown>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`),
+    apiFetch<SyncSettings>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`),
 
-  updateSyncSettings: (companyId: string, profileId: string, data: unknown) =>
-    apiFetch<unknown>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`, {
+  updateSyncSettings: (companyId: string, profileId: string, data: SyncSettings) =>
+    apiFetch<SyncSettings>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
     }),
 
   sendEmail: (invoiceId: string, to: string, subject: string, body: string) =>
