@@ -53,7 +53,7 @@ export default function CookiePolicyPage() {
                     <tr className="border-b border-gray-100">
                       <td className="px-3 py-2 font-mono text-xs">session_token</td>
                       <td className="px-3 py-2">Поддържане на потребителската сесия след вход</td>
-                      <td className="px-3 py-2">24 часа</td>
+                      <td className="px-3 py-2">6 месеца</td>
                       <td className="px-3 py-2">httpOnly, Secure</td>
                     </tr>
                     <tr className="border-b border-gray-100">
