@@ -64,11 +64,7 @@ async def _schedule_cross_copy(db: AsyncSession, meta: InvInvoiceMeta) -> None:
         meta.cross_copy_status = "no_subscriber"
         return
 
-    matches = (
-        await db.execute(
-            select(Company).where(Company.eik == client.eik, Company.profile_id != meta.profile_id)
-        )
-    ).scalars().all()
+    matches = (await db.execute(select(Company).where(Company.eik == client.eik, Company.profile_id != meta.profile_id))).scalars().all()
 
     if not matches:
         meta.cross_copy_status = "no_subscriber"
@@ -85,8 +81,7 @@ async def _schedule_cross_copy(db: AsyncSession, meta: InvInvoiceMeta) -> None:
                 type="cross_copy_incoming",
                 title="Нова входяща фактура от контрагент",
                 message=(
-                    f"{issuer_name} издаде фактура № {meta.invoice_number or '—'} към {match.name}. "
-                    "Прегледайте и одобрете във Входящи."
+                    f"{issuer_name} издаде фактура № {meta.invoice_number or '—'} към {match.name}. Прегледайте и одобрете във Входящи."
                 ),
                 filename=str(meta.invoice_number or ""),
                 source="cross-copy",
@@ -101,11 +96,7 @@ async def _notify_cross_copy_recipients(db: AsyncSession, meta: InvInvoiceMeta) 
     client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
     if not client or not client.eik:
         return
-    matches = (
-        await db.execute(
-            select(Company.profile_id).where(Company.eik == client.eik, Company.profile_id != meta.profile_id)
-        )
-    ).all()
+    matches = (await db.execute(select(Company.profile_id).where(Company.eik == client.eik, Company.profile_id != meta.profile_id))).all()
     seen: set[str] = set()
     for row in matches:
         pid = row.profile_id
@@ -286,50 +277,50 @@ async def list_incoming_cross_copies(
     _verify_ownership(profile_id, user)
 
     my_eiks = (
-        await db.execute(
-            select(Company.eik).where(
-                Company.profile_id == profile_id,
-                Company.eik.isnot(None),
-                Company.eik != "",
+        (
+            await db.execute(
+                select(Company.eik).where(
+                    Company.profile_id == profile_id,
+                    Company.eik.isnot(None),
+                    Company.eik != "",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not my_eiks:
         return []
 
-    matching_clients = (
-        await db.execute(select(InvClient.id).where(InvClient.eik.in_(list(my_eiks))))
-    ).scalars().all()
+    matching_clients = (await db.execute(select(InvClient.id).where(InvClient.eik.in_(list(my_eiks))))).scalars().all()
     if not matching_clients:
         return []
 
     invoices = (
-        await db.execute(
-            select(InvInvoiceMeta)
-            .where(
-                InvInvoiceMeta.client_id.in_(list(matching_clients)),
-                InvInvoiceMeta.cross_copy_status == "pending",
-                InvInvoiceMeta.status == "issued",
+        (
+            await db.execute(
+                select(InvInvoiceMeta)
+                .where(
+                    InvInvoiceMeta.client_id.in_(list(matching_clients)),
+                    InvInvoiceMeta.cross_copy_status == "pending",
+                    InvInvoiceMeta.status == "issued",
+                )
+                .order_by(InvInvoiceMeta.created_at.desc())
             )
-            .order_by(InvInvoiceMeta.created_at.desc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     out: list[dict[str, Any]] = []
     for meta in invoices:
-        issuer_company = (
-            await db.execute(select(Company).where(Company.id == meta.company_id))
-        ).scalar_one_or_none()
-        client = (
-            await db.execute(select(InvClient).where(InvClient.id == meta.client_id))
-        ).scalar_one_or_none()
+        issuer_company = (await db.execute(select(Company).where(Company.id == meta.company_id))).scalar_one_or_none()
+        client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
         lines = (
-            await db.execute(
-                select(InvInvoiceLine)
-                .where(InvInvoiceLine.invoice_id == meta.invoice_id)
-                .order_by(InvInvoiceLine.position)
-            )
-        ).scalars().all()
+            (await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == meta.invoice_id).order_by(InvInvoiceLine.position)))
+            .scalars()
+            .all()
+        )
         out.append(
             {
                 "meta": InvoiceMetaOut.model_validate(meta).model_dump(mode="json"),
@@ -370,9 +361,7 @@ async def _assert_recipient_of(meta: InvInvoiceMeta, user: User, db: AsyncSessio
     if not client or not client.eik:
         raise HTTPException(status_code=403, detail="Нямате достъп")
     owns_match = (
-        await db.execute(
-            select(Company.id).where(Company.profile_id == user.profile_id, Company.eik == client.eik)
-        )
+        await db.execute(select(Company.id).where(Company.profile_id == user.profile_id, Company.eik == client.eik))
     ).scalar_one_or_none()
     if not owns_match:
         raise HTTPException(status_code=403, detail="Нямате достъп")
@@ -385,9 +374,7 @@ async def approve_incoming_cross_copy(
     db: AsyncSession = Depends(get_db),
 ):
     """Approve an incoming cross-copy invoice. Locks the issuer from editing/deleting."""
-    meta = (
-        await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
-    ).scalar_one_or_none()
+    meta = (await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))).scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
     await _assert_recipient_of(meta, user, db)
@@ -407,9 +394,7 @@ async def reject_incoming_cross_copy(
     db: AsyncSession = Depends(get_db),
 ):
     """Reject an incoming cross-copy invoice. Signals the issuer they can re-sync or fix it."""
-    meta = (
-        await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
-    ).scalar_one_or_none()
+    meta = (await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))).scalar_one_or_none()
     if not meta:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
     await _assert_recipient_of(meta, user, db)
@@ -421,10 +406,7 @@ async def reject_incoming_cross_copy(
             profile_id=meta.profile_id,
             type="cross_copy_rejected",
             title="Контрагентът отхвърли фактура",
-            message=(
-                f"Контрагентът отхвърли фактура № {meta.invoice_number or '—'}. "
-                "Можете да я редактирате и синхронизирате наново."
-            ),
+            message=(f"Контрагентът отхвърли фактура № {meta.invoice_number or '—'}. Можете да я редактирате и синхронизирате наново."),
             filename=str(meta.invoice_number or ""),
             source="cross-copy",
         )
