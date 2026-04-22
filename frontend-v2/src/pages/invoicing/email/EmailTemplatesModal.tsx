@@ -25,6 +25,26 @@ interface EditorState {
   attach_pdf: boolean
 }
 
+/** Sample values used for the live preview in the merge-field editor. */
+const SAMPLE_MERGE_VALUES: Record<string, string> = {
+  '{invoice_number}': '1000001',
+  '{issue_date}': '01.04.2026',
+  '{due_date}': '15.04.2026',
+  '{total}': '1 200,00',
+  '{currency}': 'EUR',
+  '{client_name}': 'Примерен Клиент ЕООД',
+  '{company_name}': 'Моята Фирма ООД',
+  '{issuer_name}': 'noreply@megabanx.com',
+}
+
+function renderMergeFields(text: string): string {
+  return Object.entries(SAMPLE_MERGE_VALUES).reduce(
+    (acc, [placeholder, value]) =>
+      acc.split(placeholder).join(value),
+    text,
+  )
+}
+
 const EMPTY: EditorState = {
   id: null,
   name: '',
@@ -232,6 +252,27 @@ export default function EmailTemplatesModal({
                 rows={8}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+              <p className="mt-1 text-[11px] text-gray-500">
+                Кликнете поле горе за да го вмъкнете в съобщението. Примерни данни се използват само в прегледа долу.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase text-gray-500">Преглед (с примерни данни)</h4>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[11px] uppercase text-gray-500">Тема</div>
+                <div className="rounded-md bg-white px-2 py-1 text-sm text-gray-800 ring-1 ring-gray-200">
+                  {renderMergeFields(editor.subject) || <span className="text-gray-400">—</span>}
+                </div>
+              </div>
+              <div className="mt-2 space-y-1">
+                <div className="text-[11px] uppercase text-gray-500">Съобщение</div>
+                <pre className="whitespace-pre-wrap rounded-md bg-white px-2 py-1 text-sm text-gray-800 ring-1 ring-gray-200 font-sans">
+                  {renderMergeFields(editor.body) || <span className="text-gray-400">—</span>}
+                </pre>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-700">

@@ -24,6 +24,8 @@ class Company(Base):
     phone: Mapped[str] = mapped_column(String(50), default="")
     email: Mapped[str] = mapped_column(String(255), default="")
     logo_path: Mapped[str] = mapped_column(Text, default="")
+    # Stage 6B: invoice PDF template key (one of modern|classic|branded|standard).
+    invoice_template: Mapped[str] = mapped_column(String(32), default="modern")
     drive_purchases_folder_id: Mapped[str] = mapped_column(String(255), default="")
     drive_purchases_folder_path: Mapped[str] = mapped_column(Text, default="")
     drive_sales_folder_id: Mapped[str] = mapped_column(String(255), default="")

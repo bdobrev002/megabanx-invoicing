@@ -55,7 +55,13 @@ from app.schemas.invoicing import (
 )
 from app.services.eik_lookup import lookup_eik
 from app.services.email_service import send_invoice_email
-from app.services.pdf_service import InvoicePdfSnapshot, render_invoice_pdf
+from app.services.pdf_service import (
+    VALID_TEMPLATE_KEYS,
+    InvoicePdfSnapshot,
+    _encode_logo,
+    render_invoice_pdf,
+    render_preview_pdf_bytes,
+)
 from app.services.ws_manager import ws_manager
 
 router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
@@ -167,16 +173,42 @@ async def _build_pdf_snapshot(
         await db.execute(select(InvCompanySettings).where(InvCompanySettings.company_id == meta.company_id))
     ).scalar_one_or_none()
 
+    bank_rows = (
+        (
+            await db.execute(
+                select(InvBankAccount)
+                .where(InvBankAccount.company_id == meta.company_id)
+                .order_by(InvBankAccount.is_default.desc(), InvBankAccount.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    bank_accounts_ctx: list[dict[str, Any]] = [
+        {
+            "iban": b.iban,
+            "bank_name": b.bank_name or "",
+            "bic": b.bic or "",
+            "currency": b.currency or "BGN",
+            "is_default": bool(b.is_default),
+        }
+        for b in bank_rows
+    ]
+    default_bank = bank_accounts_ctx[0] if bank_accounts_ctx else None
+
     company_ctx: dict[str, Any] = {
         "name": company_row.name,
         "eik": company_row.eik or "",
         "vat_number": company_row.vat_number or "",
         "address": company_row.address or "",
         "mol": company_row.mol or "",
-        "city": "",
-        "iban": settings_row.iban if settings_row else "",
-        "bank_name": settings_row.bank_name if settings_row else "",
-        "bic": settings_row.bic if settings_row else "",
+        "city": company_row.city or "",
+        "country": company_row.country or "",
+        "phone": company_row.phone or "",
+        "email": company_row.email or "",
+        "iban": (default_bank or {}).get("iban", settings_row.iban if settings_row else ""),
+        "bank_name": (default_bank or {}).get("bank_name", settings_row.bank_name if settings_row else ""),
+        "bic": (default_bank or {}).get("bic", settings_row.bic if settings_row else ""),
     }
     client_ctx: dict[str, Any] = {
         "name": client_row.name if client_row else "",
@@ -223,6 +255,9 @@ async def _build_pdf_snapshot(
         currency=meta.currency,
         composed_by=meta.composed_by or "",
         old_pdf_path=old_pdf_path,
+        invoice_template=(meta.template_id or company_row.invoice_template or "modern"),
+        logo_base64=_encode_logo(company_row.logo_path or ""),
+        bank_accounts=bank_accounts_ctx,
     )
 
 
@@ -869,6 +904,7 @@ async def create_issued_invoice(
         currency=req.currency,
         status=req.status,
         composed_by=req.composed_by or user.name,
+        template_id=(req.template_id or None),
     )
     db.add(meta)
 
@@ -1049,6 +1085,8 @@ async def update_issued_invoice(
     meta.status = req.status
     if req.composed_by:
         meta.composed_by = req.composed_by
+    # Stage 6B: allow explicit per-invoice template override (None clears it).
+    meta.template_id = req.template_id or None
     meta.updated_at = datetime.utcnow()
 
     # Parse dates
@@ -1401,6 +1439,44 @@ async def delete_bank_account(
     account = await _load_bank_account(db, account_id, company_id, profile_id)
     await db.delete(account)
     return {"message": "Банковата сметка е изтрита"}
+
+
+# ──────────────────── Stage 6B: Invoice template gallery ────────────────────
+
+
+_TEMPLATE_GALLERY = [
+    {"key": "modern", "name": "Модерен корпоративен", "description": "Син акцент, градиентно заглавие, подходящ за корпоративни клиенти."},
+    {"key": "classic", "name": "Класически минимален", "description": "Зелен акцент, чист и прост дизайн с ясни линии."},
+    {"key": "branded", "name": "С лого акцент", "description": "Голяма зона за лого горе вляво, виолетов акцент за брандиране."},
+    {"key": "standard", "name": "Стандартен бизнес", "description": "Класически черно-бял формат, консервативен и универсален."},
+]
+
+
+@router.get("/invoice-templates")
+async def list_invoice_templates(user: User = Depends(get_current_user)):
+    """Return the available invoice PDF template variants (auth-only)."""
+    _ = user  # auth check
+    return {"templates": _TEMPLATE_GALLERY}
+
+
+@router.get("/invoice-templates/{template_key}/preview")
+async def preview_invoice_template(
+    template_key: str,
+    document_type: str = Query("invoice"),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """Render a sample PDF for the given template to use as live preview."""
+    _ = user
+    if template_key not in VALID_TEMPLATE_KEYS:
+        raise HTTPException(status_code=404, detail="Неизвестен шаблон")
+    pdf_bytes = render_preview_pdf_bytes(template_key, document_type=document_type)
+    if pdf_bytes is None:
+        raise HTTPException(status_code=503, detail="PDF рендеризацията не е налична")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="preview-{template_key}.pdf"'},
+    )
 
 
 # ──────────────────── Stage 4: Email templates & send ────────────────────

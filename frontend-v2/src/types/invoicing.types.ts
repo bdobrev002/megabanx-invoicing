@@ -76,6 +76,7 @@ export interface IssuedInvoiceMeta {
   cross_copy_status: CrossCopyStatus
   source_invoice_id: string
   composed_by: string | null
+  template_id: string | null
   created_at: string
   updated_at: string
 }
@@ -109,6 +110,8 @@ export interface InvoiceFormData {
   price_with_vat: boolean
   payment_method: string
   composed_by: string
+  /** Stage 6B: optional per-invoice template override (empty = use company default). */
+  template_id: string
   sync_mode: SyncMode
   delay_minutes: number
 }

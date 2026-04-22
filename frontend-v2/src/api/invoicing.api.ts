@@ -91,6 +91,7 @@ function toBackendPayload(data: InvoiceFormData) {
     internal_notes: data.internal_notes || null,
     currency: 'EUR',
     composed_by: data.composed_by || null,
+    template_id: data.template_id || null,
     lines: data.lines.map((l: InvoiceLine, i: number) => ({
       item_id: l.item_id ?? null,
       position: i,

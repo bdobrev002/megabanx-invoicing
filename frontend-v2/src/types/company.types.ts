@@ -10,6 +10,7 @@ export interface Company {
   phone?: string
   email?: string
   logo_path?: string
+  invoice_template?: string
   managers?: string[]
   partners?: string[]
 }
