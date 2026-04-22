@@ -1,4 +1,4 @@
-"""Company sharing router: share, list, update, revoke shares."""
+"""Company sharing router: share, list, update, revoke, and leave."""
 
 import uuid
 
@@ -15,7 +15,25 @@ from app.models.user import User
 from app.schemas.sharing import ShareCompanyRequest, UpdateShareRequest
 from app.services.email_service import send_share_invitation_email, send_share_notification_email
 
-router = APIRouter(prefix="/api/profiles/{profile_id}/companies/{company_id}/shares", tags=["sharing"])
+router = APIRouter(
+    prefix="/api/profiles/{profile_id}/companies/{company_id}/shares",
+    tags=["sharing"],
+)
+
+
+def _serialise_share(share: CompanyShare) -> dict:
+    return {
+        "id": share.id,
+        "company_id": share.company_id,
+        "company_name": share.company_name,
+        "company_eik": share.company_eik,
+        "owner_profile_id": share.owner_profile_id,
+        "owner_user_id": share.owner_user_id,
+        "shared_with_email": share.shared_with_email,
+        "shared_with_user_id": share.shared_with_user_id,
+        "can_upload": share.can_upload,
+        "created_at": share.created_at.isoformat(),
+    }
 
 
 @router.get("")
@@ -25,30 +43,18 @@ async def list_shares(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all shares for a company."""
-    # Verify ownership
-    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
-    company = result.scalar_one_or_none()
-    if not company:
-        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
-
+    """List all shares for a company (owner only)."""
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+
     result = await db.execute(select(CompanyShare).where(CompanyShare.company_id == company_id))
-    shares = result.scalars().all()
-    return [
-        {
-            "id": s.id,
-            "company_id": s.company_id,
-            "shared_with_email": s.shared_with_email,
-            "shared_with_user_id": s.shared_with_user_id,
-            "owner_user_id": s.owner_user_id,
-            "can_upload": s.can_upload,
-            "created_at": s.created_at.isoformat(),
-        }
-        for s in shares
-    ]
+    return [_serialise_share(s) for s in result.scalars().all()]
 
 
 @router.post("")
@@ -59,55 +65,49 @@ async def share_company(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Share a company with another user by email."""
-    # Verify ownership
-    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
+    """Share a company with another user by email (owner only)."""
+    if profile_id != user.profile_id:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
-    if profile_id != user.profile_id:
-        raise HTTPException(status_code=403, detail="Нямате достъп")
-
     target_email = req.email.strip().lower()
-
-    # Can't share with yourself
     if target_email == user.email:
         raise HTTPException(status_code=400, detail="Не можете да споделяте с вашия имейл")
 
-    # Check if already shared
     result = await db.execute(
         select(CompanyShare).where(
             CompanyShare.company_id == company_id,
             CompanyShare.shared_with_email == target_email,
         )
     )
-    existing = result.scalar_one_or_none()
-    if existing:
+    if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Фирмата вече е споделена с този потребител")
 
-    # Find target user
-    result = await db.execute(select(User).where(User.email == target_email))
-    target_user = result.scalar_one_or_none()
+    target = (await db.execute(select(User).where(User.email == target_email))).scalar_one_or_none()
 
     share = CompanyShare(
         id=str(uuid.uuid4()),
         company_id=company_id,
         owner_profile_id=profile_id,
-        shared_with_email=target_email,
-        shared_with_user_id=target_user.id if target_user else "",
         owner_user_id=user.id,
         company_name=company.name,
         company_eik=company.eik,
+        shared_with_email=target_email,
+        shared_with_user_id=target.id if target else "",
         can_upload=req.can_upload,
     )
     db.add(share)
 
-    # Add in-app notification for existing users
-    if target_user:
+    if target:
         db.add(
             Notification(
-                profile_id=target_user.profile_id,
+                profile_id=target.profile_id,
                 type="company_shared",
                 title="Нова споделена фирма",
                 message=f"{user.name} сподели фирма {company.name} с вас.",
@@ -116,16 +116,14 @@ async def share_company(
             )
         )
 
-    # Flush DB first so share + notification are persisted before sending email
     await db.flush()
 
-    # Send email AFTER successful flush to avoid notifying about a failed share
-    if target_user:
+    if target:
         await send_share_notification_email(target_email, user.name, company.name)
     else:
         await send_share_invitation_email(target_email, user.name, company.name)
 
-    return {"message": f"Фирмата е споделена с {target_email}", "share_id": share.id}
+    return _serialise_share(share)
 
 
 @router.put("/{share_id}")
@@ -137,12 +135,13 @@ async def update_share(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update share permissions."""
+    """Update share permissions (owner only)."""
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    # Verify company ownership
-    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -158,7 +157,7 @@ async def update_share(
 
     share.can_upload = req.can_upload
     await db.flush()
-    return {"message": "Разрешенията са обновени"}
+    return _serialise_share(share)
 
 
 @router.delete("/{share_id}")
@@ -169,12 +168,13 @@ async def revoke_share(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Revoke a company share."""
+    """Revoke a company share (owner only)."""
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    # Verify company ownership
-    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
+    result = await db.execute(
+        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
+    )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -192,7 +192,8 @@ async def revoke_share(
     return {"message": "Споделянето е премахнато"}
 
 
-# Shared companies endpoint (for the shared-with user)
+# ──────────────────── Shared-with-me side ────────────────────
+
 shared_router = APIRouter(prefix="/api/shared-companies", tags=["sharing"])
 
 
@@ -201,29 +202,78 @@ async def get_shared_companies(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all companies shared with the current user."""
-    result = await db.execute(
-        select(CompanyShare).where(
-            CompanyShare.shared_with_email == user.email,
+    """Return every company shared with the current user (by email).
+
+    Shape matches the frontend ``SharedCompanyInfo`` type: each entry has a
+    nested ``company`` object plus owner metadata for display.
+    """
+    shares = (
+        await db.execute(
+            select(CompanyShare).where(CompanyShare.shared_with_email == user.email)
         )
-    )
-    shares = result.scalars().all()
+    ).scalars().all()
 
-    companies = []
+    if not shares:
+        return []
+
+    company_ids = [s.company_id for s in shares]
+    owner_user_ids = [s.owner_user_id for s in shares if s.owner_user_id]
+
+    companies_by_id = {
+        c.id: c
+        for c in (
+            await db.execute(select(Company).where(Company.id.in_(company_ids)))
+        ).scalars().all()
+    }
+    owners_by_id = {
+        u.id: u
+        for u in (
+            await db.execute(select(User).where(User.id.in_(owner_user_ids)))
+        ).scalars().all()
+    } if owner_user_ids else {}
+
+    out = []
     for share in shares:
-        result = await db.execute(select(Company).where(Company.id == share.company_id))
-        company = result.scalar_one_or_none()
-        if company:
-            companies.append(
-                {
-                    "share_id": share.id,
-                    "company_id": company.id,
-                    "company_name": company.name,
-                    "company_eik": company.eik,
-                    "owner_profile_id": share.owner_profile_id,
-                    "can_upload": share.can_upload,
-                    "shared_at": share.created_at.isoformat(),
-                }
-            )
+        company = companies_by_id.get(share.company_id)
+        if company is None:
+            continue
+        owner = owners_by_id.get(share.owner_user_id)
+        out.append(
+            {
+                "share_id": share.id,
+                "company": {
+                    "id": company.id,
+                    "name": company.name,
+                    "eik": company.eik,
+                    "vat_number": company.vat_number or "",
+                    "address": company.address or "",
+                    "mol": company.mol or "",
+                },
+                "owner_profile_id": share.owner_profile_id,
+                "owner_name": owner.name if owner else "",
+                "owner_email": owner.email if owner else "",
+                "can_upload": share.can_upload,
+                "shared_at": share.created_at.isoformat(),
+            }
+        )
+    return out
 
-    return companies
+
+@shared_router.delete("/{share_id}")
+async def leave_shared_company(
+    share_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove oneself from a company share (shared-with user only)."""
+    share = (
+        await db.execute(select(CompanyShare).where(CompanyShare.id == share_id))
+    ).scalar_one_or_none()
+    if not share:
+        raise HTTPException(status_code=404, detail="Споделянето не е намерено")
+
+    if share.shared_with_email != user.email:
+        raise HTTPException(status_code=403, detail="Нямате достъп до това споделяне")
+
+    await db.delete(share)
+    return {"message": "Напуснахте споделената фирма"}

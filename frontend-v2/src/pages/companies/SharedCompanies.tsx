@@ -25,9 +25,7 @@ export default function SharedCompanies({ companies, onRefresh }: Props) {
     })
     if (!confirmed) return
     try {
-      await sharingApi.getSharedWithMe() // verify endpoint available
-      // The leave endpoint may differ — for now just remove from UI
-      void shareId
+      await sharingApi.leaveShare(shareId)
       onRefresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Грешка')

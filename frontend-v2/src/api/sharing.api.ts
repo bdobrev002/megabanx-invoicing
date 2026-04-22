@@ -34,4 +34,7 @@ export const sharingApi = {
 
   getSharedWithMe: () =>
     apiFetch<SharedCompanyInfo[]>('/shared-companies'),
+
+  leaveShare: (shareId: string) =>
+    apiFetch<void>(`/shared-companies/${shareId}`, { method: 'DELETE' }),
 }

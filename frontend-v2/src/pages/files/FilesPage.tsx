@@ -4,7 +4,9 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { Search, FolderOpen } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
+import { sharingApi } from '@/api/sharing.api'
 import { useAuthStore } from '@/stores/authStore'
+import { useCompanyStore } from '@/stores/companyStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsRefresh } from '@/hooks/useWsRefresh'
 import CompanyFolder, { type FolderData } from './CompanyFolder'
@@ -24,9 +26,12 @@ const TIMEFRAMES = [
  * proforma sections).
  */
 export default function FilesPage() {
-  const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const ownProfileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const { sharedCompanies, setSharedCompanies } = useCompanyStore()
   const setError = useUiStore((s) => s.setError)
 
+  const [selectedOwnerProfileId, setSelectedOwnerProfileId] = useState<string | null>(null)
+  const activeProfileId = selectedOwnerProfileId ?? ownProfileId
   const [folders, setFolders] = useState<FolderData[]>([])
   const [loading, setLoading] = useState(true)
   const [fileSearch, setFileSearch] = useState('')
@@ -36,17 +41,28 @@ export default function FilesPage() {
   const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name')
 
+  useEffect(() => {
+    if (sharedCompanies.length > 0) return
+    sharingApi
+      .getSharedWithMe()
+      .then(setSharedCompanies)
+      .catch(() => {
+        /* ok — user may have no shares */
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const fetchFolders = useCallback(async () => {
-    if (!profileId) return
+    if (!activeProfileId) return
     try {
-      const data = await filesApi.getFolderStructure(profileId)
+      const data = await filesApi.getFolderStructure(activeProfileId)
       setFolders(data.folders ?? [])
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при зареждане')
     } finally {
       setLoading(false)
     }
-  }, [profileId, setError])
+  }, [activeProfileId, setError])
 
   useEffect(() => {
     let cancelled = false
@@ -96,6 +112,36 @@ export default function FilesPage() {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-gray-900">Структура на файловете</h2>
+
+      {sharedCompanies.length > 0 && (
+        <div className="rounded-lg bg-white p-3 shadow-sm">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Профил
+          </label>
+          <Select
+            value={activeProfileId}
+            onChange={(e) => {
+              const v = e.target.value
+              setSelectedOwnerProfileId(v === ownProfileId ? null : v)
+              setLoading(true)
+            }}
+            options={[
+              { value: ownProfileId, label: 'Моите файлове' },
+              ...Array.from(
+                new Map(
+                  sharedCompanies.map((sc) => [
+                    sc.owner_profile_id,
+                    {
+                      value: sc.owner_profile_id,
+                      label: `Споделени от ${sc.owner_name || sc.owner_email || 'друг потребител'}`,
+                    },
+                  ]),
+                ).values(),
+              ),
+            ]}
+          />
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="rounded-lg bg-white p-3 shadow-sm">
@@ -169,6 +215,7 @@ export default function FilesPage() {
               dateFrom={dateFrom}
               dateTo={dateTo}
               sortBy={sortBy}
+              profileId={activeProfileId}
             />
           ))}
         </div>
