@@ -129,18 +129,6 @@ export default function CompanyFolder({
   const sales = countOf(folder, 'sales')
   const pending = countOf(folder, 'pending')
 
-  // When file counts change (e.g. after a WebSocket refresh), invalidate the
-  // cached invoice lists so the next section open refetches fresh data. Keeps
-  // the header counts and expanded rows in sync.
-  const countsKey = `${purchases}|${sales}|${pending}`
-  const prevCountsKey = useRef(countsKey)
-  useEffect(() => {
-    if (prevCountsKey.current !== countsKey) {
-      prevCountsKey.current = countsKey
-      setInvoices({})
-    }
-  }, [countsKey])
-
   const loadSection = useCallback(
     async (sub: string, force = false) => {
       if (!folder.company_id) return
@@ -158,6 +146,26 @@ export default function CompanyFolder({
     },
     [folder.company_id, invoices, profileId],
   )
+
+  // When file counts change (e.g. after a WebSocket refresh), invalidate the
+  // cached invoice lists so the header counts and expanded rows stay in sync.
+  // If a section is currently open, immediately refetch it so the user never
+  // sees a blank rows area while the new data is fetched.
+  const countsKey = `${purchases}|${sales}|${pending}`
+  const prevCountsKey = useRef(countsKey)
+  const loadSectionRef = useRef(loadSection)
+  useEffect(() => {
+    loadSectionRef.current = loadSection
+  }, [loadSection])
+  useEffect(() => {
+    if (prevCountsKey.current !== countsKey) {
+      prevCountsKey.current = countsKey
+      setInvoices({})
+      if (openSection) {
+        void loadSectionRef.current(openSection, true)
+      }
+    }
+  }, [countsKey, openSection])
 
   const toggleExpanded = () => {
     const next = !expanded
