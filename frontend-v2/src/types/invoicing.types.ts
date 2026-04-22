@@ -112,6 +112,8 @@ export interface InvoiceFormData {
   composed_by: string
   /** Stage 6B: optional per-invoice template override (empty = use company default). */
   template_id: string
+  currency: string
+  status: string
   sync_mode: SyncMode
   delay_minutes: number
 }

@@ -45,6 +45,7 @@ from app.schemas.invoicing import (
     InvoiceEmailLogOut,
     InvoiceEmailSendRequest,
     InvoiceMetaOut,
+    InvoiceUpdateSchema,
     ItemCreate,
     ItemOut,
     ItemUpdate,
@@ -1051,12 +1052,12 @@ async def get_editable_invoice(
 @router.put("/invoices/{invoice_id}")
 async def update_issued_invoice(
     invoice_id: str,
-    req: InvoiceCreateSchema,
+    req: InvoiceUpdateSchema,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an issued invoice. Blocked when counterparty has approved."""
+    """Update an issued invoice. Only explicitly provided fields are changed."""
     result = await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))
     meta = result.scalar_one_or_none()
     if not meta:
@@ -1072,22 +1073,39 @@ async def update_issued_invoice(
 
     old_pdf_path = meta.pdf_path or ""
 
-    # Update meta fields
-    meta.client_id = req.client_id
-    meta.document_type = req.document_type
-    if req.invoice_number is not None:
-        meta.invoice_number = req.invoice_number
-    meta.no_vat = req.no_vat
-    meta.no_vat_reason = req.no_vat_reason or ""
-    meta.payment_method = req.payment_method or ""
-    meta.notes = req.notes or ""
-    meta.internal_notes = req.internal_notes or ""
-    meta.currency = req.currency
-    meta.status = req.status
-    if req.composed_by:
-        meta.composed_by = req.composed_by
+    provided = req.model_dump(exclude_unset=True)
+
+    # Re-dump lines WITHOUT exclude_unset so nested defaults are preserved.
+    if "lines" in provided and req.lines is not None:
+        provided["lines"] = [line.model_dump() for line in req.lines]
+
+    # Update only explicitly provided scalar meta fields
+    simple_fields = [
+        "client_id",
+        "document_type",
+        "no_vat",
+        "no_vat_reason",
+        "payment_method",
+        "notes",
+        "internal_notes",
+        "currency",
+        "status",
+        "composed_by",
+    ]
+    for field in simple_fields:
+        if field in provided:
+            empty_fallback_fields = ("no_vat_reason", "payment_method", "notes", "internal_notes")
+            value = provided[field] or ("" if field in empty_fallback_fields else provided[field])
+            if value is None:
+                continue
+            setattr(meta, field, value)
+
+    if "invoice_number" in provided and provided["invoice_number"] is not None:
+        meta.invoice_number = provided["invoice_number"]
+
     # Stage 6B: allow explicit per-invoice template override (None clears it).
-    meta.template_id = req.template_id or None
+    if "template_id" in provided:
+        meta.template_id = provided["template_id"] or None
     meta.updated_at = datetime.utcnow()
 
     # Parse dates
@@ -1102,26 +1120,36 @@ async def update_issued_invoice(
             except ValueError:
                 return None
 
-    meta.issue_date = _parse_date(req.issue_date) or meta.issue_date
-    meta.tax_event_date = _parse_date(req.tax_event_date) if req.tax_event_date else None
-    meta.due_date = _parse_date(req.due_date) if req.due_date else None
+    if "issue_date" in provided:
+        meta.issue_date = _parse_date(provided["issue_date"]) or meta.issue_date
+    if "tax_event_date" in provided:
+        meta.tax_event_date = _parse_date(provided["tax_event_date"]) if provided["tax_event_date"] else None
+    if "due_date" in provided:
+        meta.due_date = _parse_date(provided["due_date"]) if provided["due_date"] else None
 
-    # Recalculate lines
-    if req.lines:
+    # Recalculate lines only if lines were explicitly provided
+    if "lines" in provided and provided["lines"] is not None:
+        lines_input = provided["lines"]
         # Delete old lines
         old_lines_result = await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id))
         for old_line in old_lines_result.scalars().all():
             await db.delete(old_line)
 
+        no_vat = meta.no_vat
+        discount_raw = provided.get("discount")
+        if discount_raw is None:
+            discount_raw = float(meta.discount)
+        discount_type = provided.get("discount_type") or "EUR"
+
         subtotal = Decimal("0")
         lines_data = []
-        for idx, line in enumerate(req.lines):
-            line_subtotal = Decimal(str(line.quantity)) * Decimal(str(line.unit_price))
+        for idx, line in enumerate(lines_input):
+            line_subtotal = Decimal(str(line["quantity"])) * Decimal(str(line["unit_price"]))
             subtotal += line_subtotal
             lines_data.append((idx, line, line_subtotal))
 
-        discount_val = Decimal(str(req.discount))
-        if req.discount_type in ("%", "percent"):
+        discount_val = Decimal(str(discount_raw))
+        if discount_type in ("%", "percent"):
             discount_val = subtotal * discount_val / Decimal("100")
         if discount_val > subtotal:
             raise HTTPException(status_code=400, detail="Отстъпката не може да надвишава междинната сума.")
@@ -1132,7 +1160,7 @@ async def update_issued_invoice(
 
         for idx, line, line_subtotal in lines_data:
             discounted_line = line_subtotal * discount_ratio
-            line_vat = discounted_line * Decimal(str(line.vat_rate)) / Decimal("100") if not req.no_vat else Decimal("0")
+            line_vat = discounted_line * Decimal(str(line.get("vat_rate", 20.0))) / Decimal("100") if not no_vat else Decimal("0")
             line_total = discounted_line + line_vat
             vat_amount += line_vat
 
@@ -1140,13 +1168,13 @@ async def update_issued_invoice(
                 InvInvoiceLine(
                     id=str(uuid.uuid4()),
                     invoice_id=invoice_id,
-                    item_id=line.item_id or "",
-                    position=line.position if line.position is not None else idx + 1,
-                    description=line.description,
-                    quantity=Decimal(str(line.quantity)),
-                    unit=line.unit,
-                    unit_price=Decimal(str(line.unit_price)),
-                    vat_rate=Decimal(str(line.vat_rate)),
+                    item_id=line.get("item_id") or "",
+                    position=line.get("position") if line.get("position") is not None else idx + 1,
+                    description=line["description"],
+                    quantity=Decimal(str(line["quantity"])),
+                    unit=line.get("unit", "бр."),
+                    unit_price=Decimal(str(line["unit_price"])),
+                    vat_rate=Decimal(str(line.get("vat_rate", 20.0))),
                     line_total=line_total,
                 )
             )
@@ -1155,7 +1183,8 @@ async def update_issued_invoice(
         meta.discount = discount_val
         meta.vat_amount = vat_amount
         meta.total = discounted_subtotal + vat_amount
-        meta.vat_rate = Decimal(str(req.vat_rate))
+        if "vat_rate" in provided and provided["vat_rate"] is not None:
+            meta.vat_rate = Decimal(str(provided["vat_rate"]))
 
     await db.flush()
 

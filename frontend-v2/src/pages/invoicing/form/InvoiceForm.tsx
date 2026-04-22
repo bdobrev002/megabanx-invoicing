@@ -62,6 +62,8 @@ function defaultFormData(): InvoiceFormData {
     payment_method: '',
     composed_by: '',
     template_id: '',
+    currency: 'EUR',
+    status: 'draft',
     sync_mode: 'manual',
     delay_minutes: 30,
   }
@@ -144,6 +146,8 @@ export default function InvoiceForm({
         payment_method: m.payment_method ?? '',
         composed_by: m.composed_by ?? '',
         template_id: m.template_id ?? '',
+        currency: m.currency ?? 'EUR',
+        status: m.status ?? 'issued',
         sync_mode: 'manual',
         delay_minutes: 30,
       })
