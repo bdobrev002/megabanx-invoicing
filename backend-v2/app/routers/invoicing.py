@@ -22,6 +22,7 @@ from app.models.invoicing import (
     InvStub,
     InvSyncSettings,
 )
+from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.invoicing import (
     ClientCreate,
@@ -42,8 +43,73 @@ from app.schemas.invoicing import (
 )
 from app.services.eik_lookup import lookup_eik
 from app.services.pdf_service import InvoicePdfSnapshot, render_invoice_pdf
+from app.services.ws_manager import ws_manager
 
 router = APIRouter(prefix="/api/invoicing", tags=["invoicing"])
+
+
+async def _schedule_cross_copy(db: AsyncSession, meta: InvInvoiceMeta) -> None:
+    """Set cross_copy_status based on whether the client's EIK matches a MegaBanx company in another profile.
+
+    When a match is found, the recipient profile is notified via WebSocket and a
+    persistent Notification row is stored so the incoming invoice shows up in
+    their inbox. No mirror row is created — the recipient reads the source meta
+    directly through ``GET /invoicing/incoming`` (guarded by EIK match).
+    """
+    if not meta.client_id or meta.status != "issued":
+        return
+
+    client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
+    if not client or not client.eik:
+        meta.cross_copy_status = "no_subscriber"
+        return
+
+    matches = (await db.execute(select(Company).where(Company.eik == client.eik, Company.profile_id != meta.profile_id))).scalars().all()
+
+    if not matches:
+        meta.cross_copy_status = "no_subscriber"
+        return
+
+    # Preserve pre-transition status so edits to an already-pending invoice
+    # don't duplicate the recipient notifications on every save.
+    was_pending = meta.cross_copy_status == "pending"
+    meta.cross_copy_status = "pending"
+    if was_pending:
+        return
+
+    issuer_company = (await db.execute(select(Company).where(Company.id == meta.company_id))).scalar_one_or_none()
+    issuer_name = issuer_company.name if issuer_company else "неизвестен"
+
+    for match in matches:
+        db.add(
+            Notification(
+                profile_id=match.profile_id,
+                type="cross_copy_incoming",
+                title="Нова входяща фактура от контрагент",
+                message=(
+                    f"{issuer_name} издаде фактура № {meta.invoice_number or '—'} към {match.name}. Прегледайте и одобрете във Входящи."
+                ),
+                filename=str(meta.invoice_number or ""),
+                source="cross-copy",
+            )
+        )
+
+
+async def _notify_cross_copy_recipients(db: AsyncSession, meta: InvInvoiceMeta) -> None:
+    """Send WS 'refresh' events to all recipient profiles after cross-copy is committed."""
+    if meta.cross_copy_status != "pending" or not meta.client_id:
+        return
+    client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
+    if not client or not client.eik:
+        return
+    matches = (await db.execute(select(Company.profile_id).where(Company.eik == client.eik, Company.profile_id != meta.profile_id))).all()
+    seen: set[str] = set()
+    for row in matches:
+        pid = row.profile_id
+        if pid in seen:
+            continue
+        seen.add(pid)
+        await ws_manager.notify_profile(pid, {"type": "refresh", "reason": "cross_copy_incoming"})
 
 
 def _verify_ownership(profile_id: str, user: User) -> None:
@@ -199,6 +265,166 @@ async def check_counterparty(
         "exists": bool(rows),
         "companies": [{"id": row.id, "name": row.name, "profile_id": row.profile_id} for row in rows],
     }
+
+
+@router.get("/incoming")
+async def list_incoming_cross_copies(
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List incoming cross-copy invoices awaiting my approval.
+
+    Matching rule: invoices issued by another profile to a client whose EIK
+    equals one of my verified companies' EIK, and whose cross_copy_status is
+    ``pending``. Returns meta + line snapshot so the recipient can preview
+    before approving.
+    """
+    _verify_ownership(profile_id, user)
+
+    my_eiks = (
+        (
+            await db.execute(
+                select(Company.eik).where(
+                    Company.profile_id == profile_id,
+                    Company.eik.isnot(None),
+                    Company.eik != "",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not my_eiks:
+        return []
+
+    matching_clients = (await db.execute(select(InvClient.id).where(InvClient.eik.in_(list(my_eiks))))).scalars().all()
+    if not matching_clients:
+        return []
+
+    invoices = (
+        (
+            await db.execute(
+                select(InvInvoiceMeta)
+                .where(
+                    InvInvoiceMeta.client_id.in_(list(matching_clients)),
+                    InvInvoiceMeta.cross_copy_status == "pending",
+                    InvInvoiceMeta.status == "issued",
+                    InvInvoiceMeta.profile_id != profile_id,
+                )
+                .order_by(InvInvoiceMeta.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    out: list[dict[str, Any]] = []
+    for meta in invoices:
+        issuer_company = (await db.execute(select(Company).where(Company.id == meta.company_id))).scalar_one_or_none()
+        client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
+        lines = (
+            (await db.execute(select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == meta.invoice_id).order_by(InvInvoiceLine.position)))
+            .scalars()
+            .all()
+        )
+        out.append(
+            {
+                "meta": InvoiceMetaOut.model_validate(meta).model_dump(mode="json"),
+                "issuer": {
+                    "company_id": issuer_company.id if issuer_company else "",
+                    "name": issuer_company.name if issuer_company else "",
+                    "eik": (issuer_company.eik if issuer_company else "") or "",
+                },
+                "recipient": {
+                    "client_id": client.id if client else "",
+                    "name": client.name if client else "",
+                    "eik": (client.eik if client else "") or "",
+                },
+                "lines": [
+                    {
+                        "id": line.id,
+                        "position": line.position,
+                        "description": line.description,
+                        "quantity": float(line.quantity),
+                        "unit": line.unit,
+                        "unit_price": float(line.unit_price),
+                        "vat_rate": float(line.vat_rate),
+                        "line_total": float(line.line_total),
+                    }
+                    for line in lines
+                ],
+            }
+        )
+    return out
+
+
+async def _assert_recipient_of(meta: InvInvoiceMeta, user: User, db: AsyncSession) -> None:
+    """Guard: verify the current user's profile owns a company whose EIK matches
+    the invoice client's EIK and is not the issuer of the invoice (i.e. they
+    are a legitimate cross-copy recipient)."""
+    if meta.profile_id == user.profile_id:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+    if not meta.client_id:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+    client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
+    if not client or not client.eik:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+    owns_match = (
+        await db.execute(select(Company.id).where(Company.profile_id == user.profile_id, Company.eik == client.eik))
+    ).scalar_one_or_none()
+    if not owns_match:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
+
+
+@router.post("/incoming/{invoice_id}/approve")
+async def approve_incoming_cross_copy(
+    invoice_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve an incoming cross-copy invoice. Locks the issuer from editing/deleting."""
+    meta = (await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))).scalar_one_or_none()
+    if not meta:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    await _assert_recipient_of(meta, user, db)
+    if meta.cross_copy_status != "pending":
+        raise HTTPException(status_code=409, detail="Фактурата не е в очакване на одобрение.")
+    meta.cross_copy_status = "approved"
+    await db.commit()
+    await ws_manager.notify_profile(meta.profile_id, {"type": "refresh", "reason": "cross_copy_approved"})
+    await ws_manager.notify_profile(user.profile_id, {"type": "refresh", "reason": "cross_copy_approved"})
+    return {"message": "Фактурата е одобрена"}
+
+
+@router.post("/incoming/{invoice_id}/reject")
+async def reject_incoming_cross_copy(
+    invoice_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reject an incoming cross-copy invoice. Signals the issuer they can re-sync or fix it."""
+    meta = (await db.execute(select(InvInvoiceMeta).where(InvInvoiceMeta.invoice_id == invoice_id))).scalar_one_or_none()
+    if not meta:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    await _assert_recipient_of(meta, user, db)
+    if meta.cross_copy_status not in ("pending", "approved"):
+        raise HTTPException(status_code=409, detail="Фактурата не може да бъде отхвърлена в текущия ѝ статус.")
+    meta.cross_copy_status = "deleted_by_recipient"
+    db.add(
+        Notification(
+            profile_id=meta.profile_id,
+            type="cross_copy_rejected",
+            title="Контрагентът отхвърли фактура",
+            message=(f"Контрагентът отхвърли фактура № {meta.invoice_number or '—'}. Можете да я редактирате и синхронизирате наново."),
+            filename=str(meta.invoice_number or ""),
+            source="cross-copy",
+        )
+    )
+    await db.commit()
+    await ws_manager.notify_profile(meta.profile_id, {"type": "refresh", "reason": "cross_copy_rejected"})
+    await ws_manager.notify_profile(user.profile_id, {"type": "refresh", "reason": "cross_copy_rejected"})
+    return {"message": "Фактурата е отхвърлена"}
 
 
 @router.get("/client-emails/{client_id}")
@@ -638,6 +864,11 @@ async def create_issued_invoice(
 
     await db.flush()
 
+    # Stage 2: schedule cross-copy if the client's EIK matches a MegaBanx company
+    # in another profile. Updates meta.cross_copy_status and inserts Notification
+    # rows for recipients; WS notify fires after commit below.
+    await _schedule_cross_copy(db, meta)
+
     snapshot = await _build_pdf_snapshot(db, meta, lines_to_create)
     # Commit before scheduling the task: FastAPI BackgroundTasks fire inside
     # ``await response(...)`` (see fastapi.routing.request_response), which runs
@@ -647,6 +878,7 @@ async def create_issued_invoice(
     await db.commit()
     if snapshot is not None:
         background_tasks.add_task(render_invoice_pdf, snapshot)
+    await _notify_cross_copy_recipients(db, meta)
 
     return InvoiceMetaOut.model_validate(meta)
 
@@ -879,10 +1111,18 @@ async def update_issued_invoice(
         select(InvInvoiceLine).where(InvInvoiceLine.invoice_id == invoice_id).order_by(InvInvoiceLine.position)
     )
     snapshot = await _build_pdf_snapshot(db, meta, list(fresh_lines_result.scalars().all()), old_pdf_path=old_pdf_path)
+
+    # Stage 2: re-evaluate cross-copy status on edits (only when still editable —
+    # approved invoices are blocked above). Does not disturb already-approved
+    # statuses since we never reach this point for them.
+    if meta.cross_copy_status in ("none", "pending", "no_subscriber", "deleted_by_recipient"):
+        await _schedule_cross_copy(db, meta)
+
     # See POST /invoices for why we commit before scheduling the task.
     await db.commit()
     if snapshot is not None:
         background_tasks.add_task(render_invoice_pdf, snapshot)
+    await _notify_cross_copy_recipients(db, meta)
 
     return InvoiceMetaOut.model_validate(meta)
 

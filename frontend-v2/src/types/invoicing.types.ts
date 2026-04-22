@@ -134,6 +134,24 @@ export const UNITS = [
   'бр.', 'кг', 'м', 'л', 'м²', 'м³', 'час', 'ден', 'мес.', 'услуга',
 ] as const
 
+export interface IncomingCrossCopyLine {
+  id: string
+  position: number
+  description: string
+  quantity: number
+  unit: string
+  unit_price: number
+  vat_rate: number
+  line_total: number
+}
+
+export interface IncomingCrossCopy {
+  meta: IssuedInvoiceMeta
+  issuer: { company_id: string; name: string; eik: string }
+  recipient: { client_id: string; name: string; eik: string }
+  lines: IncomingCrossCopyLine[]
+}
+
 export const VAT_REASONS = [
   { value: 'чл. 21, ал. 2 от ЗДДС', label: 'чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България' },
   { value: 'чл. 28 от ЗДДС', label: 'чл. 28 от ЗДДС — Доставка свързана с международен транспорт' },

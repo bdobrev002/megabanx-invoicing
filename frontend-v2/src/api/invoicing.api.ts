@@ -188,9 +188,21 @@ export const invoicingApi = {
 
   /** Check whether an EIK corresponds to an existing MegaBanx company. */
   checkCounterparty: (eik: string) =>
-    apiFetch<{ exists: boolean; company_id?: string; profile_id?: string }>(
+    apiFetch<{ exists: boolean; companies: { id: string; name: string; profile_id: string }[] }>(
       `/invoicing/check-counterparty/${encodeURIComponent(eik)}`,
     ),
+
+  /** Stage 2: list incoming cross-copy invoices awaiting my approval. */
+  getIncomingCrossCopies: (profileId: string) =>
+    apiFetch<import('@/types/invoicing.types').IncomingCrossCopy[]>(
+      `/invoicing/incoming?profile_id=${profileId}`,
+    ),
+
+  approveIncomingCrossCopy: (invoiceId: string) =>
+    apiFetch<{ message: string }>(`/invoicing/incoming/${invoiceId}/approve`, { method: 'POST' }),
+
+  rejectIncomingCrossCopy: (invoiceId: string) =>
+    apiFetch<{ message: string }>(`/invoicing/incoming/${invoiceId}/reject`, { method: 'POST' }),
 
   getCompanySettings: (companyId: string, profileId: string) =>
     apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`),

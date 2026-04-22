@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Search, Users, Download } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, Users, CheckCircle2, Download } from 'lucide-react'
 import { invoicingApi } from '@/api/invoicing.api'
 import { useDialogStore } from '@/stores/dialogStore'
 import type { InvoiceClient } from '@/types/invoicing.types'
@@ -38,8 +38,37 @@ export default function ClientSection({
   const [showDropdown, setShowDropdown] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [eikLoading, setEikLoading] = useState(false)
+  const [counterparty, setCounterparty] = useState<{ name: string; profile_id: string } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const { showError } = useDialogStore()
+
+  // Stage 2: check if the EIK matches a registered MegaBanx company. When it
+  // does, the invoice will be auto-mirrored to their inbox for approval.
+  const eik = values.eik.trim()
+  useEffect(() => {
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      if (!eik || values.is_individual || eik.length < 9) {
+        if (!cancelled) setCounterparty(null)
+        return
+      }
+      try {
+        const res = await invoicingApi.checkCounterparty(eik)
+        if (cancelled) return
+        if (res.exists && res.companies.length > 0) {
+          setCounterparty({ name: res.companies[0].name, profile_id: res.companies[0].profile_id })
+        } else {
+          setCounterparty(null)
+        }
+      } catch {
+        if (!cancelled) setCounterparty(null)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [eik, values.is_individual])
 
   // Display value follows props when a client is selected; otherwise local typing state
   const search = selectedClientId && values.name ? values.name : searchInput
@@ -159,6 +188,17 @@ export default function ClientSection({
           </button>
         )}
       </div>
+
+      {/* Stage 2: counterparty badge — shows when EIK matches a registered MegaBanx company. */}
+      {counterparty && (
+        <div
+          className="ml-[98px] inline-flex items-center gap-1.5 self-start rounded-md border border-green-300 bg-green-50 px-2 py-1 text-[11px] text-green-800"
+          title={`${counterparty.name} ще получи автоматично копие на фактурата за одобрение`}
+        >
+          <CheckCircle2 size={12} />
+          Регистриран контрагент в MegaBanx
+        </div>
+      )}
 
       {/* Individual + VAT reg checkboxes */}
       <div className="flex flex-wrap items-center gap-4 pl-[90px] pt-1">
