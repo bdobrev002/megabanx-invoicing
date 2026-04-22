@@ -192,11 +192,16 @@ export const invoicingApi = {
       `/invoicing/check-counterparty/${encodeURIComponent(eik)}`,
     ),
 
-  /** Stage 2: list incoming cross-copy invoices awaiting my approval. */
-  getIncomingCrossCopies: (profileId: string) =>
-    apiFetch<import('@/types/invoicing.types').IncomingCrossCopy[]>(
-      `/invoicing/incoming?profile_id=${profileId}`,
-    ),
+  /** Stage 2: list incoming cross-copy invoices awaiting my approval. When
+   *  `companyId` is passed, the list is restricted to invoices addressed to
+   *  that specific recipient company (by EIK match). */
+  getIncomingCrossCopies: (profileId: string, companyId?: string) => {
+    const params = new URLSearchParams({ profile_id: profileId })
+    if (companyId) params.set('company_id', companyId)
+    return apiFetch<import('@/types/invoicing.types').IncomingCrossCopy[]>(
+      `/invoicing/incoming?${params.toString()}`,
+    )
+  },
 
   approveIncomingCrossCopy: (invoiceId: string) =>
     apiFetch<{ message: string }>(`/invoicing/incoming/${invoiceId}/approve`, { method: 'POST' }),
