@@ -586,23 +586,61 @@ async def get_folder_structure(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the folder structure for a profile."""
+    """Return the folder structure for a profile.
+
+    Each folder corresponds to a company. Includes company_id so that the
+    frontend can navigate to per-company actions (new invoice, clients,
+    items, sync, settings) without a second name→id lookup. Companies that
+    don't yet have a folder on disk are still returned (with empty counts)
+    so the UI can show every registered company.
+    """
     await _verify_profile_access(profile_id, user, db)
 
-    profile_dir = get_profile_dir(profile_id)
-    if not os.path.exists(profile_dir):
-        return {"folders": []}
+    # Load every registered company in the profile to attach ids and include
+    # companies that haven't had any files yet.
+    company_result = await db.execute(
+        select(Company).where(Company.profile_id == profile_id)
+    )
+    companies = company_result.scalars().all()
+    company_by_name: dict[str, Company] = {c.name: c for c in companies}
 
-    folders = []
-    for item in sorted(os.listdir(profile_dir)):
-        item_path = os.path.join(profile_dir, item)
-        if os.path.isdir(item_path):
+    profile_dir = get_profile_dir(profile_id)
+    folders: list[dict] = []
+    seen_names: set[str] = set()
+
+    if os.path.exists(profile_dir):
+        for item in sorted(os.listdir(profile_dir)):
+            item_path = os.path.join(profile_dir, item)
+            if not os.path.isdir(item_path):
+                continue
             subfolders = []
             for sub in sorted(os.listdir(item_path)):
                 sub_path = os.path.join(item_path, sub)
                 if os.path.isdir(sub_path):
-                    file_count = len([f for f in os.listdir(sub_path) if os.path.isfile(os.path.join(sub_path, f))])
+                    file_count = len([
+                        f for f in os.listdir(sub_path)
+                        if os.path.isfile(os.path.join(sub_path, f))
+                    ])
                     subfolders.append({"name": sub, "file_count": file_count})
-            folders.append({"name": item, "subfolders": subfolders})
+            comp = company_by_name.get(item)
+            folders.append({
+                "name": item,
+                "company_id": comp.id if comp else None,
+                "eik": comp.eik if comp else "",
+                "subfolders": subfolders,
+            })
+            seen_names.add(item)
 
+    # Append companies with no folder yet (freshly added, no uploads).
+    for comp in companies:
+        if comp.name in seen_names:
+            continue
+        folders.append({
+            "name": comp.name,
+            "company_id": comp.id,
+            "eik": comp.eik,
+            "subfolders": [],
+        })
+
+    folders.sort(key=lambda f: f["name"].lower())
     return {"folders": folders}

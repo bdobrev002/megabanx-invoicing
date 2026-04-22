@@ -1,7 +1,17 @@
 import { apiFetch } from './client'
 import type { BillingPlan, StripePayment } from '@/types/billing.types'
 
+export interface BillingUsage {
+  plan: string
+  invoices_limit: number
+  current_usage: number
+  remaining: number
+  started_at?: string | null
+}
+
 export const billingApi = {
+  getCurrent: () => apiFetch<BillingUsage>('/billing'),
+
   getPlans: () => apiFetch<BillingPlan[]>('/billing/plans'),
 
   subscribe: (planId: string, interval: string) =>
