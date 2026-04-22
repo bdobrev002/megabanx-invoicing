@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { Upload } from 'lucide-react'
 
 const SUPPORTED_EXTENSIONS = [
-  '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.zip',
+  '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif',
 ]
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Dashed-border drop zone matching the v1 Качване design:
- * large centered upload icon + headline + "PDF, JPG, PNG, ZIP" subline +
+ * large centered upload icon + headline + "PDF, JPG, PNG, TIFF" subline +
  * a solid blue "Изберете файлове" button inside the zone.
  */
 export default function DropZone({ onFiles }: Props) {
@@ -55,7 +55,7 @@ export default function DropZone({ onFiles }: Props) {
         <p className="mt-4 text-base text-gray-800">
           Изберете файлове за качване или ги пуснете тук
         </p>
-        <p className="mt-1 text-sm text-gray-500">PDF, JPG, PNG, ZIP</p>
+        <p className="mt-1 text-sm text-gray-500">PDF, JPG, PNG, TIFF</p>
         <button
           type="button"
           onClick={pickFiles}

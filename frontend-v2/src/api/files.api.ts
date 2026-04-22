@@ -9,7 +9,7 @@ export const filesApi = {
         name: string
         company_id: string | null
         eik: string
-        subfolders: { name: string; file_count: number }[]
+        subfolders: { name: string; display_name?: string; file_count: number }[]
       }[]
     }>(`/profiles/${profileId}/folder-structure`),
 

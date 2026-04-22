@@ -44,16 +44,16 @@ interface Props {
 const SUBTYPE_LABEL: Record<string, string> = {
   purchases: 'Фактури покупки',
   sales: 'Фактури продажби',
-  proformas: 'Проформи фактури',
+  pending: 'Чакащи одобрение',
 }
 
 const SUBTYPE_API: Record<string, string> = {
   purchases: 'purchase',
   sales: 'sale',
-  proformas: 'proforma',
+  pending: 'pending',
 }
 
-const SUBTYPE_ORDER = ['purchases', 'sales', 'proformas']
+const SUBTYPE_ORDER = ['purchases', 'sales', 'pending']
 
 function countOf(folder: FolderData, name: string): number {
   return folder.subfolders.find((sf) => sf.name === name)?.file_count ?? 0
@@ -127,7 +127,7 @@ export default function CompanyFolder({
 
   const purchases = countOf(folder, 'purchases')
   const sales = countOf(folder, 'sales')
-  const proformas = countOf(folder, 'proformas')
+  const pending = countOf(folder, 'pending')
 
   const loadSection = useCallback(
     async (sub: string) => {
@@ -222,7 +222,7 @@ export default function CompanyFolder({
           )}
           <span className="font-semibold text-gray-900">{folder.name}</span>
           <span className="text-xs text-gray-500">
-            {purchases} покупки, {sales} продажби, {proformas} проформи
+            {purchases} покупки, {sales} продажби, {pending} чакащи
           </span>
         </button>
 
@@ -310,7 +310,7 @@ export default function CompanyFolder({
               </div>
             )
           })}
-          {purchases + sales + proformas === 0 && (
+          {purchases + sales + pending === 0 && (
             <p className="py-3 pl-8 text-xs text-gray-500">
               Все още няма качени фактури за тази фирма.
             </p>

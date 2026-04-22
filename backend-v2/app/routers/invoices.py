@@ -602,11 +602,24 @@ async def get_folder_structure(
         select(Company).where(Company.profile_id == profile_id)
     )
     companies = company_result.scalars().all()
-    company_by_name: dict[str, Company] = {c.name: c for c in companies}
+    # Directory names on disk are sanitized via sanitize_path_component, so the
+    # lookup key must be the sanitized name too — otherwise companies with
+    # special characters in their name would never match their on-disk folder.
+    company_by_dir: dict[str, Company] = {
+        sanitize_path_component(c.name): c for c in companies
+    }
+
+    # Map on-disk (Bulgarian) subfolder names to stable English slugs so the
+    # frontend doesn't couple to filesystem labels.
+    SUB_SLUG = {
+        "Фактури покупки": "purchases",
+        "Фактури продажби": "sales",
+        "Фактури за одобрение": "pending",
+    }
 
     profile_dir = get_profile_dir(profile_id)
     folders: list[dict] = []
-    seen_names: set[str] = set()
+    seen_dirs: set[str] = set()
 
     if os.path.exists(profile_dir):
         for item in sorted(os.listdir(profile_dir)):
@@ -621,19 +634,23 @@ async def get_folder_structure(
                         f for f in os.listdir(sub_path)
                         if os.path.isfile(os.path.join(sub_path, f))
                     ])
-                    subfolders.append({"name": sub, "file_count": file_count})
-            comp = company_by_name.get(item)
+                    subfolders.append({
+                        "name": SUB_SLUG.get(sub, sub),
+                        "display_name": sub,
+                        "file_count": file_count,
+                    })
+            comp = company_by_dir.get(item)
             folders.append({
-                "name": item,
+                "name": comp.name if comp else item,
                 "company_id": comp.id if comp else None,
                 "eik": comp.eik if comp else "",
                 "subfolders": subfolders,
             })
-            seen_names.add(item)
+            seen_dirs.add(item)
 
     # Append companies with no folder yet (freshly added, no uploads).
     for comp in companies:
-        if comp.name in seen_names:
+        if sanitize_path_component(comp.name) in seen_dirs:
             continue
         folders.append({
             "name": comp.name,
