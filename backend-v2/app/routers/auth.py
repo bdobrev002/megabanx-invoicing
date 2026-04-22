@@ -11,6 +11,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.billing import Billing
 from app.models.profile import Profile
+from app.models.sharing import CompanyShare
 from app.models.user import Session, TosConsent, User
 from app.schemas.auth import LoginRequest, RegisterRequest, VerifyCodeRequest
 from app.services.auth_service import generate_otp, generate_session_token, store_otp, verify_otp
@@ -65,6 +66,22 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
 
     # Ensure profile directories on disk
     ensure_profile_dirs(profile_id)
+
+    # Auto-link any pending company shares sent to this email before registration.
+    pending_shares = (
+        (
+            await db.execute(
+                select(CompanyShare).where(
+                    CompanyShare.shared_with_email == email,
+                    CompanyShare.shared_with_user_id == "",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for share in pending_shares:
+        share.shared_with_user_id = user_id
 
     await db.flush()
 

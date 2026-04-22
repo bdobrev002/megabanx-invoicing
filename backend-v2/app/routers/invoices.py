@@ -19,6 +19,7 @@ from app.models.invoice import Invoice
 from app.models.invoicing import InvClient, InvInvoiceMeta
 from app.models.notification import Notification
 from app.models.profile import Profile
+from app.models.sharing import CompanyShare
 from app.models.user import User
 from app.schemas.invoice import InvoiceOut
 from app.services.encryption import read_decrypted_file, write_encrypted_file
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/api/profiles/{profile_id}", tags=["invoices"])
 
 
 async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) -> Profile:
+    """Require ``user`` to own ``profile_id`` (write paths)."""
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
     if not profile:
@@ -45,6 +47,34 @@ async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) 
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп до този профил")
     return profile
+
+
+async def _accessible_company_ids(profile_id: str, user: User, db: AsyncSession) -> set[str] | None:
+    """For read-only paths, resolve which companies the user may see.
+
+    Returns ``None`` when the user owns the profile (meaning "no filter,
+    show everything") and a possibly-empty set of company IDs otherwise.
+    Raises 404/403 if the profile doesn't exist or the user has no share
+    at all in it.
+    """
+    profile_row = await db.execute(select(Profile).where(Profile.id == profile_id))
+    if not profile_row.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Профилът не е намерен")
+
+    if profile_id == user.profile_id:
+        return None
+
+    shares = (
+        await db.execute(
+            select(CompanyShare.company_id).where(
+                CompanyShare.owner_profile_id == profile_id,
+                CompanyShare.shared_with_email == user.email,
+            )
+        )
+    ).all()
+    if not shares:
+        raise HTTPException(status_code=403, detail="Нямате достъп до този профил")
+    return {company_id for (company_id,) in shares}
 
 
 async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
@@ -323,12 +353,22 @@ async def list_invoices(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List invoices for a profile, optionally filtered by company and type."""
-    await _verify_profile_access(profile_id, user, db)
+    """List invoices for a profile, optionally filtered by company and type.
+
+    Owners see every invoice under their profile; users with a company
+    share see only the invoices tied to the companies shared with them.
+    """
+    allowed = await _accessible_company_ids(profile_id, user, db)
 
     query = select(Invoice).where(Invoice.profile_id == profile_id)
     if company_id:
+        if allowed is not None and company_id not in allowed:
+            raise HTTPException(status_code=403, detail="Нямате достъп до тази фирма")
         query = query.where(Invoice.company_id == company_id)
+    elif allowed is not None:
+        if not allowed:
+            return []
+        query = query.where(Invoice.company_id.in_(allowed))
     if invoice_type:
         query = query.where(Invoice.invoice_type == invoice_type)
 
@@ -346,12 +386,14 @@ async def get_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single invoice by ID."""
-    await _verify_profile_access(profile_id, user, db)
+    allowed = await _accessible_company_ids(profile_id, user, db)
 
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    if allowed is not None and invoice.company_id not in allowed:
+        raise HTTPException(status_code=403, detail="Нямате достъп до тази фактура")
 
     return InvoiceOut.model_validate(invoice)
 
@@ -364,12 +406,14 @@ async def download_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     """Download an invoice file (decrypted)."""
-    await _verify_profile_access(profile_id, user, db)
+    allowed = await _accessible_company_ids(profile_id, user, db)
 
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    if allowed is not None and invoice.company_id not in allowed:
+        raise HTTPException(status_code=403, detail="Нямате достъп до тази фактура")
 
     if not invoice.destination_path or not os.path.exists(invoice.destination_path):
         raise HTTPException(status_code=404, detail="Файлът не е намерен на диска")
@@ -595,11 +639,17 @@ async def get_folder_structure(
     don't yet have a folder on disk are still returned (with empty counts)
     so the UI can show every registered company.
     """
-    await _verify_profile_access(profile_id, user, db)
+    allowed = await _accessible_company_ids(profile_id, user, db)
 
     # Load every registered company in the profile to attach ids and include
-    # companies that haven't had any files yet.
-    company_result = await db.execute(select(Company).where(Company.profile_id == profile_id))
+    # companies that haven't had any files yet. Shared users see only the
+    # subset of companies they have a CompanyShare for.
+    company_query = select(Company).where(Company.profile_id == profile_id)
+    if allowed is not None:
+        if not allowed:
+            return []
+        company_query = company_query.where(Company.id.in_(allowed))
+    company_result = await db.execute(company_query)
     companies = company_result.scalars().all()
     # Directory names on disk are sanitized via sanitize_path_component, so
     # the lookup key must be the sanitized name too. Two companies in the
@@ -696,7 +746,9 @@ async def get_folder_structure(
                         }
                     )
                     rendered_company_ids.add(comp.id)
-            else:
+            elif allowed is None:
+                # Orphan directories (no matching DB company) only leak to the
+                # profile owner; shared users must never see them.
                 folders.append(
                     {
                         "name": item,

@@ -43,6 +43,9 @@ interface Props {
   dateFrom: string
   dateTo: string
   sortBy: 'name' | 'date'
+  /** Profile whose files we render. Defaults to the logged-in user's
+   *  own profile but shared users pass the owner's profile_id. */
+  profileId?: string
 }
 
 const SUBTYPE_LABEL: Record<string, string> = {
@@ -126,8 +129,10 @@ export default function CompanyFolder({
   dateFrom,
   dateTo,
   sortBy,
+  profileId: profileIdProp,
 }: Props) {
-  const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const ownProfileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const profileId = profileIdProp ?? ownProfileId
   const [expanded, setExpanded] = useState(false)
   const [invoices, setInvoices] = useState<Record<string, InvoiceRecord[]>>({})
   const [loading, setLoading] = useState(false)
