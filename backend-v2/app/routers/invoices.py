@@ -49,9 +49,7 @@ async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) 
     return profile
 
 
-async def _accessible_company_ids(
-    profile_id: str, user: User, db: AsyncSession
-) -> set[str] | None:
+async def _accessible_company_ids(profile_id: str, user: User, db: AsyncSession) -> set[str] | None:
     """For read-only paths, resolve which companies the user may see.
 
     Returns ``None`` when the user owns the profile (meaning "no filter,

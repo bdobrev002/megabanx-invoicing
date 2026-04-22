@@ -69,13 +69,17 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
 
     # Auto-link any pending company shares sent to this email before registration.
     pending_shares = (
-        await db.execute(
-            select(CompanyShare).where(
-                CompanyShare.shared_with_email == email,
-                CompanyShare.shared_with_user_id == "",
+        (
+            await db.execute(
+                select(CompanyShare).where(
+                    CompanyShare.shared_with_email == email,
+                    CompanyShare.shared_with_user_id == "",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for share in pending_shares:
         share.shared_with_user_id = user_id
 

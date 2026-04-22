@@ -50,9 +50,7 @@ async def resolve_company_access(
     When ``require_write`` is ``True`` the share's ``can_upload`` flag must
     also be set; owners always have write access.
     """
-    company_row = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    company_row = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = company_row.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")

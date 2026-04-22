@@ -47,9 +47,7 @@ async def list_shares(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -69,9 +67,7 @@ async def share_company(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     company = result.scalar_one_or_none()
     if not company:
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
@@ -139,9 +135,7 @@ async def update_share(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -172,9 +166,7 @@ async def revoke_share(
     if profile_id != user.profile_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
 
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.profile_id == profile_id)
-    )
+    result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Фирмата не е намерена")
 
@@ -207,11 +199,7 @@ async def get_shared_companies(
     Shape matches the frontend ``SharedCompanyInfo`` type: each entry has a
     nested ``company`` object plus owner metadata for display.
     """
-    shares = (
-        await db.execute(
-            select(CompanyShare).where(CompanyShare.shared_with_email == user.email)
-        )
-    ).scalars().all()
+    shares = (await db.execute(select(CompanyShare).where(CompanyShare.shared_with_email == user.email))).scalars().all()
 
     if not shares:
         return []
@@ -219,18 +207,10 @@ async def get_shared_companies(
     company_ids = [s.company_id for s in shares]
     owner_user_ids = [s.owner_user_id for s in shares if s.owner_user_id]
 
-    companies_by_id = {
-        c.id: c
-        for c in (
-            await db.execute(select(Company).where(Company.id.in_(company_ids)))
-        ).scalars().all()
-    }
-    owners_by_id = {
-        u.id: u
-        for u in (
-            await db.execute(select(User).where(User.id.in_(owner_user_ids)))
-        ).scalars().all()
-    } if owner_user_ids else {}
+    companies_by_id = {c.id: c for c in (await db.execute(select(Company).where(Company.id.in_(company_ids)))).scalars().all()}
+    owners_by_id = (
+        {u.id: u for u in (await db.execute(select(User).where(User.id.in_(owner_user_ids)))).scalars().all()} if owner_user_ids else {}
+    )
 
     out = []
     for share in shares:
@@ -266,9 +246,7 @@ async def leave_shared_company(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove oneself from a company share (shared-with user only)."""
-    share = (
-        await db.execute(select(CompanyShare).where(CompanyShare.id == share_id))
-    ).scalar_one_or_none()
+    share = (await db.execute(select(CompanyShare).where(CompanyShare.id == share_id))).scalar_one_or_none()
     if not share:
         raise HTTPException(status_code=404, detail="Споделянето не е намерено")
 
