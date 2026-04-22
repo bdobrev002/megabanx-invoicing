@@ -162,7 +162,7 @@ export default function FilesPage() {
         <div className="space-y-2">
           {filtered.map((f) => (
             <CompanyFolder
-              key={f.name}
+              key={f.company_id ?? `dir:${f.name}`}
               folder={f}
               fileSearch={fileSearch}
               timeframe={timeframe}

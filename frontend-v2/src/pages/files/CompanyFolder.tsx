@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronDown,
@@ -129,9 +129,22 @@ export default function CompanyFolder({
   const sales = countOf(folder, 'sales')
   const pending = countOf(folder, 'pending')
 
+  // When file counts change (e.g. after a WebSocket refresh), invalidate the
+  // cached invoice lists so the next section open refetches fresh data. Keeps
+  // the header counts and expanded rows in sync.
+  const countsKey = `${purchases}|${sales}|${pending}`
+  const prevCountsKey = useRef(countsKey)
+  useEffect(() => {
+    if (prevCountsKey.current !== countsKey) {
+      prevCountsKey.current = countsKey
+      setInvoices({})
+    }
+  }, [countsKey])
+
   const loadSection = useCallback(
-    async (sub: string) => {
-      if (!folder.company_id || invoices[sub]) return
+    async (sub: string, force = false) => {
+      if (!folder.company_id) return
+      if (!force && invoices[sub]) return
       setLoading(true)
       try {
         const apiType = SUBTYPE_API[sub]
