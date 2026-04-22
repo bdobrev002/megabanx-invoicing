@@ -8,8 +8,9 @@
 | **Текущ URL (v1)** | megabanx.com |
 | **Production URL (v2)** | megabanx.duckdns.org |
 | **GitHub** | github.com/bdobrev002/megabanx-invoicing |
-| **Branch** | devin/1776763253-phase5-websocket-delivery-ticks |
-| **PR** | #8 (Phase 5 + layout fixes) |
+| **Branch** | main |
+| **Последен merged PR** | #12 (Stage 1.2 Invoice Form) |
+| **Отворен PR** | #14 (API_BASE_URL fix) |
 | **Сървър** | VPS 144.91.122.208 |
 | **Backend v1** | /opt/bginvoices/backend/ (Python/FastAPI, порт 8004) |
 | **Backend v2** | /opt/megabanx-v2/source/backend-v2/ (FastAPI, порт 8007) |
@@ -135,19 +136,21 @@ users ──1:1──> subscriptions ──1:N──> payments
 | 9 | Без error boundaries | Грешка срива всичко | ErrorBoundary компонент |
 | 10 | Без admin панел | — | Пълен admin панел (6 секции) |
 
-### 4.2 Какво е направено до момента (Фази 1-5)
+### 4.2 Какво е направено до момента
 
-| Фаза | Статус | PR | Описание |
+| Фаза / Stage | Статус | PR | Описание |
 |------|--------|-----|----------|
-| **Фаза 1 — Скелет** | ✅ Готова | #5 | Project setup, API layer (20 модула), Zustand stores (13), Types (16), Layout компоненти, Route structure, 80+ page компоненти |
-| **Фаза 2 — Дизайн** | ✅ Готова | #5 | Navbar (dark gradient), Logo (SVG), Sidebar (landing/dashboard), DashboardLayout, Auth pages визия, Landing sections визия, UI компоненти |
-| **Фаза 3 — Съдържание + Auth** | ✅ Готова | #5 | Auth API интеграция (email+code flow), 8 landing секции с реално съдържание от megabanx.com, 13 CSS анимации, Footer |
-| **Фаза 4 — Dashboard** | ✅ Готова | #6 | Company CRUD, Files browser, History, UploadPage, компоненти за всички dashboard табове (42 компонента) |
-| **Фаза 5 — WebSocket + Invoicing** | ✅ Готова | #8 | Real-time WebSocket delivery ticks, InvoicingModule (клиенти, артикули, кочани, настройки, фактури), session expiry 180 дни |
-| **Фаза 5.5 — Layout 1:1 copy** | ✅ Готова | #8 | Точно копие на CSS от megabanx.com — tabs, stats bar, company cards, heading, бутони |
-| **Правни страници** | ✅ Готова | #7 | Privacy, Terms, Cookies pages + unified popup module + ESLint |
-| **Backend v2 — Скелет** | ✅ Готов | #5 | 25 модела, 10 рутера, 6 сервиса, 46 бъга поправени |
-| **Backend v2 — Production** | ✅ Деплойнат | #8 | Backend v2 работи на megabanx.duckdns.org:8007 (systemd service) |
+| **Фаза 1 — Скелет** | ✅ Merged | #5 | Project setup, API layer (20 модула), Zustand stores (13), Types (16), Layout компоненти, Route structure, 80+ page компоненти |
+| **Фаза 2 — Дизайн** | ✅ Merged | #5 | Navbar (dark gradient), Logo (SVG), Sidebar (landing/dashboard), DashboardLayout, Auth pages визия, Landing sections визия, UI компоненти |
+| **Фаза 3 — Съдържание + Auth** | ✅ Merged | #5 | Auth API интеграция (email+code flow), 8 landing секции с реално съдържание от megabanx.com, 13 CSS анимации, Footer |
+| **Фаза 4 — Dashboard** | ✅ Merged | #6 | Company CRUD, Files browser, History, UploadPage, компоненти за всички dashboard табове (42 компонента) |
+| **Правни страници** | ✅ Merged | #7 | Privacy, Terms, Cookies pages + unified popup module + ESLint |
+| **Фаза 5 — WebSocket + Invoicing skeleton** | ✅ Merged | #8 | Real-time WebSocket delivery ticks, InvoicingModule skeleton (клиенти, артикули, кочани, настройки, фактури), session expiry 180 дни |
+| **Stage 0 — Foundation & Protections** | ✅ Merged | #10 | RULES.md, ESLint забрани, husky pre-commit, validate-build.sh, GitHub Actions CI, Alembic baseline, `create_all` махнат, Devin Review deferred fixes |
+| **Stage 1.1 — Invoicing backend + PDF** | ✅ Merged | #11 | 5 нови endpoint-а (`next-number`, `registry/lookup`, `check-counterparty`, `client-emails`, `editable`), WeasyPrint + Jinja2 PDF рендер (invoice + proforma), `sanitize_path_component` helper, explicit `await db.commit()` преди BackgroundTasks |
+| **Stage 1.2 — Invoicing frontend form** | ✅ Merged | #12 | Пълна invoice форма — 8-те stub компонента попълнени: `InvoiceForm`, `ClientSection`, `DocTypeSelector`, `InvoiceDetails`, `LineItemsTable`, `TotalsSection`, `NotesSection`, `FormActions`. Автоматична номерация, каталог на артикули, VAT reasons, currency display, edit на чернови |
+| **API_BASE_URL hotfix** | 🟡 Open | #14 | Frontend сочеше към `megabanx.com/api` (v1); смяна към `window.location.origin + '/api'` за да работи v2 на `megabanx.duckdns.org`. Defensive `?? []` на `folder.subfolders` |
+| **Stage 2 — Cross-copy write-path** | Предстои | — | Автоматично огледално създаване на фактура в профила на контрагента по ЕИК, WS нотификация, `check-counterparty` UI бутон |
 | **Фаза 6 — Admin панел** | Предстои | — | Users, Companies, Verifications, Billing, Logs, Settings |
 
 ---
@@ -494,36 +497,61 @@ Admin (admin-only):
 └──────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
-│              V2 PRODUCTION                   │
+│              V2 PRODUCTION (актуално)        │
 │                                              │
 │   megabanx.duckdns.org → /opt/megabanx-v2/   │
 │   frontend-dist/ (React v2 build)            │
-│   source/backend-v2/ (пълен source код)      │
-│   source/frontend-v2/ (пълен source код)     │
-│   Backend v2: порт 8007 (systemd service)    │
+│   source/backend-v2/ (git clone, main)       │
+│   source/backend-v2/.venv (uv + weasyprint)  │
+│   Backend v2: порт 8007 (systemd service:    │
+│     megabanx-v2-backend.service)             │
+│   DB: megabanx_v2 (PostgreSQL, Alembic mgmt) │
 │   Nginx reverse proxy + SSL (Certbot)        │
-│   Branch: devin/1776763253-phase5-ws-ticks   │
-│   PR: #8                                     │
+│   Branch: main @ последен merged PR          │
 └──────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────┐
-│              MEGABANX 2.0 ПЛАН               │
+│              CUTOVER ПЛАН (Stage 11)         │
 │                                              │
-│   Стъпка 1: Preview на megabanx.duckdns.org │
-│   - Frontend v2 + Backend v2 source код      │
-│   - Тестване и review                        │
-│                                              │
-│   Стъпка 2: Backend v2 deploy               │
-│   - PostgreSQL миграция (alembic)            │
-│   - Backend v2 на порт 8007                  │
-│   - Nginx proxy за API                       │
-│                                              │
-│   Стъпка 3: Превключване                     │
-│   - new.megabanx.com → megabanx.com          │
-│   - Стария сайт → old.megabanx.com           │
-│   - DNS switch                               │
+│   Стъпка 1: ✅ Preview на duckdns.org        │
+│   Стъпка 2: ✅ Backend v2 deploy + Alembic  │
+│   Стъпка 3: Data migration (v1 → v2)         │
+│     - ENCRYPTION_KEY от v1 запазен в         │
+│       /home/ubuntu/.megabanx-v2-stage11/     │
+│     - SQL + file sync през Alembic миграции  │
+│   Стъпка 4: DNS switch                       │
+│     - megabanx.com → v2                      │
+│     - old.megabanx.com → v1 archive          │
 └──────────────────────────────────────────────┘
 ```
+
+### 9.1 Deploy процедура (v2, ръчна)
+
+```bash
+# 1. Source sync (main branch)
+ssh root@144.91.122.208 "cd /opt/megabanx-v2/source && git fetch && git reset --hard origin/main"
+
+# 2. Backend — нови deps (ако има промяна в pyproject.toml)
+ssh root@144.91.122.208 "cd /opt/megabanx-v2/source/backend-v2 && .venv/bin/pip install -U weasyprint jinja2"
+# system libs за WeasyPrint (еднократно):
+#   apt-get install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libcairo2 \
+#                   libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info fonts-dejavu-core
+
+# 3. Alembic upgrade
+ssh root@144.91.122.208 "cd /opt/megabanx-v2/source/backend-v2 && .venv/bin/alembic upgrade head"
+
+# 4. Frontend — build локално и rsync
+cd frontend-v2 && npm run build
+rsync -az --delete dist/ root@144.91.122.208:/opt/megabanx-v2/frontend-dist/
+
+# 5. Restart backend
+ssh root@144.91.122.208 "systemctl restart megabanx-v2-backend.service"
+
+# 6. Smoke test
+curl -s https://megabanx.duckdns.org/health   # → {"status":"ok"}
+```
+
+**Критично**: `.env` файлът на `/opt/megabanx-v2/source/backend-v2/.env` трябва да се запазва при deploy — съдържа реалните DB credentials. Ако се презапише с `.env.example`, backend-ът ще падне с `InvalidPasswordError`. Бъдещ `deploy-v2.sh` ще изключи `.env`, `data/`, други local-only файлове.
 
 ---
 
@@ -593,6 +621,111 @@ Email+Code (без пароли):
 - Companies overview + Verification review
 - Billing overview + System logs
 - Admin settings
+
+---
+
+## 13.1 Stage 0 — Foundation & Protections (PR #10) ✅ MERGED
+
+Преди Stage 1 функционалност, въведена е защитна рамка срещу повтаряне на v1 проблемите.
+
+### Забрани, кодирани в инструментите
+
+| Защита | Файл | Какво блокира |
+|--------|------|---------------|
+| RULES.md | `.agents/RULES.md` | AI-инструкции: без `patch_*.py`, без DOM manipulation, без inline скриптове, без `eval`, без директна манипулация на `dist/` |
+| ESLint | `frontend-v2/eslint.config.js` | `no-restricted-syntax` за DOM APIs, `no-eval`, `no-new-func` |
+| Pre-commit (husky) | `.husky/pre-commit` + `.lintstagedrc.json` | `eslint --fix` + блок за `frontend-v2/dist/**` в staged файлове |
+| validate-build.sh | `scripts/validate-build.sh` | Търси забранени patterns в `dist/` след build |
+| GitHub Actions CI | `.github/workflows/ci.yml` | Frontend: lint + typecheck + build + validate. Backend: ruff. Всички PR-и към main. |
+
+### Alembic (schema versioning)
+
+- `backend-v2/alembic.ini`, `backend-v2/alembic/env.py` (async engine)
+- Baseline миграция `41b033cfed1b` покрива всичките 25 таблици
+- `Base.metadata.create_all()` **махнат от `main.py`** — schema вече се версионира в Git, не се създава при старт
+- Производствена БД `megabanx_v2` drop-нах + recreate-нах + `alembic upgrade head` → чисто начало
+- Всяка следваща schema промяна = нов файл в `alembic/versions/` (правило: без ръчни `ALTER` в production)
+
+### Deferred fixes (от Devin Review на PR #8)
+
+- `useWsRefresh` hook — debounce на WebSocket-тригерирани рефреш-и
+- `Toast` — използва `ref` вместо stale closure
+- `VerifyPage` — setState guard при unmount
+- `main.tsx` — guard при липсваща `#root`
+- Ruff cleanup
+
+---
+
+## 13.2 Stage 1.1 — Invoicing Backend + PDF (PR #11) ✅ MERGED
+
+### Нови endpoint-и (`/api/invoicing`)
+
+| Метод | Path | Описание |
+|-------|------|----------|
+| GET | `/next-number?company_id=...&stub_id=...` | Следващ свободен номер от кочана |
+| GET | `/registry/lookup/{eik}` | Lookup в Търговски регистър по ЕИК |
+| GET | `/check-counterparty/{eik}` | Проверка дали ЕИК-ът съществува като наша фирма (за cross-copy) |
+| GET | `/client-emails/{client_id}` | Email адреси на клиент (за изпращане) |
+| GET | `/invoices/{id}/editable` | Проверка дали фактура е editable (draft) |
+
+### PDF генериране
+
+- `app/services/pdf_service.py` с WeasyPrint + Jinja2
+- Шаблони: `templates/invoice_pdf.html`, `templates/proforma_pdf.html` (копирани от v1)
+- Hook в `POST/PUT/DELETE /invoices` през FastAPI `BackgroundTasks`
+- **Критичен bug fix**: BackgroundTasks се fire-ват ПРЕДИ yield-dependency cleanup-а (т.е. преди `get_db` да commit-не). Затова background task-ът отваряше нова сесия и не виждаше новия ред (POST) / deadlock-ваше (PUT). Fix: explicit `await db.commit()` **преди** `background_tasks.add_task(...)`.
+
+### Други
+
+- `sanitize_path_component` shared helper — `_sanitize_for_path` не хващаше `..`
+- Shared `async_session_factory` вместо отделен `AsyncEngine` на всеки render
+- Нови depend-и: `weasyprint`, `jinja2`
+- System libs: `libpango-1.0-0`, `libpangoft2-1.0-0`, `libharfbuzz0b`, `libcairo2`, `libgdk-pixbuf-2.0-0`, `libffi-dev`, `shared-mime-info`, `fonts-dejavu-core`
+
+---
+
+## 13.3 Stage 1.2 — Invoicing Frontend Form (PR #12) ✅ MERGED
+
+Попълнени са 8-те stub компонента от Фаза 5 с реална функционалност (без да се пипа архитектурата):
+
+| Компонент | Роля |
+|-----------|------|
+| `InvoiceForm.tsx` | Orchestrator: зарежда/записва черновата, валидации, статус flow, preload на settings/clients/items |
+| `ClientSection.tsx` | Client picker (autocomplete + create inline), EIK lookup, registry sync |
+| `DocTypeSelector.tsx` | Доктип (фактура, проформа, дебитно/кредитно известие) |
+| `InvoiceDetails.tsx` | Номер (от `/next-number`), дата, кочан, валута, метод на плащане |
+| `LineItemsTable.tsx` | Редове: артикул picker, qty, unit, price, discount, VAT rate |
+| `TotalsSection.tsx` | Subtotal / VAT / total + VAT reasons panel (Part 5.15) |
+| `NotesSection.tsx` | Бележки + метод на плащане |
+| `FormActions.tsx` | Save draft / Issue / Cancel + edit-is-draft правило |
+
+### Part 5.15–5.18
+
+- **VAT reasons** (причина при 0% ДДС): обосновка по ЗДДС, custom text опция
+- **Currency display** (BGN / EUR / USD с форматиране)
+- **Price mode toggle** (без ДДС / с ДДС)
+- **Unit selector** (бр, м, кг, час, литър, …)
+- **Discount** (% + fixed)
+
+### Devin Review findings (3 итерации)
+
+| # | Fix |
+|---|-----|
+| 1 | `pickItem` — 0% ДДС от каталога се прилага (`!= null` вместо `||`) |
+| 2 | `updateInvoice` — `status` параметър, чернова остава чернова при edit |
+| 3 | Sync settings — preload през `getSyncSettings`, save през `updateSyncSettings` |
+| 4 | Status ternary tautology → `status === 'draft' ? 'draft' : currentStatus` (допуска само demotion) |
+| 5 | API call извън `setData` updater (StrictMode duplicate requests) |
+| 6 | `no_vat_reason === 'other'` + празен custom text: resolve ПРЕДИ валидацията |
+
+---
+
+## 13.4 Познати production инциденти
+
+| Инцидент | Причина | Fix | PR |
+|----------|---------|-----|-----|
+| Blank page при клик на "Фактури" след Stage 1.2 deploy | `.env` на backend-а презаписан с `.env.example` по време на deploy → DB auth падаше → `/auth/me` 500 → frontend crash-ваше при render на празен state | Възстановен `.env` от `/opt/megabanx-v2/source/backend-v2.bak.1776796963/.env` + restart service. Future deploys трябва да изключват `.env`. | — (ръчен fix) |
+| Blank page при клик на "Фактури" (след предния fix) | `API_BASE_URL` default-ваше на `https://megabanx.com/api` (v1!) защото `VITE_API_URL` не беше set при build → v2 frontend викаше v1 API → shape mismatch → `.reduce` на undefined crash-ваше целия React tree | `constants.ts`: default `window.location.origin + '/api'`. Defensive `folder.subfolders ?? []` в `CompanyFolder` и `FilesPage`. | #14 |
 
 ---
 
