@@ -586,23 +586,93 @@ async def get_folder_structure(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the folder structure for a profile."""
+    """Return the folder structure for a profile.
+
+    Each folder corresponds to a company. Includes company_id so that the
+    frontend can navigate to per-company actions (new invoice, clients,
+    items, sync, settings) without a second name→id lookup. Companies that
+    don't yet have a folder on disk are still returned (with empty counts)
+    so the UI can show every registered company.
+    """
     await _verify_profile_access(profile_id, user, db)
 
-    profile_dir = get_profile_dir(profile_id)
-    if not os.path.exists(profile_dir):
-        return {"folders": []}
+    # Load every registered company in the profile to attach ids and include
+    # companies that haven't had any files yet.
+    company_result = await db.execute(select(Company).where(Company.profile_id == profile_id))
+    companies = company_result.scalars().all()
+    # Directory names on disk are sanitized via sanitize_path_component, so
+    # the lookup key must be the sanitized name too. Two companies in the
+    # same profile can collide on the sanitized key (there's no DB uniqueness
+    # constraint), so we store a list per key and render each entry once.
+    company_by_dir: dict[str, list[Company]] = {}
+    for c in companies:
+        company_by_dir.setdefault(sanitize_path_component(c.name), []).append(c)
 
-    folders = []
-    for item in sorted(os.listdir(profile_dir)):
-        item_path = os.path.join(profile_dir, item)
-        if os.path.isdir(item_path):
+    # Map on-disk (Bulgarian) subfolder names to stable English slugs so the
+    # frontend doesn't couple to filesystem labels.
+    SUB_SLUG = {
+        "Фактури покупки": "purchases",
+        "Фактури продажби": "sales",
+        "Фактури за одобрение": "pending",
+    }
+
+    profile_dir = get_profile_dir(profile_id)
+    folders: list[dict] = []
+    rendered_company_ids: set[str] = set()
+
+    if os.path.exists(profile_dir):
+        for item in sorted(os.listdir(profile_dir)):
+            item_path = os.path.join(profile_dir, item)
+            if not os.path.isdir(item_path):
+                continue
             subfolders = []
             for sub in sorted(os.listdir(item_path)):
                 sub_path = os.path.join(item_path, sub)
                 if os.path.isdir(sub_path):
                     file_count = len([f for f in os.listdir(sub_path) if os.path.isfile(os.path.join(sub_path, f))])
-                    subfolders.append({"name": sub, "file_count": file_count})
-            folders.append({"name": item, "subfolders": subfolders})
+                    subfolders.append(
+                        {
+                            "name": SUB_SLUG.get(sub, sub),
+                            "display_name": sub,
+                            "file_count": file_count,
+                        }
+                    )
+            matches = company_by_dir.get(item, [])
+            if matches:
+                # Emit one row per company sharing this sanitized directory
+                # name so none are silently dropped.
+                for comp in matches:
+                    folders.append(
+                        {
+                            "name": comp.name,
+                            "company_id": comp.id,
+                            "eik": comp.eik,
+                            "subfolders": subfolders,
+                        }
+                    )
+                    rendered_company_ids.add(comp.id)
+            else:
+                folders.append(
+                    {
+                        "name": item,
+                        "company_id": None,
+                        "eik": "",
+                        "subfolders": subfolders,
+                    }
+                )
 
+    # Append companies with no folder yet (freshly added, no uploads).
+    for comp in companies:
+        if comp.id in rendered_company_ids:
+            continue
+        folders.append(
+            {
+                "name": comp.name,
+                "company_id": comp.id,
+                "eik": comp.eik,
+                "subfolders": [],
+            }
+        )
+
+    folders.sort(key=lambda f: f["name"].lower())
     return {"folders": folders}

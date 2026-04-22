@@ -4,9 +4,14 @@ import type { InvoiceRecord } from '@/types/file.types'
 /** Invoice file endpoints — all scoped to profile_id. */
 export const filesApi = {
   getFolderStructure: (profileId: string) =>
-    apiFetch<{ folders: { name: string; subfolders: { name: string; file_count: number }[] }[] }>(
-      `/profiles/${profileId}/folder-structure`,
-    ),
+    apiFetch<{
+      folders: {
+        name: string
+        company_id: string | null
+        eik: string
+        subfolders: { name: string; display_name?: string; file_count: number }[]
+      }[]
+    }>(`/profiles/${profileId}/folder-structure`),
 
   upload: (profileId: string, file: File, companyId?: string, invoiceType?: string) => {
     const fd = new FormData()

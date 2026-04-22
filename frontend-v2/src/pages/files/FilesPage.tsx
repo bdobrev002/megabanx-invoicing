@@ -1,27 +1,40 @@
-import { useState, useEffect, useCallback } from 'react'
-import Card from '@/components/ui/Card'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Spinner from '@/components/ui/Spinner'
-import { FolderOpen } from 'lucide-react'
+import Input from '@/components/ui/Input'
+import Select from '@/components/ui/Select'
+import { Search, FolderOpen } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { useAuthStore } from '@/stores/authStore'
-import { useFileStore } from '@/stores/fileStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useWsRefresh } from '@/hooks/useWsRefresh'
-import FileFilters from './FileFilters'
-import FileList from './FileList'
-import FileActions from './FileActions'
+import CompanyFolder, { type FolderData } from './CompanyFolder'
 
+const TIMEFRAMES = [
+  { value: '', label: 'Времева рамка...' },
+  { value: 'today', label: 'Днес' },
+  { value: 'week', label: 'Тази седмица' },
+  { value: 'month', label: 'Този месец' },
+  { value: 'year', label: 'Тази година' },
+]
+
+/**
+ * v1-parity "Структура на файловете" page: toolbar with file search,
+ * company filter, timeframe/date-range, and sort toggles, followed by a
+ * flat list of company folders (each expandable into purchase / sales /
+ * proforma sections).
+ */
 export default function FilesPage() {
   const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
-  const { selectedFiles, clearSelection } = useFileStore()
   const setError = useUiStore((s) => s.setError)
 
-  const [folders, setFolders] = useState<
-    { name: string; subfolders: { name: string; file_count: number }[] }[]
-  >([])
+  const [folders, setFolders] = useState<FolderData[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
+  const [fileSearch, setFileSearch] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [timeframe, setTimeframe] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('name')
 
   const fetchFolders = useCallback(async () => {
     if (!profileId) return
@@ -42,24 +55,21 @@ export default function FilesPage() {
       if (cancelled) return
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [fetchFolders])
 
-  // Refresh on WebSocket events (debounced, see Devin Review on PR #8).
   useWsRefresh(fetchFolders)
 
-  const handleDeleteSelected = async () => {
-    if (selectedFiles.size === 0) return
-    for (const id of selectedFiles) {
-      try {
-        await filesApi.remove(profileId, id)
-      } catch {
-        /* skip individual errors */
-      }
-    }
-    clearSelection()
-    fetchFolders()
-  }
+  const filtered = useMemo(() => {
+    const cfl = companyFilter.trim().toLowerCase()
+    const out = folders.filter((f) =>
+      cfl ? f.name.toLowerCase().includes(cfl) : true,
+    )
+    out.sort((a, b) => a.name.localeCompare(b.name, 'bg'))
+    return out
+  }, [folders, companyFilter])
 
   if (loading) {
     return (
@@ -69,42 +79,99 @@ export default function FilesPage() {
     )
   }
 
-  const filtered = folders.filter((f) => {
-    if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false
-    if (typeFilter) {
-      return (f.subfolders ?? []).some((sf) => sf.name === typeFilter && sf.file_count > 0)
-    }
-    return true
-  })
+  const sortBtn = (key: 'name' | 'date', label: string) => (
+    <button
+      type="button"
+      onClick={() => setSortBy(key)}
+      className={`rounded border px-3 py-1 text-xs font-medium transition ${
+        sortBy === key
+          ? 'border-indigo-600 bg-indigo-600 text-white'
+          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      {label}
+    </button>
+  )
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Файлове</h1>
-        {selectedFiles.size > 0 && (
-          <FileActions
-            selectedCount={selectedFiles.size}
-            onDelete={handleDeleteSelected}
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-gray-900">Структура на файловете</h2>
+
+      {/* Toolbar */}
+      <div className="rounded-lg bg-white p-3 shadow-sm">
+        <div className="grid gap-2 md:grid-cols-6">
+          <div className="relative md:col-span-2">
+            <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+            <Input
+              value={fileSearch}
+              onChange={(e) => setFileSearch(e.target.value)}
+              placeholder="Търсене по файл..."
+              className="pl-8"
+            />
+          </div>
+          <Input
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            placeholder="Филтър по фирма..."
           />
-        )}
+          <Select
+            options={TIMEFRAMES}
+            value={timeframe}
+            onChange={(e) => {
+              setTimeframe(e.target.value)
+              if (e.target.value) {
+                setDateFrom('')
+                setDateTo('')
+              }
+            }}
+          />
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value)
+              if (e.target.value) setTimeframe('')
+            }}
+            placeholder="От дата"
+          />
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value)
+              if (e.target.value) setTimeframe('')
+            }}
+            placeholder="До дата"
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+          <span>Сортирай по:</span>
+          {sortBtn('name', 'Име')}
+          {sortBtn('date', 'Дата')}
+        </div>
       </div>
 
-      <FileFilters
-        search={search}
-        onSearchChange={setSearch}
-        typeFilter={typeFilter}
-        onTypeChange={setTypeFilter}
-      />
-
       {filtered.length === 0 ? (
-        <Card className="mt-6">
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <FolderOpen size={48} className="text-gray-300" />
-            <p className="mt-4 text-gray-500">Няма файлове за показване</p>
-          </div>
-        </Card>
+        <div className="flex flex-col items-center justify-center rounded-lg bg-white py-16 text-center shadow-sm">
+          <FolderOpen size={40} className="text-gray-300" />
+          <p className="mt-3 text-sm text-gray-500">
+            {companyFilter ? 'Няма намерени фирми по този филтър.' : 'Няма добавени фирми.'}
+          </p>
+        </div>
       ) : (
-        <FileList folders={filtered} />
+        <div className="space-y-2">
+          {filtered.map((f) => (
+            <CompanyFolder
+              key={f.company_id ?? `dir:${f.name}`}
+              folder={f}
+              fileSearch={fileSearch}
+              timeframe={timeframe}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              sortBy={sortBy}
+            />
+          ))}
+        </div>
       )}
     </div>
   )
