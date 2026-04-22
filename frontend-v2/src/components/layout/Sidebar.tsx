@@ -7,6 +7,7 @@ import {
   Bell,
   CreditCard,
   ClipboardList,
+  Settings as SettingsIcon,
   Home,
   Monitor,
   Camera,
@@ -27,6 +28,7 @@ const dashboardItems = [
   { to: ROUTES.INVOICING, label: 'Фактуриране', icon: ClipboardList, color: 'text-teal-500' },
   { to: ROUTES.NOTIFICATIONS, label: 'Известия', icon: Bell, color: 'text-rose-500' },
   { to: ROUTES.BILLING, label: 'Абонамент', icon: CreditCard, color: 'text-purple-500' },
+  { to: ROUTES.SETTINGS, label: 'Настройки', icon: SettingsIcon, color: 'text-slate-600' },
 ]
 
 const landingItems = [

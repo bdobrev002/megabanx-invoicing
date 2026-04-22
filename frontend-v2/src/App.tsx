@@ -32,6 +32,7 @@ import HistoryPage from '@/pages/history/HistoryPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
 import BillingPage from '@/pages/billing/BillingPage'
 import InvoicingModule from '@/pages/invoicing/InvoicingModule'
+import SettingsPage from '@/pages/settings/SettingsPage'
 
 import AdminLayout from '@/pages/admin/AdminLayout'
 import AdminDashboard from '@/pages/admin/AdminDashboard'
@@ -130,6 +131,7 @@ export default function App() {
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="invoicing" element={<InvoicingModule />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="overview" element={<DashboardPage />} />
             </Route>
           </Route>

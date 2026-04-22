@@ -1,22 +1,45 @@
 import { apiFetch } from './client'
 import type { BankAccount } from '@/types/bankAccount.types'
 
-export const bankAccountsApi = {
-  list: (companyId: string) =>
-    apiFetch<BankAccount[]>(`/bank-accounts/${companyId}`),
+export interface BankAccountPayload {
+  iban: string
+  bank_name?: string
+  bic?: string
+  currency?: string
+  is_default?: boolean
+}
 
-  create: (companyId: string, data: Partial<BankAccount>) =>
-    apiFetch<BankAccount>(`/bank-accounts/${companyId}`, {
+function qs(companyId: string, profileId: string) {
+  const p = new URLSearchParams({ company_id: companyId, profile_id: profileId })
+  return `?${p.toString()}`
+}
+
+export const bankAccountsApi = {
+  list: (profileId: string, companyId: string) =>
+    apiFetch<BankAccount[]>(`/invoicing/bank-accounts${qs(companyId, profileId)}`),
+
+  create: (profileId: string, companyId: string, data: BankAccountPayload) =>
+    apiFetch<BankAccount>(`/invoicing/bank-accounts${qs(companyId, profileId)}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (companyId: string, accountId: string, data: Partial<BankAccount>) =>
-    apiFetch<BankAccount>(`/bank-accounts/${companyId}/${accountId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+  update: (
+    profileId: string,
+    companyId: string,
+    accountId: string,
+    data: Partial<BankAccountPayload>,
+  ) =>
+    apiFetch<BankAccount>(
+      `/invoicing/bank-accounts/${accountId}${qs(companyId, profileId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+    ),
 
-  remove: (companyId: string, accountId: string) =>
-    apiFetch<void>(`/bank-accounts/${companyId}/${accountId}`, { method: 'DELETE' }),
+  remove: (profileId: string, companyId: string, accountId: string) =>
+    apiFetch<void>(`/invoicing/bank-accounts/${accountId}${qs(companyId, profileId)}`, {
+      method: 'DELETE',
+    }),
 }

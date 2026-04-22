@@ -5,6 +5,11 @@ export interface Company {
   vat_number: string
   address: string
   mol: string
+  city?: string
+  country?: string
+  phone?: string
+  email?: string
+  logo_path?: string
   managers?: string[]
   partners?: string[]
 }

@@ -16,3 +16,9 @@ class LoginRequest(BaseModel):
 class VerifyCodeRequest(BaseModel):
     email: EmailStr
     code: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Update the current user's own name (editable without OTP)."""
+
+    name: str

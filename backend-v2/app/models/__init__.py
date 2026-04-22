@@ -9,6 +9,7 @@ from app.models.drive import DriveLink
 from app.models.email_link import InvoiceEmailLink
 from app.models.invoice import ApprovalToken, DuplicateRequest, Invoice, PendingInvoice
 from app.models.invoicing import (
+    InvBankAccount,
     InvClient,
     InvCompanySettings,
     InvInvoiceLine,
@@ -45,6 +46,7 @@ __all__ = [
     "InvInvoiceMeta",
     "InvInvoiceLine",
     "InvSyncSettings",
+    "InvBankAccount",
     "DriveLink",
     "InvoiceEmailLink",
     "ContactInquiry",

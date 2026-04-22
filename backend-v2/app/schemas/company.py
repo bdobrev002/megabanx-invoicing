@@ -12,6 +12,10 @@ class CompanyCreate(BaseModel):
     vat_number: str = ""
     address: str = ""
     mol: str = ""
+    city: str = ""
+    country: str = "България"
+    phone: str = ""
+    email: str = ""
     drive_purchases_folder_id: str = ""
     drive_purchases_folder_path: str = ""
     drive_sales_folder_id: str = ""
@@ -24,6 +28,10 @@ class CompanyUpdate(BaseModel):
     vat_number: Optional[str] = None
     address: Optional[str] = None
     mol: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
     drive_purchases_folder_id: Optional[str] = None
     drive_purchases_folder_path: Optional[str] = None
     drive_sales_folder_id: Optional[str] = None
@@ -38,6 +46,11 @@ class CompanyOut(BaseModel):
     vat_number: str
     address: str
     mol: str
+    city: str = ""
+    country: str = "България"
+    phone: str = ""
+    email: str = ""
+    logo_path: str = ""
     drive_purchases_folder_id: str
     drive_purchases_folder_path: str
     drive_sales_folder_id: str

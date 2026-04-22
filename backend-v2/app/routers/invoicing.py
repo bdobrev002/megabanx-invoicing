@@ -15,6 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.company import Company
 from app.models.invoicing import (
+    InvBankAccount,
     InvClient,
     InvCompanySettings,
     InvEmailLog,
@@ -28,6 +29,9 @@ from app.models.invoicing import (
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.invoicing import (
+    BankAccountCreate,
+    BankAccountOut,
+    BankAccountUpdate,
     ClientCreate,
     ClientOut,
     ClientUpdate,
@@ -1257,6 +1261,146 @@ async def update_sync_settings(
 
     await db.flush()
     return SyncSettingsOut.model_validate(settings)
+
+
+# ──────────────────── Stage 6A: Bank Accounts ────────────────────
+
+
+async def _load_bank_account(db: AsyncSession, account_id: str, company_id: str, profile_id: str) -> InvBankAccount:
+    result = await db.execute(
+        select(InvBankAccount).where(
+            InvBankAccount.id == account_id,
+            InvBankAccount.company_id == company_id,
+            InvBankAccount.profile_id == profile_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Банковата сметка не е намерена")
+    return account
+
+
+async def _clear_other_defaults(db: AsyncSession, company_id: str, profile_id: str, keep_id: str | None = None) -> None:
+    """Make sure only one account is `is_default=True` per company."""
+    query = select(InvBankAccount).where(
+        InvBankAccount.company_id == company_id,
+        InvBankAccount.profile_id == profile_id,
+        InvBankAccount.is_default.is_(True),
+    )
+    result = await db.execute(query)
+    for acc in result.scalars().all():
+        if keep_id and acc.id == keep_id:
+            continue
+        acc.is_default = False
+        acc.updated_at = datetime.utcnow()
+
+
+@router.get("/bank-accounts")
+async def list_bank_accounts(
+    company_id: str = Query(...),
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all bank accounts for a company."""
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+    result = await db.execute(
+        select(InvBankAccount)
+        .where(
+            InvBankAccount.company_id == company_id,
+            InvBankAccount.profile_id == profile_id,
+        )
+        .order_by(InvBankAccount.is_default.desc(), InvBankAccount.created_at)
+    )
+    return [BankAccountOut.model_validate(a) for a in result.scalars().all()]
+
+
+@router.post("/bank-accounts")
+async def create_bank_account(
+    req: BankAccountCreate,
+    company_id: str = Query(...),
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new bank account for a company."""
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+
+    iban = (req.iban or "").replace(" ", "").strip().upper()
+    if not iban:
+        raise HTTPException(status_code=400, detail="IBAN е задължителен")
+
+    account = InvBankAccount(
+        id=str(uuid.uuid4()),
+        company_id=company_id,
+        profile_id=profile_id,
+        iban=iban,
+        bank_name=(req.bank_name or "").strip(),
+        bic=(req.bic or "").strip().upper(),
+        currency=(req.currency or "BGN").strip().upper() or "BGN",
+        is_default=bool(req.is_default),
+    )
+    db.add(account)
+
+    if account.is_default:
+        await _clear_other_defaults(db, company_id, profile_id, keep_id=None)
+
+    await db.flush()
+    return BankAccountOut.model_validate(account)
+
+
+@router.put("/bank-accounts/{account_id}")
+async def update_bank_account(
+    account_id: str,
+    req: BankAccountUpdate,
+    company_id: str = Query(...),
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a bank account."""
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+    account = await _load_bank_account(db, account_id, company_id, profile_id)
+
+    data = req.model_dump(exclude_unset=True)
+    if "iban" in data and data["iban"] is not None:
+        iban = data["iban"].replace(" ", "").strip().upper()
+        if not iban:
+            raise HTTPException(status_code=400, detail="IBAN е задължителен")
+        account.iban = iban
+    if "bank_name" in data and data["bank_name"] is not None:
+        account.bank_name = data["bank_name"].strip()
+    if "bic" in data and data["bic"] is not None:
+        account.bic = data["bic"].strip().upper()
+    if "currency" in data and data["currency"] is not None:
+        account.currency = data["currency"].strip().upper() or "BGN"
+    if "is_default" in data and data["is_default"] is not None:
+        account.is_default = bool(data["is_default"])
+        if account.is_default:
+            await _clear_other_defaults(db, company_id, profile_id, keep_id=account.id)
+
+    account.updated_at = datetime.utcnow()
+    await db.flush()
+    return BankAccountOut.model_validate(account)
+
+
+@router.delete("/bank-accounts/{account_id}")
+async def delete_bank_account(
+    account_id: str,
+    company_id: str = Query(...),
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a bank account."""
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+    account = await _load_bank_account(db, account_id, company_id, profile_id)
+    await db.delete(account)
+    return {"message": "Банковата сметка е изтрита"}
 
 
 # ──────────────────── Stage 4: Email templates & send ────────────────────
