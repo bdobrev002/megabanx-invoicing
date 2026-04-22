@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { User as UserIcon, Building2, RefreshCw, Save, Upload, Trash2, Plus, Star, StarOff, FileText, Check } from 'lucide-react'
 import Spinner from '@/components/ui/Spinner'
 import { useAuthStore } from '@/stores/authStore'
@@ -803,6 +803,10 @@ function InvoiceTemplateSection({
   const [saving, setSaving] = useState(false)
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
   const [openPreview, setOpenPreview] = useState<string | null>(null)
+  // Mirror of previewUrls used for cleanup on unmount only — keeping this in
+  // a ref avoids the cleanup running every time previewUrls changes (which
+  // would prematurely revoke cached blob URLs).
+  const previewUrlsRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -820,25 +824,29 @@ function InvoiceTemplateSection({
     return () => { cancelled = true }
   }, [setError])
 
-  // Revoke blob URLs when component unmounts.
+  useEffect(() => {
+    previewUrlsRef.current = previewUrls
+  }, [previewUrls])
+
+  // Revoke all blob URLs only on unmount.
   useEffect(() => {
     return () => {
-      Object.values(previewUrls).forEach((u) => {
+      Object.values(previewUrlsRef.current).forEach((u) => {
         try { URL.revokeObjectURL(u) } catch { /* ignore */ }
       })
     }
-  }, [previewUrls])
+  }, [])
 
   const showPreview = useCallback(async (key: string) => {
     setOpenPreview(key)
-    if (previewUrls[key]) return
+    if (previewUrlsRef.current[key]) return
     try {
       const url = await invoiceTemplatesApi.previewUrl(key)
       setPreviewUrls((prev) => ({ ...prev, [key]: url }))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при зареждане на преглед')
     }
-  }, [previewUrls, setError])
+  }, [setError])
 
   const save = async () => {
     setSaving(true)
