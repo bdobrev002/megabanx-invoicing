@@ -647,7 +647,7 @@ async def get_folder_structure(
     company_query = select(Company).where(Company.profile_id == profile_id)
     if allowed is not None:
         if not allowed:
-            return []
+            return {"folders": []}
         company_query = company_query.where(Company.id.in_(allowed))
     company_result = await db.execute(company_query)
     companies = company_result.scalars().all()
