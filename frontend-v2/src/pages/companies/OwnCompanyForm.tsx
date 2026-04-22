@@ -19,9 +19,13 @@ export default function OwnCompanyForm({ company, onClose, onSaved }: Props) {
 
   const [name, setName] = useState(company?.name ?? '')
   const [eik, setEik] = useState(company?.eik ?? '')
+  const [vatRegistered, setVatRegistered] = useState(Boolean(company?.vat_number))
   const [vatNumber, setVatNumber] = useState(company?.vat_number ?? '')
-  const [address, setAddress] = useState(company?.address ?? '')
   const [mol, setMol] = useState(company?.mol ?? '')
+  const [city, setCity] = useState(company?.city ?? '')
+  const [address, setAddress] = useState(company?.address ?? '')
+  const [phone, setPhone] = useState(company?.phone ?? '')
+  const [email, setEmail] = useState(company?.email ?? '')
   const [saving, setSaving] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
 
@@ -31,8 +35,9 @@ export default function OwnCompanyForm({ company, onClose, onSaved }: Props) {
     try {
       const data = await companiesApi.lookupEik(eik)
       if (data.name) setName(data.name)
-      if (data.address) setAddress(data.address)
       if (data.mol) setMol(data.mol)
+      if (data.city) setCity(data.city)
+      if (data.address) setAddress(data.address)
     } catch {
       setError('ЕИК не е намерен в регистъра')
     } finally {
@@ -45,7 +50,16 @@ export default function OwnCompanyForm({ company, onClose, onSaved }: Props) {
     if (!name.trim() || !eik.trim()) return
     setSaving(true)
     try {
-      const payload = { name, eik, vat_number: vatNumber, address, mol }
+      const payload = {
+        name,
+        eik,
+        vat_number: vatRegistered ? vatNumber : '',
+        mol,
+        city,
+        address,
+        phone,
+        email,
+      }
       if (company) {
         await companiesApi.update(profileId, company.id, payload)
       } else {
@@ -67,9 +81,10 @@ export default function OwnCompanyForm({ company, onClose, onSaved }: Props) {
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 1) ЕИК + Търси */}
         <div className="flex gap-2">
           <Input
-            label="ЕИК"
+            label="ЕИК / Булстат"
             value={eik}
             onChange={(e) => setEik(e.target.value)}
             placeholder="123456789"
@@ -86,28 +101,74 @@ export default function OwnCompanyForm({ company, onClose, onSaved }: Props) {
             Търси
           </Button>
         </div>
+
+        {/* 2) Наименование */}
         <Input
-          label="Наименование"
+          label="Наименование на фирмата"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
         />
+
+        {/* 3) Регистрация по ЗДДС + ДДС номер */}
+        <div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={vatRegistered}
+              onChange={(e) => setVatRegistered(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Регистрация по ЗДДС
+          </label>
+          {vatRegistered && (
+            <div className="mt-2">
+              <Input
+                label="ДДС номер"
+                value={vatNumber}
+                onChange={(e) => setVatNumber(e.target.value)}
+                placeholder="BG123456789"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 4) МОЛ / Управител */}
         <Input
-          label="ДДС номер"
-          value={vatNumber}
-          onChange={(e) => setVatNumber(e.target.value)}
-          placeholder="BG123456789"
-        />
-        <Input
-          label="Адрес"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-        <Input
-          label="МОЛ"
+          label="МОЛ (Управител / Представляващ)"
           value={mol}
           onChange={(e) => setMol(e.target.value)}
         />
+
+        {/* 5) Град */}
+        <Input
+          label="Град"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        />
+
+        {/* 6) Адрес на регистрация */}
+        <Input
+          label="Адрес на регистрация"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
+
+        {/* 7) Телефон */}
+        <Input
+          label="Телефон"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+
+        {/* 8) Имейл */}
+        <Input
+          label="Имейл"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Отказ

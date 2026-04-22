@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Building2,
@@ -10,6 +11,12 @@ import {
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 import { ROUTES } from '@/utils/constants'
+import { companiesApi } from '@/api/companies.api'
+import { notificationsApi } from '@/api/notifications.api'
+import { invoicingApi } from '@/api/invoicing.api'
+import { useAuthStore } from '@/stores/authStore'
+import { useCompanyStore } from '@/stores/companyStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 
 const tabs = [
   { to: ROUTES.COMPANIES, label: 'Фирми', icon: Building2 },
@@ -20,15 +27,49 @@ const tabs = [
   { to: ROUTES.BILLING, label: 'Абонамент', icon: CreditCard },
 ]
 
-const stats = [
-  { label: 'Фирми', value: '0', color: 'text-indigo-600' },
-  { label: 'Фактури', value: '0', color: 'text-green-600' },
-  { label: 'За обработка', value: '0', color: 'text-orange-600' },
-  { label: 'Известия', value: '0', color: 'text-red-600' },
-]
-
 export default function DashboardLayout() {
   const location = useLocation()
+  const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
+  const invoiceCount = useAuthStore((s) => s.user?.subscription?.usage?.invoices) ?? 0
+  const companies = useCompanyStore((s) => s.companies)
+  const setCompanies = useCompanyStore((s) => s.setCompanies)
+  const notifications = useNotificationStore((s) => s.notifications)
+  const setNotifications = useNotificationStore((s) => s.setNotifications)
+  const setUnreadCount = useNotificationStore((s) => s.setUnreadCount)
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Load shared stats data once per profile so the sticky header counters
+  // reflect reality across all dashboard pages (not just CompaniesPage).
+  useEffect(() => {
+    if (!profileId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [cs, ns, inc] = await Promise.all([
+          companiesApi.list(profileId),
+          notificationsApi.list(),
+          invoicingApi.getIncomingCrossCopies(profileId).catch(() => []),
+        ])
+        if (cancelled) return
+        setCompanies(cs)
+        setNotifications(ns)
+        setUnreadCount(ns.length)
+        setPendingCount(inc.length)
+      } catch {
+        /* ignore — stats remain at previous values */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [profileId, setCompanies, setNotifications, setUnreadCount])
+
+  const stats = [
+    { label: 'Фирми', value: String(companies.length), color: 'text-indigo-600' },
+    { label: 'Фактури', value: String(invoiceCount), color: 'text-green-600' },
+    { label: 'За обработка', value: String(pendingCount), color: 'text-orange-600' },
+    { label: 'Известия', value: String(notifications.length), color: 'text-red-600' },
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50">
