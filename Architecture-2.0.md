@@ -720,7 +720,160 @@ Email+Code (без пароли):
 
 ---
 
-## 13.4 Познати production инциденти
+## 13.5 Stage 2 — Cross-copy write-path (PR #15) ✅MERGED
+
+Огледално копиране на издадена фактура към контрагент, когато ЕИК на получателя съвпада с регистрирана фирма в ДРУГ профил.
+
+### Backend
+- При `POST /api/invoicing/invoices` и `PUT /api/invoicing/invoices/{id}`:
+  - Ако `client.eik == companies.eik` в различен `profile_id` → създава се `Notification` + `InvInvoiceMeta.cross_copy_status = "pending"` + WS broadcast към собственика на контрагента.
+  - Guard срещу дублирани notification-и при повторна редакция на pending запис (`_schedule_cross_copy` skip-ва notify-а ако `cross_copy_status == "pending"`).
+- Нови endpoint-и:
+  - `GET /api/invoicing/incoming` — листва pending cross-copies (с `profile_id != requester_profile_id` филтър, оptional `company_id` филтър).
+  - `POST /api/invoicing/incoming/{id}/approve` — `cross_copy_status = "approved"`.
+  - `POST /api/invoicing/incoming/{id}/reject` — `cross_copy_status = "rejected_by_recipient"`.
+  - `_assert_recipient_of(meta, user)` гарантира, че само получателят може да одобрява/отхвърля (403 при опит от издателя).
+
+### Frontend
+- Зелен badge „✓ Регистриран контрагент в MegaBanx" в `ClientSection` при match.
+- Нов таб **Входящи** във Фактуриране с count badge, Approve/Reject действия, WS auto-refresh.
+
+### Devin Review фиксове (`28d5538`)
+1. `GET /incoming` връщаше и собствените записи → добавен filter.
+2. Издателят можеше да approve-не собствения запис → 403.
+3. Дублиращи Notification-и при редакция → skip при вече pending.
+
+---
+
+## 13.6 Stage 3 — AI Upload & auto-classify (PR #16) ✅MERGED
+
+### Backend
+- Auto-класификация в `/api/files/upload` и `/api/files/upload-multiple`:
+  - `issuer_eik ∈ companies.eik(profile)` → `invoice_type = "sale"`.
+  - `recipient_eik ∈ companies.eik(profile)` → `invoice_type = "purchase"`.
+  - Ако и двата match-ват → приоритет **issuer (sale)** за детерминизъм.
+- Duplicate guard: `(issuer_eik, invoice_number)` unique в рамките на profile — връща 409 с flag, без да консумира месечен invoice quota (quota нараства САМО при създаване на нов запис, не при dup hit).
+- `POST /api/invoices/{id}/reclassify` — ръчно класифициране на несъответстващи фактури (от Входяща кутия).
+- Upload формати: PDF + JPG/PNG/GIF/BMP/WEBP/TIFF.
+- Gemini 2.5 Flash за OCR + data extraction.
+
+### Frontend
+- DropZone приема всички горни формати.
+- Жълт банер „Вече има такава фактура" при 409.
+- Интерактивна „Входяща кутия" за unmatched записи с dropdown фирма + Покупка/Продажба + бутон Потвърди.
+
+### Devin Review фиксове (`fec6de4`)
+1. Дубликати консумираха quota → преместих `_check_and_increment_usage` след duplicate check.
+2. Non-deterministic EIK match → priority issuer > recipient.
+
+---
+
+## 13.6.1 Stage 3.5 — Conditional „Чакащи одобрение" subfolder (PR #18) ✅MERGED
+
+### Backend
+- `/api/files/folder-structure` брои pending cross-copies от `inv_invoice_meta` (не от disk) и добавя `pending` subfolder **само при count > 0**.
+- `/api/invoicing/incoming` приема optional `company_id`.
+
+### Frontend
+- „Чакащи одобрение" секцията в `CompanyFolder` се rendere-ва само когато има записи; всеки ред показва № · издател · дата · сума + Одобри/Отхвърли бутони → викат Stage 2 endpoints. След approve записът излиза от pending и минава в „Фактури покупки".
+
+---
+
+## 13.7 Stage 4 — Email изпращане на фактури (PR #19) ✅MERGED
+
+### Backend
+- Alembic `0002_stage4_email_templates_and_log` (`41b033cfed1b → 2a6f1e9d3c4b`): 2 нови таблици.
+  - `inv_email_templates` — `id, company_id, name, subject, body, is_default, created_at, updated_at`.
+  - `inv_email_log` — `id, invoice_id, company_id, to_email, cc, bcc, subject, body, sent_at, delivered, opened_at, open_count, message_id, error`.
+- Email sending през **Postfix localhost:25** с sender `noreply@megabanx.com`.
+- Merge fields lenient: `{invoice_number}, {issue_date}, {due_date}, {total}, {currency}, {client_name}, {company_name}, {issuer_name}` (непознати placeholder-и минават непроменени).
+- 7 нови endpoint-а: CRUD на шаблоните, `POST /invoicing/invoices/{id}/send-email` (с PDF attachment toggle), `GET /invoicing/invoices/{id}/email-log`, **unauth** `GET /invoicing/email/track/{log_id}.gif` (1×1 pixel за open tracking).
+- Email изпращанията **не** консумират invoice quota. Failed sends не се retry-ват автоматично.
+
+### Frontend
+- Mail иконка на всеки ред → модал „Изпрати по имейл" (шаблон, to/cc/bcc, subject/body, merge-field chips, PDF toggle).
+- Бутон „Имейл шаблони" в хедъра → двупанелен редактор (CRUD + `is_default`).
+- Колона „Изпратено" + „дневник" линк → drawer със статус/дата/отваряния/грешка за всяко изпращане.
+
+**Планиран follow-up (Stage 11 cutover):** миграция от Postfix към external provider (Resend/Brevo/SES) за по-добра доставимост.
+
+---
+
+## 13.8 Stage 5 — Sharing със счетоводител (PR #20) ✅MERGED
+
+### Backend
+- `app/services/access.py` — `CompanyAccess` enum + helper-и (`require_company_access`, `assert_can_upload`).
+- `app/routers/sharing.py` rewrite: owner CRUD върху `inv_company_shares`, `GET /shared-companies`, `POST /shared-companies/{id}/leave`.
+- Auto-link на pending покани при регистрация на нов имейл.
+- Scoped read-access в `invoices.py` (list/get/download/folder-structure): shared user вижда само shared фирми + техните files.
+
+### Frontend
+- `leaveShare()` API + истински бутон „Напусни" в „Споделени с мен".
+- Нов dropdown „Профил" във Файлове (Моите файлове ↔ Споделени от X); `CompanyFolder` приема optional `profileId`.
+
+### Devin Review фиксове (`4dfab42`, `7ee327a`)
+1. `folder-structure` leak-ваше counts/имена на несподелени фирми → филтър по allowed.
+2. Early-return с празен `allowed` връщаше bare `[]` вместо `{"folders": []}`.
+
+---
+
+## 13.9 Stage 6A — Settings: profile + company + sync (PR #21) ✅MERGED
+
+### Backend
+- Alembic `0003_stage6a_company_contact_and_bank_accounts` (`2a6f1e9d3c4b → 4c8a1f2e5d6b`):
+  - `companies` +5 колони: `vat_number, country (default 'България'), phone, email, logo_path`.
+  - Нова таблица `inv_bank_accounts` (`id, company_id, iban, bic, bank_name, currency, is_default, created_at`).
+- `PUT /api/auth/me` — смяна на име.
+- `POST/DELETE /api/companies/{id}/logo` — upload (PNG/JPG, max 2 MB) + fetch.
+- Bank accounts CRUD с invariant: винаги точно един `is_default` per company (преди INSERT/UPDATE unset-ва останалите).
+- Sync settings: `PUT /api/invoicing/sync-settings` — mode (immediate/delayed/manual).
+
+### Frontend
+- Нова страница `/dashboard/settings` + sidebar item „Настройки" с 3 таба:
+  - **Профил** — име (email read-only за сега).
+  - **Фирма** — контактни данни, logo upload/preview/delete, BankAccounts grid (add/edit/delete/set-default).
+  - **Синхронизация** — dropdown за mode.
+
+---
+
+## 13.10 Stage 6B — Invoice templates (4 designs) + email template preview (PR #22) ✅MERGED
+
+### Backend
+- Alembic `0004_stage6b_invoice_template` (`4c8a1f2e5d6b → 5d9c2f3b6a7e`):
+  - `companies.invoice_template` (`String(32)`, default `"modern"`).
+  - `inv_invoice_meta.template_id` (`String(32)`, nullable) — per-invoice override.
+- Template resolution (в `_build_pdf_snapshot`): `meta.template_id → company.invoice_template → "modern"`.
+- `pdf_service`:
+  - `_resolve_template_file(doc_type, template_key) → filename` — map към Jinja2 файл.
+  - `_encode_logo(path)` — data-URI embed.
+  - `render_preview_pdf_bytes(key, document_type)` — sample PDF за gallery.
+  - Async wrapper в `render_invoice_pdf` (`asyncio.to_thread` за WeasyPrint).
+- Нови endpoint-и:
+  - `GET /api/invoicing/invoice-templates` — gallery metadata (`{templates:[{key,name,description}]}`).
+  - `GET /api/invoicing/invoice-templates/{key}/preview?document_type=invoice` — inline sample PDF, рендерът през `asyncio.to_thread`.
+- `create_invoice` / `update_invoice` персистират `template_id` от payload-а.
+- `create_company` вече правилно персистира `invoice_template` от request-а (fallback „modern").
+
+### Jinja2 шаблони (`app/templates/`)
+- `invoice_classic.html` — зелен акцент, класически минимален.
+- `invoice_modern.html` = текущия `invoice_pdf.html` (запазен за backwards-compat).
+- `invoice_branded.html` — голяма лого зона, виолетов акцент.
+- `invoice_standard.html` — черно-бял консервативен.
+
+### Frontend
+- `invoiceTemplates.api.ts` — `list()` + `previewUrl()` (blob URL, caller revoke-ва).
+- **Settings → Фирма → `InvoiceTemplateSection`** — 4 variant карти, бутон „Преглед" (full-PDF modal), save през `companiesApi.update`. Blob URL-и се revoke-ват **само на unmount** през `useRef` mirror (фикс на PR review finding — преди ревокваше всички cached URL-и при всеки нов preview).
+- **`InvoiceForm`** — dropdown „Шаблон на PDF" (empty = фирмения default). `template_id` flow-ва през `toBackendPayload` при create/update.
+- **`EmailTemplatesModal`** — живо „Преглед (с примерни данни)" под редактора с merge-field substitution (client-side, без backend call).
+
+### Devin Review фиксове
+1. 🟡 `create_company` пропускаше `invoice_template` от payload → сега се персистира (`58036c4`).
+2. 🔴 Sync WeasyPrint в async endpoint блокираше event loop → `asyncio.to_thread` (`58036c4`).
+3. 🟡 Blob URL cleanup ревокваше всички кеширани preview-и → ref mirror + empty-deps cleanup (`19cfbfe`).
+
+---
+
+## 13.11 Познати production инциденти
 
 | Инцидент | Причина | Fix | PR |
 |----------|---------|-----|-----|
@@ -751,4 +904,4 @@ scp -r dist/* server:/opt/bginvoices/frontend-v2/
 
 ---
 
-*Документ генериран на 18.04.2026 г., обновен на 21.04.2026 г. — добавени Фази 4-5.5, production deploy на megabanx.duckdns.org, XSS fix*
+*Документ генериран на 18.04.2026 г., обновен на 22.04.2026 г. — добавени Stages 2-6B (cross-copy, AI upload, email, sharing, settings, invoice templates), PR-ове #15-#22 merged & deployed.*
