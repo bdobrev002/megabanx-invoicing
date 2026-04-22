@@ -125,7 +125,6 @@ async def upload_invoice(
     company_id is supplied, the invoice is stored as ``unmatched`` in the inbox.
     """
     await _verify_profile_access(profile_id, user, db)
-    await _check_and_increment_usage(user.id, db)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Не е предоставен файл")
@@ -175,14 +174,20 @@ async def upload_invoice(
                 Company.eik.in_(candidate_eiks),
             )
         )
-        for comp in result.scalars().all():
-            matched_company_id = comp.id
-            matched_company_name = comp.name
-            if comp.eik == issuer_eik:
+        matches = result.scalars().all()
+        # Prefer issuer match (profile issued the invoice → sale) over recipient
+        # match; this keeps classification deterministic when both EIKs belong
+        # to companies registered under the same profile.
+        chosen = next((c for c in matches if issuer_eik and c.eik == issuer_eik), None) or next(
+            (c for c in matches if recipient_eik and c.eik == recipient_eik), None
+        )
+        if chosen is not None:
+            matched_company_id = chosen.id
+            matched_company_name = chosen.name
+            if chosen.eik == issuer_eik:
                 resolved_type = "sale"
-            elif comp.eik == recipient_eik:
+            elif chosen.eik == recipient_eik:
                 resolved_type = "purchase"
-            break
 
     if matched_company_id and not matched_company_name:
         result = await db.execute(select(Company).where(Company.id == matched_company_id))
@@ -215,6 +220,8 @@ async def upload_invoice(
 
     if duplicate_of is not None:
         # Remove the freshly-uploaded temp file; existing invoice takes precedence.
+        # No quota is consumed because `_check_and_increment_usage` runs only for
+        # genuinely new invoices (below).
         try:
             os.remove(inbox_path)
         except OSError as err:
@@ -224,6 +231,17 @@ async def upload_invoice(
             "analysis": analysis,
             "duplicate": True,
         }
+
+    # New invoice is going to be stored — consume monthly quota now. If the
+    # user is over limit, clean up the inbox file so we don't leak disk space.
+    try:
+        await _check_and_increment_usage(user.id, db)
+    except HTTPException:
+        try:
+            os.remove(inbox_path)
+        except OSError as err:
+            logger.warning(f"Failed to remove over-quota temp file {inbox_path}: {err}")
+        raise
 
     # Build new filename from analysis
     inv_date = analysis.get("date", "")
