@@ -22,12 +22,12 @@ def _strip_address_prefix(text: str) -> str:
     # Drop everything up to and including the last "п.к. NNNN[,]?" occurrence.
     m = re.search(r"п\.к\.\s*\d+[,.]?\s*", text)
     if m:
-        text = text[m.end():].strip()
+        text = text[m.end() :].strip()
     else:
         # Fallback: drop up to and including "Населено място: ... ," segment.
         m = re.search(r"Населено\s+място:\s*[^,]+,?\s*", text)
         if m:
-            text = text[m.end():].strip()
+            text = text[m.end() :].strip()
     # Drop any leftover "Държава:/Област:/Община:" prefix fragments.
     text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
     return text.lstrip(",").strip()
