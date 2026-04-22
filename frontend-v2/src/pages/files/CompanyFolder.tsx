@@ -14,11 +14,15 @@ import {
   Check,
   CheckCheck,
   Mail,
+  Clock,
+  X,
 } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
+import { invoicingApi } from '@/api/invoicing.api'
 import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/utils/constants'
 import type { InvoiceRecord } from '@/types/file.types'
+import type { IncomingCrossCopy } from '@/types/invoicing.types'
 
 interface SubFolder {
   name: string
@@ -44,18 +48,18 @@ interface Props {
 const SUBTYPE_LABEL: Record<string, string> = {
   purchases: 'Фактури покупки',
   sales: 'Фактури продажби',
+  pending: 'Чакащи одобрение',
 }
 
-// Maps UI subfolder slugs to Invoice.invoice_type values stored in the DB.
-// We deliberately omit 'pending' here: invoices awaiting counterparty approval
-// live in inv_invoice_meta (cross_copy_status='pending') and are surfaced via
-// the separate "Входящи" tab — no Invoice row ever carries invoice_type='pending'.
+// purchases/sales hit /invoices?invoice_type=... against the scan-upload table.
+// pending is sourced from inv_invoice_meta via the invoicing /incoming endpoint
+// (cross_copy_status='pending') and has its own branch in loadSection.
 const SUBTYPE_API: Record<string, string> = {
   purchases: 'purchase',
   sales: 'sale',
 }
 
-const SUBTYPE_ORDER = ['purchases', 'sales']
+const SUBTYPE_ORDER = ['purchases', 'sales', 'pending']
 
 function countOf(folder: FolderData, name: string): number {
   return folder.subfolders.find((sf) => sf.name === name)?.file_count ?? 0
@@ -131,10 +135,31 @@ export default function CompanyFolder({
 
   const purchases = countOf(folder, 'purchases')
   const sales = countOf(folder, 'sales')
+  const pending = countOf(folder, 'pending')
+
+  const [pendingRows, setPendingRows] = useState<IncomingCrossCopy[] | null>(
+    null,
+  )
 
   const loadSection = useCallback(
     async (sub: string, force = false) => {
       if (!folder.company_id) return
+      if (sub === 'pending') {
+        if (!force && pendingRows) return
+        setLoading(true)
+        try {
+          const list = await invoicingApi.getIncomingCrossCopies(
+            profileId,
+            folder.company_id,
+          )
+          setPendingRows(list)
+        } catch {
+          setPendingRows([])
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
       if (!force && invoices[sub]) return
       setLoading(true)
       try {
@@ -147,14 +172,33 @@ export default function CompanyFolder({
         setLoading(false)
       }
     },
-    [folder.company_id, invoices, profileId],
+    [folder.company_id, invoices, pendingRows, profileId],
   )
+
+  const actOnPending = async (
+    invoiceId: string,
+    action: 'approve' | 'reject',
+  ) => {
+    try {
+      if (action === 'approve') {
+        await invoicingApi.approveIncomingCrossCopy(invoiceId)
+      } else {
+        await invoicingApi.rejectIncomingCrossCopy(invoiceId)
+      }
+      // Drop the row locally; the WS refresh will re-fetch counts shortly.
+      setPendingRows((prev) =>
+        (prev ?? []).filter((row) => row.meta.invoice_id !== invoiceId),
+      )
+    } catch {
+      // Swallow — WS refresh or a manual reopen will resync the list.
+    }
+  }
 
   // When file counts change (e.g. after a WebSocket refresh), invalidate the
   // cached invoice lists so the header counts and expanded rows stay in sync.
   // If a section is currently open, immediately refetch it so the user never
   // sees a blank rows area while the new data is fetched.
-  const countsKey = `${purchases}|${sales}`
+  const countsKey = `${purchases}|${sales}|${pending}`
   const prevCountsKey = useRef(countsKey)
   const loadSectionRef = useRef(loadSection)
   useEffect(() => {
@@ -164,6 +208,7 @@ export default function CompanyFolder({
     if (prevCountsKey.current !== countsKey) {
       prevCountsKey.current = countsKey
       setInvoices({})
+      setPendingRows(null)
       if (openSection) {
         void loadSectionRef.current(openSection, true)
       }
@@ -247,6 +292,7 @@ export default function CompanyFolder({
           <span className="font-semibold text-gray-900">{folder.name}</span>
           <span className="text-xs text-gray-500">
             {purchases} покупки, {sales} продажби
+            {pending > 0 && `, ${pending} чакащи одобрение`}
           </span>
         </button>
 
@@ -302,7 +348,9 @@ export default function CompanyFolder({
             const count = countOf(folder, sub)
             if (count === 0) return null
             const isOpen = openSection === sub
-            const rows = filterAndSort(invoices[sub] ?? [])
+            const isPending = sub === 'pending'
+            const rows = isPending ? [] : filterAndSort(invoices[sub] ?? [])
+            const pendingLoaded = pendingRows !== null
             return (
               <div key={sub} className="mt-2 rounded border border-gray-200 bg-white">
                 <button
@@ -312,11 +360,14 @@ export default function CompanyFolder({
                 >
                   <span className="flex items-center gap-2 font-medium text-gray-800">
                     {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {isPending && <Clock size={14} className="text-amber-500" />}
                     {SUBTYPE_LABEL[sub]} ({count})
                   </span>
-                  <span className="text-xs text-gray-500">Дата · Статус</span>
+                  <span className="text-xs text-gray-500">
+                    {isPending ? 'Очаква одобрение' : 'Дата · Статус'}
+                  </span>
                 </button>
-                {isOpen && (
+                {isOpen && !isPending && (
                   <div className="divide-y divide-gray-100 border-t border-gray-100">
                     {loading && !invoices[sub] && (
                       <p className="px-3 py-3 text-xs text-gray-500">Зареждане…</p>
@@ -331,16 +382,84 @@ export default function CompanyFolder({
                     ))}
                   </div>
                 )}
+                {isOpen && isPending && (
+                  <div className="divide-y divide-gray-100 border-t border-gray-100">
+                    {loading && !pendingLoaded && (
+                      <p className="px-3 py-3 text-xs text-gray-500">Зареждане…</p>
+                    )}
+                    {pendingLoaded && (pendingRows ?? []).length === 0 && (
+                      <p className="px-3 py-3 text-xs text-gray-500">
+                        Няма фактури, очакващи одобрение.
+                      </p>
+                    )}
+                    {(pendingRows ?? []).map((row) => (
+                      <PendingRow
+                        key={row.meta.invoice_id}
+                        row={row}
+                        onApprove={() => actOnPending(row.meta.invoice_id, 'approve')}
+                        onReject={() => actOnPending(row.meta.invoice_id, 'reject')}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
-          {purchases + sales === 0 && (
+          {purchases + sales + pending === 0 && (
             <p className="py-3 pl-8 text-xs text-gray-500">
               Все още няма качени фактури за тази фирма.
             </p>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function PendingRow({
+  row,
+  onApprove,
+  onReject,
+}: {
+  row: IncomingCrossCopy
+  onApprove: () => void
+  onReject: () => void
+}) {
+  const number = row.meta.invoice_number != null ? `№ ${row.meta.invoice_number}` : '—'
+  const issuer = row.issuer.name || 'Непознат издател'
+  const date = row.meta.issue_date || row.meta.created_at?.slice(0, 10) || '—'
+  const total = Number(row.meta.total ?? 0).toFixed(2)
+  const currency = row.meta.currency || 'EUR'
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs">
+      <FileText size={14} className="text-amber-500" />
+      <span className="flex-1 min-w-[180px] truncate text-gray-800">
+        {number} · <span className="text-gray-500">{issuer}</span>
+      </span>
+      <span className="w-24 shrink-0 text-right text-gray-500">{date}</span>
+      <span className="w-28 shrink-0 text-right font-medium text-gray-800">
+        {total} {currency}
+      </span>
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={onApprove}
+          className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white shadow-sm transition hover:bg-emerald-700"
+          title="Одобри и премести в покупки"
+        >
+          <Check size={12} />
+          Одобри
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+          title="Отхвърли"
+        >
+          <X size={12} />
+          Отхвърли
+        </button>
+      </div>
     </div>
   )
 }

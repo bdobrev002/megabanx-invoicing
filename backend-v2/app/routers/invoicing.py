@@ -270,6 +270,7 @@ async def check_counterparty(
 @router.get("/incoming")
 async def list_incoming_cross_copies(
     profile_id: str = Query(...),
+    company_id: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -279,22 +280,21 @@ async def list_incoming_cross_copies(
     equals one of my verified companies' EIK, and whose cross_copy_status is
     ``pending``. Returns meta + line snapshot so the recipient can preview
     before approving.
+
+    When ``company_id`` is supplied, the result is restricted to invoices
+    addressed to that specific recipient company (by EIK match), which the
+    Files page uses to render the "Чакащи одобрение" subfolder per company.
     """
     _verify_ownership(profile_id, user)
 
-    my_eiks = (
-        (
-            await db.execute(
-                select(Company.eik).where(
-                    Company.profile_id == profile_id,
-                    Company.eik.isnot(None),
-                    Company.eik != "",
-                )
-            )
-        )
-        .scalars()
-        .all()
+    eik_query = select(Company.eik).where(
+        Company.profile_id == profile_id,
+        Company.eik.isnot(None),
+        Company.eik != "",
     )
+    if company_id:
+        eik_query = eik_query.where(Company.id == company_id)
+    my_eiks = (await db.execute(eik_query)).scalars().all()
     if not my_eiks:
         return []
 

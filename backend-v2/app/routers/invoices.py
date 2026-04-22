@@ -16,6 +16,7 @@ from app.dependencies import get_current_user
 from app.models.billing import Billing, InvoiceMonthlyUsage
 from app.models.company import Company
 from app.models.invoice import Invoice
+from app.models.invoicing import InvClient, InvInvoiceMeta
 from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.user import User
@@ -608,6 +609,37 @@ async def get_folder_structure(
     for c in companies:
         company_by_dir.setdefault(sanitize_path_component(c.name), []).append(c)
 
+    # Pending cross-copy counts per company EIK: invoices issued by *other*
+    # profiles to a client whose EIK matches one of our companies and which
+    # are still awaiting this profile's approval. These live in
+    # inv_invoice_meta (not on disk), so the count is DB-driven and only
+    # non-zero while an approval is outstanding — exactly when the UI should
+    # reveal the "Чакащи одобрение" subfolder.
+    pending_count_by_eik: dict[str, int] = {}
+    my_eiks = [c.eik for c in companies if c.eik]
+    if my_eiks:
+        client_rows = (await db.execute(select(InvClient.id, InvClient.eik).where(InvClient.eik.in_(my_eiks)))).all()
+        eik_by_client_id = {row.id: row.eik for row in client_rows}
+        if eik_by_client_id:
+            pending_client_ids = (
+                (
+                    await db.execute(
+                        select(InvInvoiceMeta.client_id).where(
+                            InvInvoiceMeta.client_id.in_(list(eik_by_client_id.keys())),
+                            InvInvoiceMeta.cross_copy_status == "pending",
+                            InvInvoiceMeta.status == "issued",
+                            InvInvoiceMeta.profile_id != profile_id,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for cid in pending_client_ids:
+                eik = eik_by_client_id.get(cid)
+                if eik:
+                    pending_count_by_eik[eik] = pending_count_by_eik.get(eik, 0) + 1
+
     # Map on-disk (Bulgarian) subfolder names to stable English slugs so the
     # frontend doesn't couple to filesystem labels.
     SUB_SLUG = {
@@ -615,6 +647,13 @@ async def get_folder_structure(
         "Фактури продажби": "sales",
         "Фактури за одобрение": "pending",
     }
+
+    def _with_pending(subfolders: list[dict], eik: str) -> list[dict]:
+        """Append the DB-driven pending subfolder entry when there's work."""
+        count = pending_count_by_eik.get(eik, 0)
+        if count <= 0:
+            return subfolders
+        return [*subfolders, {"name": "pending", "display_name": "Чакащи одобрение", "file_count": count}]
 
     profile_dir = get_profile_dir(profile_id)
     folders: list[dict] = []
@@ -629,10 +668,16 @@ async def get_folder_structure(
             for sub in sorted(os.listdir(item_path)):
                 sub_path = os.path.join(item_path, sub)
                 if os.path.isdir(sub_path):
+                    slug = SUB_SLUG.get(sub, sub)
+                    # The on-disk "Фактури за одобрение" directory is created
+                    # by ensure_company_dirs but never populated — the real
+                    # pending count comes from inv_invoice_meta below.
+                    if slug == "pending":
+                        continue
                     file_count = len([f for f in os.listdir(sub_path) if os.path.isfile(os.path.join(sub_path, f))])
                     subfolders.append(
                         {
-                            "name": SUB_SLUG.get(sub, sub),
+                            "name": slug,
                             "display_name": sub,
                             "file_count": file_count,
                         }
@@ -647,7 +692,7 @@ async def get_folder_structure(
                             "name": comp.name,
                             "company_id": comp.id,
                             "eik": comp.eik,
-                            "subfolders": subfolders,
+                            "subfolders": _with_pending(subfolders, comp.eik or ""),
                         }
                     )
                     rendered_company_ids.add(comp.id)
@@ -670,7 +715,7 @@ async def get_folder_structure(
                 "name": comp.name,
                 "company_id": comp.id,
                 "eik": comp.eik,
-                "subfolders": [],
+                "subfolders": _with_pending([], comp.eik or ""),
             }
         )
 

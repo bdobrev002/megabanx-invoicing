@@ -12,16 +12,17 @@ from __future__ import annotations
 
 import asyncio
 import os
-from logging.config import fileConfig
 
-from alembic import context
+# Ensure ``app`` is importable regardless of which directory alembic was invoked from.
+import sys
+from logging.config import fileConfig
+from pathlib import Path
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Ensure ``app`` is importable regardless of which directory alembic was invoked from.
-import sys
-from pathlib import Path
+from alembic import context
 
 HERE = Path(__file__).resolve().parent
 BACKEND_ROOT = HERE.parent
@@ -29,7 +30,6 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.config import settings  # noqa: E402
-from app.models.base import Base  # noqa: E402
 
 # Import every model module so SQLAlchemy registers all tables on Base.metadata.
 from app.models import (  # noqa: E402,F401
@@ -46,6 +46,7 @@ from app.models import (  # noqa: E402,F401
     sharing,
     user,
 )
+from app.models.base import Base  # noqa: E402
 
 config = context.config
 
