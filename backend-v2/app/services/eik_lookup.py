@@ -18,7 +18,7 @@ def _extract_text_from_html(html: str) -> str:
 
 
 def _strip_address_prefix(text: str) -> str:
-    """Strip Държава/Област/Община/Населено място/п.к. prefix from address, keep street portion."""
+    """Strip everything before the street part; keep address from ул./ж.к./бул. onwards."""
     # Drop everything up to and including the last "п.к. NNNN[,]?" occurrence.
     m = re.search(r"п\.к\.\s*\d+[,.]?\s*", text)
     if m:
@@ -30,6 +30,21 @@ def _strip_address_prefix(text: str) -> str:
             text = text[m.end() :].strip()
     # Drop any leftover "Държава:/Област:/Община:" prefix fragments.
     text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
+    # Drop "р-н NNN" prefix (district) — the user wants address starting from ул./ж.к./бул.
+    text = re.sub(r"^р-н\s+[^,]+,?\s*", "", text).strip()
+    # TR sometimes prefixes fields with label hints like "ж.к. ж.к. Банишора" or
+    # "бул./ул. ул. Скопие". Collapse these to a single prefix.
+    text = re.sub(r"\bж\.к\.\s+ж\.к\.\s+", "ж.к. ", text)
+    text = re.sub(r"\bбул\.\s+бул\.\s+", "бул. ", text)
+    text = re.sub(r"\bул\.\s+ул\.\s+", "ул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+ул\.\s+", "ул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+бул\.\s+", "бул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+ж\.к\.\s+", "ж.к. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+", "ул. ", text)
+    # Truncate everything before first ж.к./ул./бул. if still anything noisy ahead.
+    m = re.search(r"(ж\.к\.|ул\.|бул\.)", text)
+    if m and m.start() > 0:
+        text = text[m.start() :].strip()
     return text.lstrip(",").strip()
 
 
