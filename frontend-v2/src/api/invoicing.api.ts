@@ -41,6 +41,25 @@ export interface SyncSettings {
   delay_minutes: number
 }
 
+export interface CompanySettings {
+  id: string
+  company_id: string
+  profile_id: string
+  iban: string | null
+  bank_name: string | null
+  bic: string | null
+  default_vat_rate: number | string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CompanySettingsUpdate {
+  iban?: string | null
+  bank_name?: string | null
+  bic?: string | null
+  default_vat_rate?: number
+}
+
 /** Map frontend InvoiceFormData field names to backend InvoiceCreateSchema names */
 function toBackendPayload(data: InvoiceFormData) {
   const invNumParsed = data.invoice_number ? parseInt(data.invoice_number, 10) : NaN
@@ -215,13 +234,22 @@ export const invoicingApi = {
     apiFetch<{ message: string }>(`/invoicing/incoming/${invoiceId}/reject`, { method: 'POST' }),
 
   getCompanySettings: (companyId: string, profileId: string) =>
-    apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`),
+    apiFetch<CompanySettings>(
+      `/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`,
+    ),
 
-  updateCompanySettings: (companyId: string, profileId: string, data: unknown) =>
-    apiFetch<unknown>(`/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+  updateCompanySettings: (
+    companyId: string,
+    profileId: string,
+    data: CompanySettingsUpdate,
+  ) =>
+    apiFetch<CompanySettings>(
+      `/invoicing/company-settings?company_id=${companyId}&profile_id=${profileId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+    ),
 
   getSyncSettings: (companyId: string, profileId: string) =>
     apiFetch<SyncSettings>(`/invoicing/sync-settings?company_id=${companyId}&profile_id=${profileId}`),

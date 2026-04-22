@@ -13,7 +13,7 @@ from app.models.billing import Billing
 from app.models.profile import Profile
 from app.models.sharing import CompanyShare
 from app.models.user import Session, TosConsent, User
-from app.schemas.auth import LoginRequest, RegisterRequest, VerifyCodeRequest
+from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, VerifyCodeRequest
 from app.services.auth_service import generate_otp, generate_session_token, store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.services.file_manager import ensure_profile_dirs
@@ -171,6 +171,31 @@ async def verify_code(req: VerifyCodeRequest, response: Response, db: AsyncSessi
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user)):
     """Return the current authenticated user."""
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "profile_id": user.profile_id,
+        "is_admin": user.is_admin,
+    }
+
+
+@router.put("/me")
+async def update_me(
+    req: ProfileUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the current user's display name. Email changes are intentionally
+    not supported here — they would require a fresh OTP round-trip and cascade
+    updates, which is out of scope for Stage 6A."""
+    name = (req.name or "").strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Името трябва да е поне 2 символа")
+    if len(name) > 255:
+        raise HTTPException(status_code=400, detail="Името е твърде дълго")
+    user.name = name
+    await db.flush()
     return {
         "id": user.id,
         "name": user.name,

@@ -216,6 +216,38 @@ class CompanySettingsOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- Bank Accounts (multiple IBAN per company) ---
+class BankAccountCreate(BaseModel):
+    iban: str
+    bank_name: str = ""
+    bic: str = ""
+    currency: str = "BGN"
+    is_default: bool = False
+
+
+class BankAccountUpdate(BaseModel):
+    iban: Optional[str] = None
+    bank_name: Optional[str] = None
+    bic: Optional[str] = None
+    currency: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+class BankAccountOut(BaseModel):
+    id: str
+    company_id: str
+    profile_id: str
+    iban: str
+    bank_name: str
+    bic: str
+    currency: str
+    is_default: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # --- Sync Settings ---
 class SyncSettingsUpdate(BaseModel):
     sync_mode: str = "manual"

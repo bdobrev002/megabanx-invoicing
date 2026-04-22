@@ -28,6 +28,7 @@ export const ROUTES = {
   NOTIFICATIONS: '/dashboard/notifications',
   BILLING: '/dashboard/billing',
   INVOICING: '/dashboard/invoicing',
+  SETTINGS: '/dashboard/settings',
   ADMIN: '/admin',
   ADMIN_USERS: '/admin/users',
   ADMIN_COMPANIES: '/admin/companies',

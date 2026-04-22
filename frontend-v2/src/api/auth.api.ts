@@ -32,6 +32,12 @@ export const authApi = {
 
   me: () => apiFetch<AuthUser>('/auth/me'),
 
+  updateMe: (name: string) =>
+    apiFetch<AuthUser>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    }),
+
   logout: () =>
     apiFetch<void>('/auth/logout', { method: 'POST' }).catch(() => {
       // Server logout may fail if token expired, that's ok

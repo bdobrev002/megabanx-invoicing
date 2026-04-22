@@ -175,6 +175,23 @@ class InvEmailLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class InvBankAccount(Base):
+    """One of many bank accounts a company can expose on invoices."""
+
+    __tablename__ = "inv_bank_accounts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    profile_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    iban: Mapped[str] = mapped_column(String(50), nullable=False)
+    bank_name: Mapped[str] = mapped_column(String(255), default="")
+    bic: Mapped[str] = mapped_column(String(20), default="")
+    currency: Mapped[str] = mapped_column(String(10), default="BGN")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class InvSyncSettings(Base):
     __tablename__ = "inv_sync_settings"
 
