@@ -112,11 +112,18 @@ async def upload_invoice(
     profile_id: str,
     file: UploadFile = File(...),
     company_id: str = Query(default=""),
-    invoice_type: str = Query(default="purchase"),
+    invoice_type: str = Query(default="auto"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload an invoice file, analyze with AI, and store."""
+    """Upload an invoice file, analyze with AI, auto-classify by EIK match, and store.
+
+    ``invoice_type`` accepts ``auto`` (default), ``purchase``, or ``sale``. When
+    ``auto``, the type is derived from which EIK in the extracted analysis matches
+    one of the profile's registered companies — issuer match → ``sale`` (the
+    profile issued it), recipient match → ``purchase``. If no EIK matches and no
+    company_id is supplied, the invoice is stored as ``unmatched`` in the inbox.
+    """
     await _verify_profile_access(profile_id, user, db)
     await _check_and_increment_usage(user.id, db)
 
@@ -152,32 +159,71 @@ async def upload_invoice(
     except Exception as e:
         logger.warning(f"AI analysis failed: {e}")
 
-    # Determine company by matching EIK
+    # Determine company + invoice_type by matching EIK against profile's companies.
     matched_company_id = company_id
     matched_company_name = ""
+    resolved_type = invoice_type if invoice_type in ("purchase", "sale") else ""
 
-    if not matched_company_id and analysis:
-        recipient_eik = analysis.get("recipient_eik", "")
-        issuer_eik = analysis.get("issuer_eik", "")
-        target_eik = recipient_eik if invoice_type == "purchase" else issuer_eik
+    issuer_eik = (analysis.get("issuer_eik") or "").strip()
+    recipient_eik = (analysis.get("recipient_eik") or "").strip()
 
-        if target_eik:
-            result = await db.execute(
-                select(Company).where(
-                    Company.profile_id == profile_id,
-                    Company.eik == target_eik,
-                )
+    if not matched_company_id and (issuer_eik or recipient_eik):
+        candidate_eiks = [e for e in (issuer_eik, recipient_eik) if e]
+        result = await db.execute(
+            select(Company).where(
+                Company.profile_id == profile_id,
+                Company.eik.in_(candidate_eiks),
             )
-            matched = result.scalar_one_or_none()
-            if matched:
-                matched_company_id = matched.id
-                matched_company_name = matched.name
+        )
+        for comp in result.scalars().all():
+            matched_company_id = comp.id
+            matched_company_name = comp.name
+            if comp.eik == issuer_eik:
+                resolved_type = "sale"
+            elif comp.eik == recipient_eik:
+                resolved_type = "purchase"
+            break
 
     if matched_company_id and not matched_company_name:
         result = await db.execute(select(Company).where(Company.id == matched_company_id))
         comp = result.scalar_one_or_none()
         if comp:
             matched_company_name = comp.name
+            if not resolved_type:
+                if issuer_eik and comp.eik == issuer_eik:
+                    resolved_type = "sale"
+                elif recipient_eik and comp.eik == recipient_eik:
+                    resolved_type = "purchase"
+
+    if not resolved_type:
+        resolved_type = "purchase"
+
+    invoice_type = resolved_type
+
+    # Duplicate detection: same profile + issuer_eik + invoice_number already exists
+    inv_number_raw = str(analysis.get("invoice_number") or "")
+    duplicate_of: Invoice | None = None
+    if inv_number_raw and issuer_eik:
+        dup_result = await db.execute(
+            select(Invoice).where(
+                Invoice.profile_id == profile_id,
+                Invoice.issuer_eik == issuer_eik,
+                Invoice.invoice_number == inv_number_raw,
+            )
+        )
+        duplicate_of = dup_result.scalars().first()
+
+    if duplicate_of is not None:
+        # Remove the freshly-uploaded temp file; existing invoice takes precedence.
+        try:
+            os.remove(inbox_path)
+        except OSError as err:
+            logger.warning(f"Failed to remove duplicate temp file {inbox_path}: {err}")
+        return {
+            "invoice": InvoiceOut.model_validate(duplicate_of),
+            "analysis": analysis,
+            "duplicate": True,
+        }
 
     # Build new filename from analysis
     inv_date = analysis.get("date", "")
@@ -437,6 +483,62 @@ async def resync_invoice(
     )
 
     return {"message": "Фактурата е маркирана за повторна синхронизация", "invoice": InvoiceOut.model_validate(invoice)}
+
+
+@router.post("/invoices/{invoice_id}/reclassify")
+async def reclassify_invoice(
+    profile_id: str,
+    invoice_id: str,
+    company_id: str = Query(...),
+    invoice_type: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually assign an unmatched invoice to a company and type.
+
+    Moves the file from inbox into the target company's purchase/sale folder,
+    updates metadata, and flips status to ``processed``.
+    """
+    await _verify_profile_access(profile_id, user, db)
+
+    if invoice_type not in ("purchase", "sale"):
+        raise HTTPException(status_code=400, detail="invoice_type трябва да е 'purchase' или 'sale'")
+
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+
+    comp_result = await db.execute(select(Company).where(Company.id == company_id, Company.profile_id == profile_id))
+    company = comp_result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Фирмата не е намерена")
+
+    dest_subdir = "Фактури покупки" if invoice_type == "purchase" else "Фактури продажби"
+    dest_dir = os.path.join(get_profile_dir(profile_id), sanitize_path_component(company.name), dest_subdir)
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, invoice.new_filename or os.path.basename(invoice.destination_path))
+
+    if invoice.destination_path and os.path.exists(invoice.destination_path) and invoice.destination_path != dest_path:
+        try:
+            os.rename(invoice.destination_path, dest_path)
+        except OSError as err:
+            logger.warning(f"Failed to move {invoice.destination_path} -> {dest_path}: {err}")
+            raise HTTPException(status_code=500, detail="Неуспешно преместване на файла")
+
+    invoice.company_id = company.id
+    invoice.company_name = company.name
+    invoice.invoice_type = invoice_type
+    invoice.destination_path = dest_path
+    invoice.status = "processed"
+    await db.flush()
+
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "invoice_reclassified"},
+    )
+
+    return {"message": "Фактурата е прекласифицирана", "invoice": InvoiceOut.model_validate(invoice)}
 
 
 @router.get("/inbox")

@@ -10,6 +10,12 @@ import InboxFileList from './InboxFileList'
 
 type Stage = 'idle' | 'uploading' | 'results'
 
+interface UploadResult {
+  invoice: InvoiceRecord
+  analysis: Record<string, string | null> | null
+  duplicate?: boolean
+}
+
 export default function UploadPage() {
   const profileId = useAuthStore((s) => s.user?.profile_id) ?? ''
   const setError = useUiStore((s) => s.setError)
@@ -18,6 +24,7 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
   const [results, setResults] = useState<InvoiceRecord[]>([])
+  const [duplicateCount, setDuplicateCount] = useState(0)
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -25,13 +32,18 @@ export default function UploadPage() {
       setStage('uploading')
       setTotal(files.length)
       setProgress(0)
+      setDuplicateCount(0)
       const uploaded: InvoiceRecord[] = []
+      let duplicates = 0
 
       for (let i = 0; i < files.length; i++) {
         try {
           const res = await filesApi.upload(profileId, files[i])
-          const data = await res.json()
-          if (data) uploaded.push(data as InvoiceRecord)
+          const data: UploadResult | null = await res.json()
+          if (data?.invoice) {
+            uploaded.push(data.invoice)
+            if (data.duplicate) duplicates += 1
+          }
         } catch (e: unknown) {
           setError(e instanceof Error ? e.message : `Грешка при качване на ${files[i].name}`)
         }
@@ -39,6 +51,7 @@ export default function UploadPage() {
       }
 
       setResults(uploaded)
+      setDuplicateCount(duplicates)
       setStage('results')
     },
     [profileId, setError],
@@ -49,6 +62,7 @@ export default function UploadPage() {
     setResults([])
     setProgress(0)
     setTotal(0)
+    setDuplicateCount(0)
   }
 
   return (
@@ -62,7 +76,14 @@ export default function UploadPage() {
       )}
 
       {stage === 'results' && (
-        <ProcessResults results={results} onReset={handleReset} />
+        <>
+          {duplicateCount > 0 && (
+            <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              {duplicateCount} от файловете са дубликати на вече качени фактури — пропуснати са.
+            </div>
+          )}
+          <ProcessResults results={results} onReset={handleReset} />
+        </>
       )}
 
       <InboxFileList />

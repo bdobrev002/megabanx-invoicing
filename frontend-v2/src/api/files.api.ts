@@ -18,6 +18,14 @@ export const filesApi = {
     return uploadFetch(`/profiles/${profileId}/upload${qs ? `?${qs}` : ''}`, fd)
   },
 
+  reclassify: (profileId: string, invoiceId: string, companyId: string, invoiceType: 'purchase' | 'sale') => {
+    const params = new URLSearchParams({ company_id: companyId, invoice_type: invoiceType })
+    return apiFetch<{ message: string; invoice: InvoiceRecord }>(
+      `/profiles/${profileId}/invoices/${invoiceId}/reclassify?${params.toString()}`,
+      { method: 'POST' },
+    )
+  },
+
   list: (profileId: string, companyId?: string, invoiceType?: string) => {
     const params = new URLSearchParams()
     if (companyId) params.set('company_id', companyId)

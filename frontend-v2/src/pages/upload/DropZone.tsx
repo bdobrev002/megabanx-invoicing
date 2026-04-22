@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import { Upload } from 'lucide-react'
 
+const SUPPORTED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+
 interface Props {
   onFiles: (files: File[]) => void
 }
@@ -14,9 +16,7 @@ export default function DropZone({ onFiles }: Props) {
     (e: React.DragEvent) => {
       e.preventDefault()
       setDragOver(false)
-      const files = Array.from(e.dataTransfer.files).filter((f) =>
-        f.type === 'application/pdf' || f.name.endsWith('.pdf'),
-      )
+      const files = Array.from(e.dataTransfer.files).filter((f) => SUPPORTED_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)))
       if (files.length > 0) onFiles(files)
     },
     [onFiles],
@@ -44,13 +44,13 @@ export default function DropZone({ onFiles }: Props) {
           Плъзнете файлове тук
         </p>
         <p className="mt-1 text-sm text-gray-500">
-          или натиснете за да изберете PDF файлове
+          или натиснете за да изберете PDF или снимки (JPG/PNG/TIFF/WEBP)
         </p>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf"
+        accept={SUPPORTED_EXTENSIONS.join(',')}
         multiple
         className="hidden"
         onChange={handleChange}
