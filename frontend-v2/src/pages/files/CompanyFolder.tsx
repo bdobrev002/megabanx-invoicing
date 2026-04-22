@@ -33,6 +33,7 @@ export interface FolderData {
   name: string
   company_id: string | null
   eik: string
+  proforma_count?: number
   subfolders: SubFolder[]
 }
 
@@ -297,6 +298,7 @@ export default function CompanyFolder({
           <span className="font-semibold text-gray-900">{folder.name}</span>
           <span className="text-xs text-gray-500">
             {purchases} покупки, {sales} продажби
+            {(folder.proforma_count ?? 0) > 0 && `, ${folder.proforma_count} проформи`}
             {pending > 0 && `, ${pending} чакащи одобрение`}
           </span>
         </button>
@@ -329,7 +331,7 @@ export default function CompanyFolder({
             </Link>
             <Link
               to={`${ROUTES.COMPANIES}/${folder.company_id}?tab=sync`}
-              className={`${actionBtn} bg-orange-500 hover:bg-orange-600`}
+              className={`${actionBtn} bg-amber-400 text-gray-900 hover:bg-amber-500`}
               title="Синхронизирай"
             >
               <RefreshCw size={12} />
