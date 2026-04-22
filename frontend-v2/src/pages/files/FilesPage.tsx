@@ -143,10 +143,10 @@ export default function FilesPage() {
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar — v1 parity: single flex-wrap row with sort pushed to right */}
       <div className="rounded-lg bg-white p-3 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-6">
-          <div className="relative md:col-span-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
             <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             <Input
               value={fileSearch}
@@ -155,11 +155,13 @@ export default function FilesPage() {
               className="pl-8"
             />
           </div>
-          <Input
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            placeholder="Филтър по фирма..."
-          />
+          <div className="min-w-[200px] flex-1">
+            <Input
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              placeholder="Филтър по фирма..."
+            />
+          </div>
           <Select
             options={TIMEFRAMES}
             value={timeframe}
@@ -189,11 +191,11 @@ export default function FilesPage() {
             }}
             placeholder="До дата"
           />
-        </div>
-        <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
-          <span>Сортирай по:</span>
-          {sortBtn('name', 'Име')}
-          {sortBtn('date', 'Дата')}
+          <div className="ml-auto flex items-center gap-1">
+            <span className="text-xs text-gray-500">Сортирай:</span>
+            {sortBtn('name', 'Име')}
+            {sortBtn('date', 'Дата')}
+          </div>
         </div>
       </div>
 
