@@ -21,7 +21,8 @@ const typeLabels: Record<string, string> = {
 
 export default function CompanyFolder({ folder }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const totalFiles = folder.subfolders.reduce((sum, sf) => sum + sf.file_count, 0)
+  const subfolders = folder.subfolders ?? []
+  const totalFiles = subfolders.reduce((sum, sf) => sum + sf.file_count, 0)
 
   return (
     <Card padding={false}>
@@ -37,7 +38,7 @@ export default function CompanyFolder({ folder }: Props) {
 
       {expanded && (
         <div className="border-t border-gray-100 px-4 py-2">
-          {folder.subfolders.map((sf) => (
+          {subfolders.map((sf) => (
             <div
               key={sf.name}
               className="flex items-center justify-between py-1.5 pl-8 text-sm"

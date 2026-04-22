@@ -72,7 +72,7 @@ export default function FilesPage() {
   const filtered = folders.filter((f) => {
     if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false
     if (typeFilter) {
-      return f.subfolders.some((sf) => sf.name === typeFilter && sf.file_count > 0)
+      return (f.subfolders ?? []).some((sf) => sf.name === typeFilter && sf.file_count > 0)
     }
     return true
   })
