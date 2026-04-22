@@ -337,7 +337,7 @@ export default function CompanyFolder({
             </Link>
             <Link
               to={`${ROUTES.COMPANIES}/${folder.company_id}?tab=settings`}
-              className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+              className={`${actionBtn} bg-gray-500 hover:bg-gray-600`}
               title="Настройки"
             >
               <Settings size={12} />
@@ -351,7 +351,9 @@ export default function CompanyFolder({
         <div className="border-t border-gray-100 bg-gray-50/50 px-2 pb-2">
           {SUBTYPE_ORDER.map((sub) => {
             const count = countOf(folder, sub)
-            if (count === 0) return null
+            // v1 parity: always render purchases/sales (with count (0) if empty);
+            // pending stays conditional — it appears only when there's work to do.
+            if (sub === 'pending' && count === 0) return null
             const isOpen = openSection === sub
             const isPending = sub === 'pending'
             const rows = isPending ? [] : filterAndSort(invoices[sub] ?? [])

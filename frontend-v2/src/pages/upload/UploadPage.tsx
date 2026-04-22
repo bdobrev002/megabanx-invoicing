@@ -17,31 +17,78 @@ interface UploadResult {
   duplicate?: boolean
 }
 
-interface StatProps {
-  icon: string
-  label: string
-  value: number
-  unit: string
-  tone: 'blue' | 'green' | 'orange'
+type QuotaTone = 'indigo' | 'yellow' | 'red'
+
+function quotaToneFor(b: BillingUsage | null): QuotaTone {
+  if (!b || b.invoices_limit >= 999999) return 'indigo'
+  const pct = b.invoices_limit > 0 ? b.current_usage / b.invoices_limit : 0
+  if (b.remaining <= 0 || pct >= 1) return 'red'
+  if (pct >= 0.9) return 'red'
+  if (pct >= 0.8) return 'yellow'
+  return 'indigo'
 }
 
-const toneStyles: Record<StatProps['tone'], { text: string; bg: string }> = {
-  blue: { text: 'text-blue-700', bg: 'bg-blue-50' },
-  green: { text: 'text-green-700', bg: 'bg-green-50' },
-  orange: { text: 'text-orange-700', bg: 'bg-orange-50' },
+const quotaStyles: Record<QuotaTone, { box: string; head: string; line: string }> = {
+  indigo: {
+    box: 'bg-indigo-50 border-indigo-200',
+    head: 'text-indigo-800',
+    line: 'text-indigo-700',
+  },
+  yellow: {
+    box: 'bg-yellow-50 border-yellow-200',
+    head: 'text-yellow-800',
+    line: 'text-yellow-700',
+  },
+  red: {
+    box: 'bg-red-50 border-red-200',
+    head: 'text-red-800',
+    line: 'text-red-700',
+  },
 }
 
-function StatCard({ icon, label, value, unit, tone }: StatProps) {
-  const { text, bg } = toneStyles[tone]
+function QuotaBanner({ billing }: { billing: BillingUsage | null }) {
+  const tone = quotaToneFor(billing)
+  const styles = quotaStyles[tone]
+  const limit = billing?.invoices_limit ?? 0
+  const processed = billing?.current_usage ?? 0
+  const remaining = billing?.remaining ?? 0
+  const unlimited = limit >= 999999
+  const pct = limit > 0 ? processed / limit : 0
+  const atLimit = !unlimited && (remaining <= 0 || pct >= 1)
+  const at90 = !unlimited && !atLimit && pct >= 0.9
+  const at80 = !unlimited && !atLimit && !at90 && pct >= 0.8
+
   return (
-    <div className={`flex items-center gap-3 rounded-lg ${bg} px-4 py-3`}>
-      <span className="text-2xl" aria-hidden>{icon}</span>
-      <div>
-        <p className="text-xs text-gray-600">{label}</p>
-        <p className={`text-lg font-semibold ${text}`}>
-          {value.toLocaleString('bg-BG')} <span className="text-xs font-normal text-gray-500">{unit}</span>
-        </p>
+    <div className={`mb-4 rounded-lg border p-4 ${styles.box}`}>
+      <div className="space-y-1 text-sm">
+        <div className={`font-medium ${styles.head}`}>
+          <span className="mr-1.5" aria-hidden>📄</span>
+          Абонамент {unlimited ? 'Неограничен' : limit} фактури
+        </div>
+        <div className={styles.line}>
+          <span className="mr-1.5" aria-hidden>📊</span>
+          Обработени за месеца {processed} фактури
+        </div>
+        <div className={styles.line}>
+          <span className="mr-1.5" aria-hidden>📈</span>
+          Остатък за месеца {unlimited ? 'Неограничен' : remaining} фактури
+        </div>
       </div>
+      {at80 && (
+        <div className="mt-2 rounded bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
+          ⚠ Близо сте до лимита си за този месец
+        </div>
+      )}
+      {at90 && (
+        <div className="mt-2 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+          ⚠ Достигнахте 90% от лимита си за този месец
+        </div>
+      )}
+      {atLimit && (
+        <div className="mt-2 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+          ⚠ Достигнахте лимита си. Моля, обновете абонамента за да продължите.
+        </div>
+      )}
     </div>
   )
 }
@@ -106,30 +153,7 @@ export default function UploadPage() {
         Качване и обработка на фактури
       </h2>
 
-      {/* Billing usage cards (v1 parity) */}
-      <div className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-3">
-        <StatCard
-          icon="📄"
-          label="Абонамент"
-          value={billing?.invoices_limit ?? 0}
-          unit="фактури"
-          tone="blue"
-        />
-        <StatCard
-          icon="📊"
-          label="Обработени за месеца"
-          value={billing?.current_usage ?? 0}
-          unit="фактури"
-          tone="green"
-        />
-        <StatCard
-          icon="📈"
-          label="Остатък за месеца"
-          value={billing?.remaining ?? 0}
-          unit="фактури"
-          tone="orange"
-        />
-      </div>
+      <QuotaBanner billing={billing} />
 
       {stage === 'idle' && <DropZone onFiles={handleFiles} />}
 
