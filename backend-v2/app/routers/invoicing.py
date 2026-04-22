@@ -70,7 +70,13 @@ async def _schedule_cross_copy(db: AsyncSession, meta: InvInvoiceMeta) -> None:
         meta.cross_copy_status = "no_subscriber"
         return
 
+    # Preserve pre-transition status so edits to an already-pending invoice
+    # don't duplicate the recipient notifications on every save.
+    was_pending = meta.cross_copy_status == "pending"
     meta.cross_copy_status = "pending"
+    if was_pending:
+        return
+
     issuer_company = (await db.execute(select(Company).where(Company.id == meta.company_id))).scalar_one_or_none()
     issuer_name = issuer_company.name if issuer_company else "неизвестен"
 
@@ -304,6 +310,7 @@ async def list_incoming_cross_copies(
                     InvInvoiceMeta.client_id.in_(list(matching_clients)),
                     InvInvoiceMeta.cross_copy_status == "pending",
                     InvInvoiceMeta.status == "issued",
+                    InvInvoiceMeta.profile_id != profile_id,
                 )
                 .order_by(InvInvoiceMeta.created_at.desc())
             )
@@ -354,7 +361,10 @@ async def list_incoming_cross_copies(
 
 async def _assert_recipient_of(meta: InvInvoiceMeta, user: User, db: AsyncSession) -> None:
     """Guard: verify the current user's profile owns a company whose EIK matches
-    the invoice client's EIK (i.e. they are a legitimate cross-copy recipient)."""
+    the invoice client's EIK and is not the issuer of the invoice (i.e. they
+    are a legitimate cross-copy recipient)."""
+    if meta.profile_id == user.profile_id:
+        raise HTTPException(status_code=403, detail="Нямате достъп")
     if not meta.client_id:
         raise HTTPException(status_code=403, detail="Нямате достъп")
     client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
