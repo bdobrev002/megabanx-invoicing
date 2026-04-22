@@ -157,6 +157,8 @@ class InvoiceCreateSchema(BaseModel):
     currency: str = "EUR"
     status: str = "issued"
     composed_by: Optional[str] = None
+    # Stage 6B: optional per-invoice template override (falls back to company default when None).
+    template_id: Optional[str] = None
     lines: list[InvoiceLineCreateSchema] = []
 
 
@@ -188,6 +190,7 @@ class InvoiceMetaOut(BaseModel):
     cross_copy_status: str = "none"
     source_invoice_id: str = ""
     composed_by: Optional[str]
+    template_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

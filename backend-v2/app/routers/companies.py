@@ -74,6 +74,7 @@ async def create_company(
         drive_purchases_folder_path=req.drive_purchases_folder_path,
         drive_sales_folder_id=req.drive_sales_folder_id,
         drive_sales_folder_path=req.drive_sales_folder_path,
+        invoice_template=req.invoice_template or "modern",
     )
     db.add(company)
 

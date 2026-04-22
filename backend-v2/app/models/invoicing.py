@@ -107,6 +107,8 @@ class InvInvoiceMeta(Base):
     # tracks cross-copy link back to the source issued invoice
     source_invoice_id: Mapped[str] = mapped_column(String(36), default="")
     composed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Stage 6B: optional per-invoice template override (NULL = use company default).
+    template_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

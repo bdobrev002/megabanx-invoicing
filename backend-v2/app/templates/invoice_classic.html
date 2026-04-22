@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #1f2937; line-height: 1.4; background: #fff; }
+
+    /* Classic minimal header */
+    .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #16a34a; padding-bottom: 8px; margin-bottom: 14px; }
+    .header .title-col h1 { font-size: 22pt; font-weight: 700; color: #16a34a; letter-spacing: 1px; }
+    .header .title-col .copy { font-size: 9pt; color: #6b7280; font-style: italic; margin-top: 2px; }
+    .header .meta { text-align: right; font-size: 9pt; color: #374151; }
+    .header .meta .num { font-size: 14pt; font-weight: 700; color: #111827; }
+    .header .meta .row { margin-top: 2px; }
+
+    /* Parties */
+    .parties { display: flex; gap: 20px; margin-bottom: 14px; }
+    .party { flex: 1; }
+    .party .label { font-size: 8pt; font-weight: 700; text-transform: uppercase; color: #16a34a; letter-spacing: 1px; margin-bottom: 4px; }
+    .party .name { font-size: 11pt; font-weight: 700; color: #111827; margin-bottom: 3px; }
+    .party .line { font-size: 9pt; color: #374151; }
+
+    /* Items */
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    table.items th { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; padding: 6px 4px; border-bottom: 2px solid #16a34a; text-align: left; }
+    table.items th.r { text-align: right; }
+    table.items th.c { text-align: center; }
+    table.items td { font-size: 9pt; padding: 5px 4px; border-bottom: 1px solid #e5e7eb; }
+    table.items td.r { text-align: right; }
+    table.items td.c { text-align: center; }
+
+    .totals { width: 280px; margin-left: auto; margin-bottom: 14px; }
+    .totals table { width: 100%; border-collapse: collapse; }
+    .totals td { padding: 3px 6px; font-size: 9.5pt; }
+    .totals td:first-child { text-align: right; color: #6b7280; }
+    .totals td:last-child { text-align: right; font-weight: 600; color: #111827; }
+    .totals tr.grand td { font-size: 12pt; font-weight: 700; border-top: 2px solid #16a34a; padding-top: 6px; color: #16a34a; }
+
+    .bank-info { border-top: 1px solid #e5e7eb; padding-top: 8px; margin-bottom: 12px; font-size: 9pt; color: #374151; }
+    .bank-info .k { font-weight: 700; color: #16a34a; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.5px; margin-bottom: 3px; }
+    .bank-info .accs { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+    .bank-info .acc { font-size: 8.5pt; }
+    .bank-info .acc b { color: #111827; }
+
+    .info-row { font-size: 9pt; color: #374151; margin-bottom: 3px; }
+    .info-row b { color: #111827; }
+
+    .signatures { display: flex; justify-content: space-between; margin-top: 22px; }
+    .sig { width: 40%; font-size: 9pt; text-align: center; color: #6b7280; }
+    .sig .name { display: block; border-top: 1px solid #374151; padding-top: 4px; margin-top: 18px; color: #111827; font-weight: 600; }
+
+    .notes { margin-top: 14px; padding-top: 8px; border-top: 1px dashed #d1d5db; font-size: 8.5pt; color: #6b7280; }
+    .notes b { color: #374151; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title-col">
+        <h1>{{ doc_type_label }}</h1>
+        <div class="copy">{{ doc_copy_label }}</div>
+    </div>
+    <div class="meta">
+        <div class="num">№ {{ invoice_number }}</div>
+        <div class="row">Издадена: {{ issue_date_formatted }}</div>
+        <div class="row">Данъчно събитие: {{ tax_event_date_formatted }}</div>
+        {% if due_date %}<div class="row">Падеж: {{ due_date_formatted }}</div>{% endif %}
+    </div>
+</div>
+
+<div class="parties">
+    <div class="party">
+        <div class="label">Доставчик</div>
+        <div class="name">{{ company.name }}</div>
+        {% if company.address %}<div class="line">{{ company.address }}</div>{% endif %}
+        {% if company.city %}<div class="line">{{ company.city }}{% if company.country %}, {{ company.country }}{% endif %}</div>{% endif %}
+        <div class="line">ЕИК: <b>{{ company.eik }}</b>{% if company.vat_number %} · ДДС: <b>{{ company.vat_number }}</b>{% endif %}</div>
+        {% if company.mol %}<div class="line">МОЛ: {{ company.mol }}</div>{% endif %}
+        {% if company.phone %}<div class="line">Тел: {{ company.phone }}</div>{% endif %}
+        {% if company.email %}<div class="line">Имейл: {{ company.email }}</div>{% endif %}
+    </div>
+    <div class="party">
+        <div class="label">Получател</div>
+        <div class="name">{{ client.name }}</div>
+        {% if client.address %}<div class="line">{{ client.address }}</div>{% endif %}
+        {% if client.city %}<div class="line">{{ client.city }}</div>{% endif %}
+        {% if client.eik %}<div class="line">ЕИК: <b>{{ client.eik }}</b>{% if client.vat_number %} · ДДС: <b>{{ client.vat_number }}</b>{% endif %}</div>{% endif %}
+        {% if client.mol %}<div class="line">МОЛ: {{ client.mol }}</div>{% endif %}
+    </div>
+</div>
+
+<table class="items">
+    <thead>
+        <tr>
+            <th style="width:20px">№</th>
+            <th>Наименование</th>
+            <th class="r" style="width:55px">К-во</th>
+            <th class="c" style="width:40px">Мярка</th>
+            <th class="r" style="width:75px">Ед. цена</th>
+            {% if not no_vat %}<th class="c" style="width:45px">ДДС</th>{% endif %}
+            <th class="r" style="width:85px">Стойност</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for line in lines %}
+        <tr>
+            <td class="c">{{ loop.index }}</td>
+            <td>{{ line.description }}</td>
+            <td class="r">{{ "%.2f"|format(line.quantity) }}</td>
+            <td class="c">{{ line.unit }}</td>
+            <td class="r">{{ "%.2f"|format(line.unit_price) }}</td>
+            {% if not no_vat %}<td class="c">{{ line.vat_rate|int }}%</td>{% endif %}
+            <td class="r">{{ "%.2f"|format(line.line_total) }} {{ currency_label }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="totals">
+    <table>
+        <tr><td>Данъчна основа:</td><td>{{ tax_base }} {{ currency_label }}</td></tr>
+        {% if not no_vat %}
+        <tr><td>ДДС {{ vat_rate }}%:</td><td>{{ vat_amount }} {{ currency_label }}</td></tr>
+        {% else %}
+        <tr><td>ДДС:</td><td>Не се начислява</td></tr>
+        {% endif %}
+        <tr class="grand"><td>За плащане:</td><td>{{ total }} {{ currency_label }}</td></tr>
+    </table>
+</div>
+
+{% if bank_accounts %}
+<div class="bank-info">
+    <div class="k">Банкови сметки</div>
+    <div class="accs">
+        {% for acc in bank_accounts %}
+        <div class="acc"><b>{{ acc.currency }}</b> · {{ acc.bank_name or "" }} · IBAN: <b>{{ acc.iban }}</b>{% if acc.bic %} · BIC: {{ acc.bic }}{% endif %}</div>
+        {% endfor %}
+    </div>
+</div>
+{% elif company.iban %}
+<div class="bank-info">
+    <div class="k">Банкова сметка</div>
+    <div class="acc">{{ company.bank_name }} · IBAN: <b>{{ company.iban }}</b>{% if company.bic %} · BIC: {{ company.bic }}{% endif %}</div>
+</div>
+{% endif %}
+
+{% if payment_method %}<div class="info-row">Начин на плащане: <b>{{ payment_method }}</b></div>{% endif %}
+{% if no_vat and no_vat_reason %}<div class="info-row">Основание за неначисляване на ДДС: <b>{{ no_vat_reason }}</b></div>{% endif %}
+
+<div class="signatures">
+    <div class="sig">Съставил:<span class="name">{{ composed_by or company.mol or company.name }}</span></div>
+    <div class="sig">Получател:<span class="name">{{ client.mol or client.name }}</span></div>
+</div>
+
+<div class="notes"><b>Забележки:</b>{% if notes %}<br>{{ notes }}{% endif %}</div>
+
+</body>
+</html>

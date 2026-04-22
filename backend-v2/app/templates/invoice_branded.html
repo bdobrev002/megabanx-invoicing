@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4 portrait; margin: 10mm 12mm 14mm 12mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 9pt; color: #1e293b; line-height: 1.4; background: #fff; }
+
+    /* Branded header: logo left, supplier info centre-right, doc-meta far right */
+    .brand-header {
+        display: flex;
+        align-items: stretch;
+        gap: 16px;
+        padding: 14px 16px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-left: 6px solid #7c3aed;
+        border-radius: 6px;
+        margin-bottom: 14px;
+    }
+    .brand-logo {
+        width: 120px; min-width: 120px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .brand-logo img { max-width: 120px; max-height: 90px; object-fit: contain; }
+    .brand-logo .placeholder {
+        width: 120px; height: 90px;
+        border: 2px dashed #cbd5e1; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        color: #94a3b8; font-size: 9pt; font-style: italic;
+    }
+    .brand-supplier { flex: 1; }
+    .brand-supplier .name { font-size: 14pt; font-weight: 700; color: #7c3aed; margin-bottom: 3px; }
+    .brand-supplier .line { font-size: 9pt; color: #334155; margin-top: 1px; }
+    .brand-supplier .line b { color: #1e293b; }
+    .brand-meta { text-align: right; min-width: 170px; }
+    .brand-meta .doc-type { font-size: 16pt; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 1.5px; }
+    .brand-meta .copy { font-size: 8pt; color: #64748b; font-style: italic; margin-bottom: 6px; }
+    .brand-meta .num { font-size: 13pt; font-weight: 700; color: #7c3aed; margin-bottom: 4px; }
+    .brand-meta .date { font-size: 8.5pt; color: #475569; }
+
+    .client-block {
+        background: #faf5ff;
+        border: 1px solid #e9d5ff;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-bottom: 12px;
+    }
+    .client-block .label { font-size: 7.5pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #7c3aed; margin-bottom: 4px; }
+    .client-block .name { font-size: 12pt; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
+    .client-block .line { font-size: 9pt; color: #475569; }
+    .client-block .line b { color: #1e293b; }
+
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    table.items thead th {
+        background: #7c3aed; color: #fff;
+        padding: 6px 8px;
+        font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px;
+        text-align: left;
+    }
+    table.items thead th.r { text-align: right; }
+    table.items thead th.c { text-align: center; }
+    table.items thead th:first-child { border-radius: 4px 0 0 0; }
+    table.items thead th:last-child { border-radius: 0 4px 0 0; }
+    table.items td { padding: 5px 8px; font-size: 8.5pt; border-bottom: 1px solid #e9d5ff; color: #334155; }
+    table.items td.r { text-align: right; }
+    table.items td.c { text-align: center; }
+    table.items tbody tr:nth-child(even) { background: #faf5ff; }
+
+    .summary-row { display: flex; gap: 14px; margin-bottom: 12px; }
+    .bank-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; background: #fff; }
+    .bank-box .label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #7c3aed; margin-bottom: 6px; }
+    .bank-box .acc { font-size: 8.5pt; color: #334155; margin-bottom: 3px; }
+    .bank-box .acc b { color: #1e293b; }
+    .totals-box { width: 260px; background: #1e293b; color: #fff; border-radius: 6px; padding: 12px 16px; }
+    .totals-box table { width: 100%; border-collapse: collapse; }
+    .totals-box td { padding: 4px 0; font-size: 9pt; color: #cbd5e1; }
+    .totals-box td:last-child { text-align: right; font-weight: 600; color: #fff; }
+    .totals-box tr.grand td { font-size: 13pt; font-weight: 800; color: #a855f7; border-top: 2px solid #7c3aed; padding-top: 8px; }
+
+    .info-row { font-size: 9pt; color: #475569; margin-bottom: 3px; padding: 5px 10px; background: #f8fafc; border-radius: 4px; }
+    .info-row b { color: #1e293b; }
+
+    .signatures { display: flex; justify-content: space-between; margin-top: 20px; }
+    .sig { width: 40%; font-size: 8.5pt; color: #64748b; text-align: center; }
+    .sig .name { display: block; border-top: 1px solid #94a3b8; margin-top: 18px; padding-top: 4px; color: #1e293b; font-weight: 600; }
+
+    .notes { margin-top: 12px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 8.5pt; color: #64748b; }
+    .notes b { color: #475569; }
+</style>
+</head>
+<body>
+
+<div class="brand-header">
+    <div class="brand-logo">
+        {% if logo_base64 %}
+            <img src="{{ logo_base64 }}" alt="logo">
+        {% else %}
+            <div class="placeholder">Лого</div>
+        {% endif %}
+    </div>
+    <div class="brand-supplier">
+        <div class="name">{{ company.name }}</div>
+        {% if company.address %}<div class="line">{{ company.address }}</div>{% endif %}
+        {% if company.city %}<div class="line">{{ company.city }}{% if company.country %}, {{ company.country }}{% endif %}</div>{% endif %}
+        <div class="line">ЕИК: <b>{{ company.eik }}</b>{% if company.vat_number %} · ДДС: <b>{{ company.vat_number }}</b>{% endif %}</div>
+        {% if company.mol %}<div class="line">МОЛ: {{ company.mol }}</div>{% endif %}
+        {% if company.phone or company.email %}<div class="line">{% if company.phone %}{{ company.phone }}{% endif %}{% if company.phone and company.email %} · {% endif %}{% if company.email %}{{ company.email }}{% endif %}</div>{% endif %}
+    </div>
+    <div class="brand-meta">
+        <div class="doc-type">{{ doc_type_label }}</div>
+        <div class="copy">{{ doc_copy_label }}</div>
+        <div class="num">№ {{ invoice_number }}</div>
+        <div class="date">Издадена: {{ issue_date_formatted }}</div>
+        <div class="date">Данъчно съб.: {{ tax_event_date_formatted }}</div>
+        {% if due_date %}<div class="date">Падеж: {{ due_date_formatted }}</div>{% endif %}
+    </div>
+</div>
+
+<div class="client-block">
+    <div class="label">Получател</div>
+    <div class="name">{{ client.name }}</div>
+    {% if client.address %}<div class="line">{{ client.address }}{% if client.city %}, {{ client.city }}{% endif %}</div>{% endif %}
+    <div class="line">
+        {% if client.eik %}ЕИК: <b>{{ client.eik }}</b>{% endif %}
+        {% if client.vat_number %} · ДДС: <b>{{ client.vat_number }}</b>{% endif %}
+        {% if client.mol %} · МОЛ: {{ client.mol }}{% endif %}
+    </div>
+</div>
+
+<table class="items">
+    <thead>
+        <tr>
+            <th style="width:20px">№</th>
+            <th>Наименование</th>
+            <th class="r" style="width:55px">К-во</th>
+            <th class="c" style="width:40px">Мярка</th>
+            <th class="r" style="width:75px">Ед. цена</th>
+            {% if not no_vat %}<th class="c" style="width:45px">ДДС</th>{% endif %}
+            <th class="r" style="width:90px">Стойност</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for line in lines %}
+        <tr>
+            <td class="c">{{ loop.index }}</td>
+            <td>{{ line.description }}</td>
+            <td class="r">{{ "%.2f"|format(line.quantity) }}</td>
+            <td class="c">{{ line.unit }}</td>
+            <td class="r">{{ "%.2f"|format(line.unit_price) }}</td>
+            {% if not no_vat %}<td class="c">{{ line.vat_rate|int }}%</td>{% endif %}
+            <td class="r">{{ "%.2f"|format(line.line_total) }} {{ currency_label }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="summary-row">
+    <div class="bank-box">
+        <div class="label">Банкови сметки на доставчика</div>
+        {% if bank_accounts %}
+            {% for acc in bank_accounts %}
+            <div class="acc"><b>{{ acc.currency }}</b> · {{ acc.bank_name or "—" }} · IBAN: <b>{{ acc.iban }}</b>{% if acc.bic %} · BIC: {{ acc.bic }}{% endif %}</div>
+            {% endfor %}
+        {% elif company.iban %}
+            <div class="acc">{{ company.bank_name or "—" }} · IBAN: <b>{{ company.iban }}</b>{% if company.bic %} · BIC: {{ company.bic }}{% endif %}</div>
+        {% else %}
+            <div class="acc" style="color:#94a3b8;font-style:italic;">Не са зададени банкови сметки.</div>
+        {% endif %}
+    </div>
+    <div class="totals-box">
+        <table>
+            <tr><td>Данъчна основа</td><td>{{ tax_base }} {{ currency_label }}</td></tr>
+            {% if not no_vat %}
+            <tr><td>ДДС {{ vat_rate }}%</td><td>{{ vat_amount }} {{ currency_label }}</td></tr>
+            {% else %}
+            <tr><td>ДДС</td><td>Не се начислява</td></tr>
+            {% endif %}
+            <tr class="grand"><td>За плащане</td><td>{{ total }} {{ currency_label }}</td></tr>
+        </table>
+    </div>
+</div>
+
+{% if payment_method %}<div class="info-row">Начин на плащане: <b>{{ payment_method }}</b></div>{% endif %}
+{% if no_vat and no_vat_reason %}<div class="info-row">Основание за неначисляване на ДДС: <b>{{ no_vat_reason }}</b></div>{% endif %}
+
+<div class="signatures">
+    <div class="sig">Съставил<span class="name">{{ composed_by or company.mol or company.name }}</span></div>
+    <div class="sig">Получател<span class="name">{{ client.mol or client.name }}</span></div>
+</div>
+
+<div class="notes"><b>Забележки:</b>{% if notes %}<br>{{ notes }}{% endif %}</div>
+
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { invoicingApi, type EditableInvoiceResponse } from '@/api/invoicing.api'
+import { invoiceTemplatesApi, type InvoiceTemplateVariant } from '@/api/invoiceTemplates.api'
 import { useDialogStore } from '@/stores/dialogStore'
 import type {
   DiscountType,
@@ -60,6 +61,7 @@ function defaultFormData(): InvoiceFormData {
     price_with_vat: false,
     payment_method: '',
     composed_by: '',
+    template_id: '',
     sync_mode: 'manual',
     delay_minutes: 30,
   }
@@ -97,6 +99,7 @@ export default function InvoiceForm({
   const [submitting, setSubmitting] = useState(false)
   const [readOnly, setReadOnly] = useState(false)
   const [showItemPicker, setShowItemPicker] = useState<number | null>(null)
+  const [templateVariants, setTemplateVariants] = useState<InvoiceTemplateVariant[]>([])
   /** Current persisted status of the invoice being edited ('issued' or 'draft'). */
   const [currentStatus, setCurrentStatus] = useState<'issued' | 'draft'>('issued')
 
@@ -140,6 +143,7 @@ export default function InvoiceForm({
         price_with_vat: false,
         payment_method: m.payment_method ?? '',
         composed_by: m.composed_by ?? '',
+        template_id: m.template_id ?? '',
         sync_mode: 'manual',
         delay_minutes: 30,
       })
@@ -237,6 +241,21 @@ export default function InvoiceForm({
       cancelled = true
     }
   }, [open, companyId, profileId, invoiceId, mode, hydrateFromEditable, showError])
+
+  // Fetch available PDF template variants once the form is opened.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await invoiceTemplatesApi.list()
+        if (!cancelled) setTemplateVariants(res.templates)
+      } catch {
+        // Silent failure — selector just stays hidden.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [open])
 
   const preloadNextNumber = useCallback(
     async (docType: DocType) => {
@@ -545,6 +564,28 @@ export default function InvoiceForm({
                 onChange={handleNotesChange}
                 disabled={readOnly}
               />
+
+              {templateVariants.length > 0 && (
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Шаблон на PDF
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Оставете „По подразбиране" за да използвате шаблона на фирмата. Можете да презапишете само за тази фактура.
+                  </p>
+                  <select
+                    value={data.template_id}
+                    onChange={(e) => setData((d) => ({ ...d, template_id: e.target.value }))}
+                    disabled={readOnly}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">По подразбиране (настройка на фирмата)</option>
+                    {templateVariants.map((v) => (
+                      <option key={v.key} value={v.key}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <FormActions
                 mode={mode}

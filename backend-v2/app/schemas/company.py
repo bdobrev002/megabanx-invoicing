@@ -16,6 +16,7 @@ class CompanyCreate(BaseModel):
     country: str = "България"
     phone: str = ""
     email: str = ""
+    invoice_template: str = "modern"
     drive_purchases_folder_id: str = ""
     drive_purchases_folder_path: str = ""
     drive_sales_folder_id: str = ""
@@ -32,6 +33,7 @@ class CompanyUpdate(BaseModel):
     country: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    invoice_template: Optional[str] = None
     drive_purchases_folder_id: Optional[str] = None
     drive_purchases_folder_path: Optional[str] = None
     drive_sales_folder_id: Optional[str] = None
@@ -51,6 +53,7 @@ class CompanyOut(BaseModel):
     phone: str = ""
     email: str = ""
     logo_path: str = ""
+    invoice_template: str = "modern"
     drive_purchases_folder_id: str
     drive_purchases_folder_path: str
     drive_sales_folder_id: str

@@ -10,7 +10,9 @@ function updates ``inv_invoice_meta.pdf_path`` when rendering succeeds.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import mimetypes
 import os
 from dataclasses import dataclass, field
 from datetime import date
@@ -30,12 +32,17 @@ logger = logging.getLogger("megabanx.invoicing.pdf")
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 DOC_TYPE_LABELS: dict[str, tuple[str, str, str]] = {
-    # (UPPER header, Title case, template file)
+    # (UPPER header, Title case, legacy "modern" template file)
     "invoice": ("ФАКТУРА", "Фактура", "invoice_pdf.html"),
     "proforma": ("ПРОФОРМА", "Проформа", "proforma_pdf.html"),
     "debit_note": ("ДЕБИТНО ИЗВЕСТИЕ", "Дебитно известие", "invoice_pdf.html"),
     "credit_note": ("КРЕДИТНО ИЗВЕСТИЕ", "Кредитно известие", "invoice_pdf.html"),
 }
+
+# Stage 6B: invoice PDF template variants. Keys must match the
+# ``companies.invoice_template`` column values; the "modern" key preserves
+# the legacy per-doc-type files for backwards compatibility.
+VALID_TEMPLATE_KEYS: tuple[str, ...] = ("modern", "classic", "branded", "standard")
 
 CURRENCY_LABELS: dict[str, str] = {
     "BGN": "лв.",
@@ -72,6 +79,10 @@ class InvoicePdfSnapshot:
     currency: str = "BGN"
     composed_by: str = ""
     old_pdf_path: str = ""
+    # Stage 6B
+    invoice_template: str = "modern"
+    logo_base64: str = ""  # "data:image/png;base64,...." ready for <img src>
+    bank_accounts: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _format_date(d: date | None) -> str:
@@ -79,7 +90,8 @@ def _format_date(d: date | None) -> str:
 
 
 def _build_context(snap: InvoicePdfSnapshot) -> tuple[dict[str, Any], str]:
-    label_upper, label_title, template_name = DOC_TYPE_LABELS.get(snap.document_type, DOC_TYPE_LABELS["invoice"])
+    label_upper, label_title, _legacy_name = DOC_TYPE_LABELS.get(snap.document_type, DOC_TYPE_LABELS["invoice"])
+    template_name = _resolve_template_file(snap.document_type, snap.invoice_template)
     currency_label = CURRENCY_LABELS.get(snap.currency.upper(), snap.currency)
 
     tax_base = max(Decimal("0.00"), snap.subtotal - snap.discount)
@@ -111,10 +123,45 @@ def _build_context(snap: InvoicePdfSnapshot) -> tuple[dict[str, Any], str]:
         "currency": snap.currency,
         "currency_label": currency_label,
         "composed_by": snap.composed_by,
-        "logo_base64": None,
+        "logo_base64": snap.logo_base64 or None,
+        "bank_accounts": snap.bank_accounts,
         "total_words": "",
     }
     return context, template_name
+
+
+def _resolve_template_file(doc_type: str, template_key: str) -> str:
+    """Map (doc_type, template_key) to a concrete HTML file in ``TEMPLATES_DIR``.
+
+    Unknown template keys fall back to ``modern`` (legacy behaviour).
+    Non-modern variants share one HTML file per variant across all doc types;
+    the human-readable doc type label is injected via ``doc_type_label``.
+    """
+    if template_key not in VALID_TEMPLATE_KEYS:
+        template_key = "modern"
+    if template_key == "modern":
+        return DOC_TYPE_LABELS.get(doc_type, DOC_TYPE_LABELS["invoice"])[2]
+    # invoice_<variant>.html is shared across invoice/debit_note/credit_note/proforma.
+    return f"invoice_{template_key}.html"
+
+
+def _encode_logo(logo_path: str) -> str:
+    """Return a data-URI string for an on-disk logo, or empty on failure."""
+    if not logo_path:
+        return ""
+    try:
+        path = Path(logo_path)
+        if not path.is_file():
+            return ""
+        mime, _ = mimetypes.guess_type(str(path))
+        if not mime:
+            mime = "image/png"
+        with path.open("rb") as fh:
+            encoded = base64.b64encode(fh.read()).decode("ascii")
+        return f"data:{mime};base64,{encoded}"
+    except OSError:
+        logger.warning("Could not read logo %s for PDF embedding", logo_path)
+        return ""
 
 
 def _resolve_pdf_path(snap: InvoicePdfSnapshot) -> Path:
@@ -174,6 +221,112 @@ def _render_pdf_sync(snap: InvoicePdfSnapshot) -> str | None:
         return None
     except Exception:
         logger.exception("PDF generation failed for invoice %s", snap.invoice_id)
+        return None
+
+
+def render_preview_pdf_bytes(template_key: str, document_type: str = "invoice") -> bytes | None:
+    """Render a sample invoice PDF with dummy data for the settings preview gallery.
+
+    Returns ``None`` when WeasyPrint is not installed; callers should return
+    a 503 so the UI can fall back to a placeholder.
+    """
+    if template_key not in VALID_TEMPLATE_KEYS:
+        template_key = "modern"
+
+    sample_lines = [
+        {
+            "position": 1,
+            "description": "Консултантска услуга — м. октомври",
+            "quantity": 10.0,
+            "unit": "ч",
+            "unit_price": 80.00,
+            "vat_rate": 20.0,
+            "line_total": 800.00,
+        },
+        {
+            "position": 2,
+            "description": "Абонамент поддръжка",
+            "quantity": 1.0,
+            "unit": "бр",
+            "unit_price": 150.00,
+            "vat_rate": 20.0,
+            "line_total": 150.00,
+        },
+        {
+            "position": 3,
+            "description": "Хостинг — годишен",
+            "quantity": 1.0,
+            "unit": "бр",
+            "unit_price": 240.00,
+            "vat_rate": 20.0,
+            "line_total": 240.00,
+        },
+    ]
+    snap = InvoicePdfSnapshot(
+        invoice_id="preview",
+        profile_id="preview",
+        document_type=document_type,
+        invoice_number=1234,
+        issue_date=date.today(),
+        tax_event_date=date.today(),
+        due_date=date.today(),
+        company_folder_name="Demo",
+        client_display_name="Клиент ООД",
+        company={
+            "name": "Демо Фирма ЕООД",
+            "eik": "200123456",
+            "vat_number": "BG200123456",
+            "address": "бул. Витоша 12",
+            "city": "София",
+            "country": "България",
+            "phone": "+359 2 123 4567",
+            "email": "office@demo-firma.bg",
+            "mol": "Иван Иванов",
+            "iban": "BG80BNBG96611020345678",
+            "bank_name": "Уникредит Булбанк",
+            "bic": "UNCRBGSF",
+        },
+        client={
+            "name": "Примерен Клиент ООД",
+            "eik": "201987654",
+            "vat_number": "BG201987654",
+            "address": "ул. Иван Вазов 5",
+            "city": "Пловдив",
+            "mol": "Мария Петрова",
+        },
+        lines=sample_lines,
+        subtotal=Decimal("1190.00"),
+        discount=Decimal("0.00"),
+        vat_amount=Decimal("238.00"),
+        total=Decimal("1428.00"),
+        vat_rate=Decimal("20.00"),
+        payment_method="Банков превод",
+        notes="Благодарим за доверието!",
+        currency="BGN",
+        composed_by="Иван Иванов",
+        invoice_template=template_key,
+        bank_accounts=[
+            {"iban": "BG80BNBG96611020345678", "bank_name": "Уникредит Булбанк", "bic": "UNCRBGSF", "currency": "BGN", "is_default": True},
+            {"iban": "BG12FINV91501016234567", "bank_name": "Fibank", "bic": "FINVBGSF", "currency": "EUR", "is_default": False},
+        ],
+    )
+
+    try:
+        context, template_name = _build_context(snap)
+        env = Environment(
+            loader=FileSystemLoader(str(TEMPLATES_DIR)),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+        template = env.get_template(template_name)
+        html_content = template.render(**context)
+        from weasyprint import HTML  # type: ignore[import-not-found]
+
+        return HTML(string=html_content, base_url=str(TEMPLATES_DIR)).write_pdf()
+    except ImportError:
+        logger.warning("WeasyPrint not installed — preview unavailable")
+        return None
+    except Exception:
+        logger.exception("Preview render failed for template %s", template_key)
         return None
 
 
