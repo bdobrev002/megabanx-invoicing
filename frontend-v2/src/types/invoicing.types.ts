@@ -152,6 +152,79 @@ export interface IncomingCrossCopy {
   lines: IncomingCrossCopyLine[]
 }
 
+export interface EmailTemplate {
+  id: string
+  company_id: string
+  profile_id: string
+  name: string
+  subject: string
+  body: string
+  is_default: boolean
+  attach_pdf: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface EmailTemplateCreate {
+  company_id: string
+  profile_id: string
+  name: string
+  subject: string
+  body: string
+  is_default?: boolean
+  attach_pdf?: boolean
+}
+
+export interface EmailTemplateUpdate {
+  name?: string
+  subject?: string
+  body?: string
+  is_default?: boolean
+  attach_pdf?: boolean
+}
+
+export interface InvoiceEmailSendRequest {
+  to_email: string
+  cc_emails?: string[]
+  bcc_emails?: string[]
+  subject?: string
+  body?: string
+  template_id?: string | null
+  attach_pdf?: boolean
+}
+
+export interface InvoiceEmailLog {
+  id: string
+  invoice_id: string
+  profile_id: string
+  company_id: string
+  template_id: string | null
+  to_email: string
+  cc_emails: string | null
+  bcc_emails: string | null
+  subject: string
+  body: string
+  attached_pdf: boolean
+  message_id: string | null
+  delivery_status: 'queued' | 'sent' | 'failed'
+  delivery_error: string | null
+  sent_at: string | null
+  opened_at: string | null
+  open_count: number
+  created_at: string
+}
+
+export const EMAIL_MERGE_FIELDS = [
+  { value: '{invoice_number}', label: 'Номер на фактурата' },
+  { value: '{issue_date}', label: 'Дата на издаване' },
+  { value: '{due_date}', label: 'Падеж' },
+  { value: '{total}', label: 'Обща сума' },
+  { value: '{currency}', label: 'Валута' },
+  { value: '{client_name}', label: 'Име на клиента' },
+  { value: '{company_name}', label: 'Име на нашата фирма' },
+  { value: '{issuer_name}', label: 'Съставил (имейл)' },
+] as const
+
 export const VAT_REASONS = [
   { value: 'чл. 21, ал. 2 от ЗДДС', label: 'чл. 21, ал. 2 от ЗДДС — Място на изпълнение извън България' },
   { value: 'чл. 28 от ЗДДС', label: 'чл. 28 от ЗДДС — Доставка свързана с международен транспорт' },

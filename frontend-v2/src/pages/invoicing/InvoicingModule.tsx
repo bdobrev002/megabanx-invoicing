@@ -5,7 +5,7 @@ import Badge from '@/components/ui/Badge'
 import Spinner from '@/components/ui/Spinner'
 import { Table, Thead, Th, Td, TrBody } from '@/components/ui/Table'
 import DeliveryBolts from '@/components/ui/DeliveryBolts'
-import { FileText, Trash2, Pencil, RefreshCw, Plus, Inbox, Check, X } from 'lucide-react'
+import { FileText, Trash2, Pencil, RefreshCw, Plus, Inbox, Check, X, Mail, Settings } from 'lucide-react'
 import { invoicingApi } from '@/api/invoicing.api'
 import { companiesApi } from '@/api/companies.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,6 +15,9 @@ import { useWsRefresh } from '@/hooks/useWsRefresh'
 import { formatDate } from '@/utils/formatters'
 import type { IssuedInvoiceMeta, IncomingCrossCopy } from '@/types/invoicing.types'
 import InvoiceForm from './form/InvoiceForm'
+import SendEmailModal from './email/SendEmailModal'
+import EmailLogDrawer from './email/EmailLogDrawer'
+import EmailTemplatesModal from './email/EmailTemplatesModal'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: 'Фактура',
@@ -41,6 +44,9 @@ export default function InvoicingModule() {
   const [tab, setTab] = useState<'issued' | 'incoming'>('issued')
   const [incoming, setIncoming] = useState<IncomingCrossCopy[]>([])
   const [incomingLoading, setIncomingLoading] = useState(false)
+  const [emailModal, setEmailModal] = useState<{ invoiceId: string; defaultTo: string } | null>(null)
+  const [logDrawerInvoiceId, setLogDrawerInvoiceId] = useState<string | null>(null)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
 
   // Load companies on mount
   useEffect(() => {
@@ -212,6 +218,16 @@ export default function InvoicingModule() {
           >
             <RefreshCw size={16} />
           </Button>
+          {tab === 'issued' && companyId && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTemplatesOpen(true)}
+              title="Имейл шаблони"
+            >
+              <Settings size={14} className="mr-1" /> Имейл шаблони
+            </Button>
+          )}
           {tab === 'issued' && (
             <Button
               size="sm"
@@ -343,6 +359,7 @@ export default function InvoicingModule() {
                 <Th>Сума</Th>
                 <Th>Статус</Th>
                 <Th>Доставка</Th>
+                <Th>Изпратено</Th>
                 <Th>Действия</Th>
               </tr>
             </Thead>
@@ -366,7 +383,27 @@ export default function InvoicingModule() {
                       <DeliveryBolts status={inv.cross_copy_status} />
                     </Td>
                     <Td>
+                      <button
+                        type="button"
+                        onClick={() => setLogDrawerInvoiceId(inv.invoice_id)}
+                        className="text-xs text-indigo-600 hover:underline"
+                        title="Преглед на дневника на изпратените имейли"
+                      >
+                        дневник
+                      </button>
+                    </Td>
+                    <Td>
                       <span className="inline-flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setEmailModal({ invoiceId: inv.invoice_id, defaultTo: '' })
+                          }
+                          title="Изпрати по имейл"
+                        >
+                          <Mail size={14} className="text-indigo-600" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -411,6 +448,36 @@ export default function InvoicingModule() {
             setFormMode(null)
             void fetchInvoices()
           }}
+        />
+      )}
+
+      {emailModal && companyId && (
+        <SendEmailModal
+          open
+          invoiceId={emailModal.invoiceId}
+          companyId={companyId}
+          profileId={profileId}
+          defaultTo={emailModal.defaultTo}
+          onClose={() => setEmailModal(null)}
+          onSent={() => {
+            setEmailModal(null)
+            void fetchInvoices()
+          }}
+        />
+      )}
+
+      <EmailLogDrawer
+        open={logDrawerInvoiceId !== null}
+        invoiceId={logDrawerInvoiceId}
+        onClose={() => setLogDrawerInvoiceId(null)}
+      />
+
+      {templatesOpen && companyId && (
+        <EmailTemplatesModal
+          open
+          companyId={companyId}
+          profileId={profileId}
+          onClose={() => setTemplatesOpen(false)}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,8 @@ from app.models.company import Company
 from app.models.invoicing import (
     InvClient,
     InvCompanySettings,
+    InvEmailLog,
+    InvEmailTemplate,
     InvInvoiceLine,
     InvInvoiceMeta,
     InvItem,
@@ -30,7 +33,12 @@ from app.schemas.invoicing import (
     ClientUpdate,
     CompanySettingsOut,
     CompanySettingsUpdate,
+    EmailTemplateCreate,
+    EmailTemplateOut,
+    EmailTemplateUpdate,
     InvoiceCreateSchema,
+    InvoiceEmailLogOut,
+    InvoiceEmailSendRequest,
     InvoiceMetaOut,
     ItemCreate,
     ItemOut,
@@ -42,6 +50,7 @@ from app.schemas.invoicing import (
     SyncSettingsUpdate,
 )
 from app.services.eik_lookup import lookup_eik
+from app.services.email_service import send_invoice_email
 from app.services.pdf_service import InvoicePdfSnapshot, render_invoice_pdf
 from app.services.ws_manager import ws_manager
 
@@ -1248,3 +1257,349 @@ async def update_sync_settings(
 
     await db.flush()
     return SyncSettingsOut.model_validate(settings)
+
+
+# ──────────────────── Stage 4: Email templates & send ────────────────────
+
+
+DEFAULT_EMAIL_TEMPLATE_SUBJECT = "Фактура №{invoice_number} от {company_name}"
+DEFAULT_EMAIL_TEMPLATE_BODY = (
+    "Здравейте, {client_name}\n\n"
+    "Изпращаме Ви фактура №{invoice_number} от {issue_date} на стойност "
+    "{total} {currency}.\n\n"
+    "Благодарим Ви за доверието!\n\n"
+    "{company_name}"
+)
+
+
+def _render_merge_fields(
+    template_text: str,
+    *,
+    meta: InvInvoiceMeta,
+    company: Company,
+    client: InvClient | None,
+    issuer_name: str,
+) -> str:
+    """Fill in invoice merge fields, leaving unknown ``{placeholders}`` intact."""
+
+    class _Lenient(dict[str, Any]):
+        def __missing__(self, key: str) -> str:
+            return "{" + key + "}"
+
+    values = _Lenient(
+        invoice_number=meta.invoice_number or "",
+        issue_date=str(meta.issue_date) if meta.issue_date else "",
+        due_date=str(meta.due_date) if meta.due_date else "",
+        total=f"{meta.total:.2f}",
+        currency=meta.currency,
+        client_name=(client.name if client else "") or "",
+        company_name=company.name,
+        issuer_name=issuer_name or company.name,
+    )
+    try:
+        return template_text.format_map(values)
+    except (IndexError, KeyError, ValueError):
+        return template_text
+
+
+@router.get("/companies/{company_id}/email-templates")
+async def list_email_templates(
+    company_id: str,
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[EmailTemplateOut]:
+    """Return all email templates for a company (most recent first)."""
+    _verify_ownership(profile_id, user)
+    await _verify_company_access(company_id, profile_id, db)
+    rows = (
+        (
+            await db.execute(
+                select(InvEmailTemplate)
+                .where(
+                    InvEmailTemplate.company_id == company_id,
+                    InvEmailTemplate.profile_id == profile_id,
+                )
+                .order_by(InvEmailTemplate.is_default.desc(), InvEmailTemplate.updated_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [EmailTemplateOut.model_validate(row) for row in rows]
+
+
+@router.post("/email-templates")
+async def create_email_template(
+    req: EmailTemplateCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmailTemplateOut:
+    """Create a new email template. Flips other defaults off when ``is_default=True``."""
+    _verify_ownership(req.profile_id, user)
+    await _verify_company_access(req.company_id, req.profile_id, db)
+
+    if req.is_default:
+        existing = (
+            (
+                await db.execute(
+                    select(InvEmailTemplate).where(
+                        InvEmailTemplate.company_id == req.company_id,
+                        InvEmailTemplate.is_default.is_(True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in existing:
+            row.is_default = False
+
+    row = InvEmailTemplate(
+        id=str(uuid.uuid4()),
+        company_id=req.company_id,
+        profile_id=req.profile_id,
+        name=req.name,
+        subject=req.subject,
+        body=req.body,
+        is_default=req.is_default,
+        attach_pdf=req.attach_pdf,
+    )
+    db.add(row)
+    await db.flush()
+    return EmailTemplateOut.model_validate(row)
+
+
+@router.put("/email-templates/{template_id}")
+async def update_email_template(
+    template_id: str,
+    req: EmailTemplateUpdate,
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmailTemplateOut:
+    """Partial update of an email template."""
+    _verify_ownership(profile_id, user)
+    row = (
+        await db.execute(
+            select(InvEmailTemplate).where(
+                InvEmailTemplate.id == template_id,
+                InvEmailTemplate.profile_id == profile_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Шаблонът не е намерен")
+
+    if req.is_default is True and not row.is_default:
+        existing = (
+            (
+                await db.execute(
+                    select(InvEmailTemplate).where(
+                        InvEmailTemplate.company_id == row.company_id,
+                        InvEmailTemplate.is_default.is_(True),
+                        InvEmailTemplate.id != row.id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for other in existing:
+            other.is_default = False
+
+    if req.name is not None:
+        row.name = req.name
+    if req.subject is not None:
+        row.subject = req.subject
+    if req.body is not None:
+        row.body = req.body
+    if req.is_default is not None:
+        row.is_default = req.is_default
+    if req.attach_pdf is not None:
+        row.attach_pdf = req.attach_pdf
+    row.updated_at = datetime.utcnow()
+
+    await db.flush()
+    return EmailTemplateOut.model_validate(row)
+
+
+@router.delete("/email-templates/{template_id}")
+async def delete_email_template(
+    template_id: str,
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    _verify_ownership(profile_id, user)
+    row = (
+        await db.execute(
+            select(InvEmailTemplate).where(
+                InvEmailTemplate.id == template_id,
+                InvEmailTemplate.profile_id == profile_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Шаблонът не е намерен")
+    await db.delete(row)
+    return {"message": "deleted"}
+
+
+@router.get("/invoices/{invoice_id}/email-log")
+async def list_invoice_email_log(
+    invoice_id: str,
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[InvoiceEmailLogOut]:
+    """Return email log rows for a single invoice."""
+    _verify_ownership(profile_id, user)
+    rows = (
+        (
+            await db.execute(
+                select(InvEmailLog)
+                .where(
+                    InvEmailLog.invoice_id == invoice_id,
+                    InvEmailLog.profile_id == profile_id,
+                )
+                .order_by(InvEmailLog.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [InvoiceEmailLogOut.model_validate(row) for row in rows]
+
+
+@router.post("/invoices/{invoice_id}/send-email")
+async def send_invoice_email_endpoint(
+    invoice_id: str,
+    req: InvoiceEmailSendRequest,
+    profile_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceEmailLogOut:
+    """Send an issued invoice to a client by email, optionally with PDF attached.
+
+    Supports an optional ``template_id`` — when provided (and belonging to the
+    same company), the template's subject/body are used as defaults; explicit
+    ``subject`` / ``body`` in the request override them. The resulting send is
+    persisted in :class:`InvEmailLog` regardless of outcome.
+    """
+    _verify_ownership(profile_id, user)
+
+    meta = (
+        await db.execute(
+            select(InvInvoiceMeta).where(
+                InvInvoiceMeta.invoice_id == invoice_id,
+                InvInvoiceMeta.profile_id == profile_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not meta:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+
+    company = await _verify_company_access(meta.company_id, profile_id, db)
+    client: InvClient | None = None
+    if meta.client_id:
+        client = (await db.execute(select(InvClient).where(InvClient.id == meta.client_id))).scalar_one_or_none()
+
+    template: InvEmailTemplate | None = None
+    if req.template_id:
+        template = (
+            await db.execute(
+                select(InvEmailTemplate).where(
+                    InvEmailTemplate.id == req.template_id,
+                    InvEmailTemplate.company_id == meta.company_id,
+                    InvEmailTemplate.profile_id == profile_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if not template:
+            raise HTTPException(status_code=404, detail="Шаблонът не е намерен")
+
+    raw_subject = req.subject or (template.subject if template else DEFAULT_EMAIL_TEMPLATE_SUBJECT)
+    raw_body = req.body or (template.body if template else DEFAULT_EMAIL_TEMPLATE_BODY)
+    issuer_name = user.email or company.name
+    subject = _render_merge_fields(raw_subject, meta=meta, company=company, client=client, issuer_name=issuer_name)
+    body_text = _render_merge_fields(raw_body, meta=meta, company=company, client=client, issuer_name=issuer_name)
+
+    attach_pdf = req.attach_pdf if req.attach_pdf is not None else (template.attach_pdf if template else True)
+    pdf_path = meta.pdf_path or ""
+    attachment_path = pdf_path if attach_pdf and pdf_path and os.path.isfile(pdf_path) else None
+    attachment_name = None
+    if attachment_path:
+        attachment_name = f"faktura_{meta.invoice_number}.pdf" if meta.invoice_number else os.path.basename(pdf_path)
+
+    log = InvEmailLog(
+        id=str(uuid.uuid4()),
+        invoice_id=invoice_id,
+        profile_id=profile_id,
+        company_id=meta.company_id,
+        template_id=template.id if template else None,
+        to_email=req.to_email,
+        cc_emails=",".join(req.cc_emails) if req.cc_emails else None,
+        bcc_emails=",".join(req.bcc_emails) if req.bcc_emails else None,
+        subject=subject,
+        body=body_text,
+        attached_pdf=bool(attachment_path),
+        delivery_status="queued",
+    )
+    db.add(log)
+    await db.flush()
+
+    # Provide a minimal HTML rendering so the recipient's client has both
+    # plain-text and HTML to choose from without us needing a templating engine.
+    html_body = '<html><body><pre style="font-family: Arial, sans-serif; font-size: 14px">' + body_text + "</pre></body></html>"
+
+    ok, message_id, err = await send_invoice_email(
+        req.to_email,
+        subject,
+        html_body,
+        body_text,
+        cc=req.cc_emails,
+        bcc=req.bcc_emails,
+        attachment_path=attachment_path,
+        attachment_name=attachment_name,
+    )
+    log.message_id = message_id
+    log.delivery_status = "sent" if ok else "failed"
+    log.delivery_error = err
+    log.sent_at = datetime.utcnow() if ok else None
+    await db.flush()
+    return InvoiceEmailLogOut.model_validate(log)
+
+
+# 1×1 transparent GIF served when the recipient opens an invoice email.
+_TRACKING_PIXEL = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01"
+    b"\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+)
+
+
+@router.get("/email/track/{log_id}.gif")
+async def track_email_open(
+    log_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Public 1×1 GIF endpoint that records an email open.
+
+    Intentionally unauthenticated — mail clients fetch the image without any
+    session cookies. We swallow any DB error silently so image loads can't leak
+    server-side state to the recipient.
+    """
+    try:
+        row = (await db.execute(select(InvEmailLog).where(InvEmailLog.id == log_id))).scalar_one_or_none()
+        if row:
+            row.open_count = (row.open_count or 0) + 1
+            if row.opened_at is None:
+                row.opened_at = datetime.utcnow()
+            await db.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    return Response(
+        content=_TRACKING_PIXEL,
+        media_type="image/gif",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )

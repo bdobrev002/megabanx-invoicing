@@ -5,8 +5,11 @@ import html as html_mod
 import logging
 import smtplib
 import uuid
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
 from app.config import settings
 
@@ -144,3 +147,86 @@ async def send_share_notification_email(to_email: str, owner_name: str, company_
 
     text = f"{owner_name} shared company {company_name} with you in {settings.APP_NAME}.\nLogin at {settings.BASE_URL}"
     return await send_email(to_email, f"{settings.APP_NAME} - New shared company from {owner_name}", html, text)
+
+
+def _send_invoice_email_sync(
+    to_email: str,
+    cc: list[str],
+    bcc: list[str],
+    subject: str,
+    html: str,
+    text: str,
+    attachment_path: str | None,
+    attachment_name: str | None,
+) -> tuple[bool, str | None, str | None]:
+    """Send an invoice email with optional PDF attachment.
+
+    Returns ``(ok, message_id, error)``. ``message_id`` is the RFC 5322
+    ``Message-ID`` we set on the outgoing mail so the caller can store it in
+    :class:`~app.models.invoicing.InvEmailLog` for later reconciliation.
+    """
+    message_id = f"<{uuid.uuid4()}@megabanx.com>"
+    try:
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = subject
+        msg["From"] = f"{settings.APP_NAME} <{settings.SMTP_FROM}>"
+        msg["To"] = to_email
+        if cc:
+            msg["Cc"] = ", ".join(cc)
+        msg["Reply-To"] = settings.SMTP_FROM
+        msg["Message-ID"] = message_id
+        msg["X-Mailer"] = settings.APP_NAME
+        msg["MIME-Version"] = "1.0"
+
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(text, "plain", "utf-8"))
+        alt.attach(MIMEText(html, "html", "utf-8"))
+        msg.attach(alt)
+
+        if attachment_path:
+            path = Path(attachment_path)
+            if path.is_file():
+                with path.open("rb") as fh:
+                    part = MIMEBase("application", "pdf")
+                    part.set_payload(fh.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{attachment_name or path.name}"',
+                )
+                msg.attach(part)
+
+        recipients = [to_email, *cc, *bcc]
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.sendmail(settings.SMTP_FROM, recipients, msg.as_string())
+
+        logger.info(f"[EMAIL][invoice] Sent to {recipients}: {subject}")
+        return True, message_id, None
+    except Exception as e:
+        logger.error(f"[EMAIL][invoice] Error sending to {to_email}: {e}")
+        return False, message_id, str(e)
+
+
+async def send_invoice_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+    *,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    attachment_path: str | None = None,
+    attachment_name: str | None = None,
+) -> tuple[bool, str | None, str | None]:
+    """Async wrapper around :func:`_send_invoice_email_sync`."""
+    return await asyncio.to_thread(
+        _send_invoice_email_sync,
+        to_email,
+        cc or [],
+        bcc or [],
+        subject,
+        html,
+        text,
+        attachment_path,
+        attachment_name,
+    )
