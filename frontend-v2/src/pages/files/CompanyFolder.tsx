@@ -68,7 +68,9 @@ function withinTimeframe(
   if (!tf && !from && !to) return true
   if (!dateStr) return !tf && !from && !to
   const d = new Date(dateStr)
-  if (Number.isNaN(d.getTime())) return true
+  // With an active filter, records without a usable date are hidden (same as
+  // the empty-string branch above) rather than silently bypassing the filter.
+  if (Number.isNaN(d.getTime())) return false
   const now = new Date()
   if (tf === 'today') return d.toDateString() === now.toDateString()
   if (tf === 'week') {
