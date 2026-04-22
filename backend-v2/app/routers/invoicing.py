@@ -1,5 +1,6 @@
 """Invoicing module router: clients, items, stubs, invoices, settings, sync."""
 
+import asyncio
 import os
 import uuid
 from datetime import date, datetime
@@ -1469,7 +1470,9 @@ async def preview_invoice_template(
     _ = user
     if template_key not in VALID_TEMPLATE_KEYS:
         raise HTTPException(status_code=404, detail="Неизвестен шаблон")
-    pdf_bytes = render_preview_pdf_bytes(template_key, document_type=document_type)
+    # WeasyPrint rendering is CPU-heavy; run off the event loop so it doesn't
+    # block other requests on the same worker.
+    pdf_bytes = await asyncio.to_thread(render_preview_pdf_bytes, template_key, document_type=document_type)
     if pdf_bytes is None:
         raise HTTPException(status_code=503, detail="PDF рендеризацията не е налична")
     return Response(
