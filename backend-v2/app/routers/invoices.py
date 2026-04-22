@@ -746,7 +746,9 @@ async def get_folder_structure(
                         }
                     )
                     rendered_company_ids.add(comp.id)
-            else:
+            elif allowed is None:
+                # Orphan directories (no matching DB company) only leak to the
+                # profile owner; shared users must never see them.
                 folders.append(
                     {
                         "name": item,
