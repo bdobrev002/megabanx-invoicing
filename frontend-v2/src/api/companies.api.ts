@@ -28,6 +28,7 @@ export const companiesApi = {
     apiFetch<{
       name: string
       address: string
+      city?: string
       mol: string
       managers: string[]
       partners: string[]
