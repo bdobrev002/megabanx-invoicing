@@ -17,12 +17,44 @@ def _extract_text_from_html(html: str) -> str:
     return text
 
 
+def _strip_address_prefix(text: str) -> str:
+    """Strip everything before the street part; keep address from ул./ж.к./бул. onwards."""
+    # Drop everything up to and including the last "п.к. NNNN[,]?" occurrence.
+    m = re.search(r"п\.к\.\s*\d+[,.]?\s*", text)
+    if m:
+        text = text[m.end() :].strip()
+    else:
+        # Fallback: drop up to and including "Населено място: ... ," segment.
+        m = re.search(r"Населено\s+място:\s*[^,]+,?\s*", text)
+        if m:
+            text = text[m.end() :].strip()
+    # Drop any leftover "Държава:/Област:/Община:" prefix fragments.
+    text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
+    # Drop "р-н NNN" prefix (district) — the user wants address starting from ул./ж.к./бул.
+    text = re.sub(r"^р-н\s+[^,]+,?\s*", "", text).strip()
+    # TR sometimes prefixes fields with label hints like "ж.к. ж.к. Банишора" or
+    # "бул./ул. ул. Скопие". Collapse these to a single prefix.
+    text = re.sub(r"\bж\.к\.\s+ж\.к\.\s+", "ж.к. ", text)
+    text = re.sub(r"\bбул\.\s+бул\.\s+", "бул. ", text)
+    text = re.sub(r"\bул\.\s+ул\.\s+", "ул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+ул\.\s+", "ул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+бул\.\s+", "бул. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+ж\.к\.\s+", "ж.к. ", text)
+    text = re.sub(r"\bбул\./ул\.\s+", "ул. ", text)
+    # Truncate everything before first ж.к./ул./бул. if still anything noisy ahead.
+    m = re.search(r"(ж\.к\.|ул\.|бул\.)", text)
+    if m and m.start() > 0:
+        text = text[m.start() :].strip()
+    return text.lstrip(",").strip()
+
+
 def _parse_address_from_field(html: str) -> str:
     text = _extract_text_from_html(html)
     for sep in ["Телефон:", "Тел.:", "Phone:", "Факс:", "Fax:", "Интернет стр", "Адрес на електронна поща:"]:
         idx = text.find(sep)
         if idx > 0:
             text = text[:idx].strip().rstrip(",").strip()
+    text = _strip_address_prefix(text)
     return text
 
 
@@ -41,6 +73,40 @@ def _extract_email_from_text(text: str) -> str:
     return match.group(0).lower() if match else ""
 
 
+def _extract_names_from_html(html: str) -> list[str]:
+    """Extract person/company names from a TR field (managers/partners)."""
+    text = _extract_text_from_html(html)
+    if not text or "Заличено" in text:
+        return []
+    names: list[str] = []
+    for line in re.split(r"[\n;]|\d+\.\s*", text):
+        line = line.strip().strip(",").strip()
+        if not line or len(line) < 2:
+            continue
+        name_part = re.split(r",\s*Държава:", line)[0].strip()
+        name_part = re.split(r",\s*ЕИК", name_part)[0].strip()
+        name_part = re.split(r",\s*Идентификация", name_part)[0].strip()
+        if not name_part or len(name_part) < 2:
+            continue
+        skip = ["ул.", "бул.", "гр.", "п.к.", "р-н", "ет.", "ап.", "вх.", "Област", "Община", "Населено"]
+        if any(s in name_part for s in skip):
+            continue
+        if name_part not in names:
+            names.append(name_part)
+    return names
+
+
+# TR field codes (meanings depend on company type, but these are the ones we extract from):
+#   CR_F_5_L  — Седалище и адрес на управление (registered office + address)
+#   CR_F_7_L  — Управители / Представляващи (managers for EOOD/OOD)
+#   CR_F_10_L — Едноличен собственик / Неограничено отг. съдружник (sole owner)
+#   CR_F_23_L — Съдружници (partners, for OOD)
+_TR_ADDRESS_CODE = "CR_F_5_L"
+_TR_SOLE_OWNER_CODE = "CR_F_10_L"
+_TR_MANAGERS_CODE = "CR_F_7_L"
+_TR_PARTNERS_CODE = "CR_F_23_L"
+
+
 def _parse_trade_registry_response(data: dict) -> dict:
     company_name = data.get("companyName", "").strip()
     full_name = data.get("fullName", "").strip()
@@ -54,8 +120,10 @@ def _parse_trade_registry_response(data: dict) -> dict:
 
     address = ""
     city = ""
-    mol = ""
+    sole_owner = ""
     tr_email = ""
+    managers: list[str] = []
+    partners: list[str] = []
 
     for section in data.get("sections", []):
         for sub in section.get("subDeeds", []):
@@ -63,15 +131,29 @@ def _parse_trade_registry_response(data: dict) -> dict:
                 for field in group.get("fields", []):
                     code = field.get("nameCode", "")
                     html = field.get("htmlData", "")
-                    if code == "CR_F_5_L" and not address:
+                    if code == _TR_ADDRESS_CODE and not address:
                         full_addr_text = _extract_text_from_html(html)
                         if not tr_email:
                             tr_email = _extract_email_from_text(full_addr_text)
                         if not city:
                             city = _extract_city_from_address(full_addr_text)
                         address = _parse_address_from_field(html)
-                    elif code == "CR_F_10_L" and not mol:
-                        mol = _extract_text_from_html(html)
+                    elif code == _TR_SOLE_OWNER_CODE and not sole_owner:
+                        sole_owner = _extract_text_from_html(html)
+                    elif code == _TR_MANAGERS_CODE:
+                        for name in _extract_names_from_html(html):
+                            if name not in managers:
+                                managers.append(name)
+                    elif code == _TR_PARTNERS_CODE:
+                        for name in _extract_names_from_html(html):
+                            if name not in partners:
+                                partners.append(name)
+
+    # МОЛ (Управител / Представляващ) — prefer actual manager name,
+    # fall back to sole-owner text (which for KD/KDA companies is the managing entity).
+    mol = managers[0] if managers else sole_owner
+    if mol and ("Заличено" in mol):
+        mol = managers[0] if managers else ""
 
     display_name = full_name if full_name else company_name
 
@@ -85,6 +167,8 @@ def _parse_trade_registry_response(data: dict) -> dict:
         "city": city,
         "mol": mol,
         "email": tr_email,
+        "managers": managers,
+        "partners": partners,
         "source": "Търговски регистър (portal.registryagency.bg)",
     }
 
@@ -114,6 +198,8 @@ def _parse_summary_response(items: list, eik: str) -> dict:
         "city": "",
         "mol": "",
         "email": "",
+        "managers": [],
+        "partners": [],
         "source": "Търговски регистър (portal.registryagency.bg)",
     }
 

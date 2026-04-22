@@ -30,6 +30,8 @@ export const companiesApi = {
       address: string
       city?: string
       mol: string
+      email?: string
+      vat_number?: string
       managers: string[]
       partners: string[]
     }>(`/lookup-eik/${eik}`),
