@@ -44,16 +44,18 @@ interface Props {
 const SUBTYPE_LABEL: Record<string, string> = {
   purchases: 'Фактури покупки',
   sales: 'Фактури продажби',
-  pending: 'Чакащи одобрение',
 }
 
+// Maps UI subfolder slugs to Invoice.invoice_type values stored in the DB.
+// We deliberately omit 'pending' here: invoices awaiting counterparty approval
+// live in inv_invoice_meta (cross_copy_status='pending') and are surfaced via
+// the separate "Входящи" tab — no Invoice row ever carries invoice_type='pending'.
 const SUBTYPE_API: Record<string, string> = {
   purchases: 'purchase',
   sales: 'sale',
-  pending: 'pending',
 }
 
-const SUBTYPE_ORDER = ['purchases', 'sales', 'pending']
+const SUBTYPE_ORDER = ['purchases', 'sales']
 
 function countOf(folder: FolderData, name: string): number {
   return folder.subfolders.find((sf) => sf.name === name)?.file_count ?? 0
@@ -129,7 +131,6 @@ export default function CompanyFolder({
 
   const purchases = countOf(folder, 'purchases')
   const sales = countOf(folder, 'sales')
-  const pending = countOf(folder, 'pending')
 
   const loadSection = useCallback(
     async (sub: string, force = false) => {
@@ -153,7 +154,7 @@ export default function CompanyFolder({
   // cached invoice lists so the header counts and expanded rows stay in sync.
   // If a section is currently open, immediately refetch it so the user never
   // sees a blank rows area while the new data is fetched.
-  const countsKey = `${purchases}|${sales}|${pending}`
+  const countsKey = `${purchases}|${sales}`
   const prevCountsKey = useRef(countsKey)
   const loadSectionRef = useRef(loadSection)
   useEffect(() => {
@@ -245,7 +246,7 @@ export default function CompanyFolder({
           )}
           <span className="font-semibold text-gray-900">{folder.name}</span>
           <span className="text-xs text-gray-500">
-            {purchases} покупки, {sales} продажби, {pending} чакащи
+            {purchases} покупки, {sales} продажби
           </span>
         </button>
 
@@ -333,7 +334,7 @@ export default function CompanyFolder({
               </div>
             )
           })}
-          {purchases + sales + pending === 0 && (
+          {purchases + sales === 0 && (
             <p className="py-3 pl-8 text-xs text-gray-500">
               Все още няма качени фактури за тази фирма.
             </p>
