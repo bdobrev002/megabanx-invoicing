@@ -232,3 +232,71 @@ class SyncSettingsOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Email templates (Stage 4) ---
+class EmailTemplateCreate(BaseModel):
+    company_id: str
+    profile_id: str
+    name: str
+    subject: str
+    body: str
+    is_default: bool = False
+    attach_pdf: bool = True
+
+
+class EmailTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    is_default: Optional[bool] = None
+    attach_pdf: Optional[bool] = None
+
+
+class EmailTemplateOut(BaseModel):
+    id: str
+    company_id: str
+    profile_id: str
+    name: str
+    subject: str
+    body: str
+    is_default: bool
+    attach_pdf: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# --- Email send / log (Stage 4) ---
+class InvoiceEmailSendRequest(BaseModel):
+    to_email: str
+    cc_emails: list[str] = []
+    bcc_emails: list[str] = []
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    template_id: Optional[str] = None
+    attach_pdf: bool = True
+
+
+class InvoiceEmailLogOut(BaseModel):
+    id: str
+    invoice_id: str
+    profile_id: str
+    company_id: str
+    template_id: Optional[str]
+    to_email: str
+    cc_emails: Optional[str]
+    bcc_emails: Optional[str]
+    subject: str
+    body: str
+    attached_pdf: bool
+    message_id: Optional[str]
+    delivery_status: str
+    delivery_error: Optional[str]
+    sent_at: Optional[datetime]
+    opened_at: Optional[datetime]
+    open_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -127,6 +127,54 @@ class InvInvoiceLine(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class InvEmailTemplate(Base):
+    """Per-company email template used when sending invoices to clients.
+
+    ``body`` supports merge fields interpolated via :func:`str.format_map`:
+    ``{invoice_number}``, ``{issue_date}``, ``{due_date}``, ``{total}``,
+    ``{currency}``, ``{client_name}``, ``{company_name}``, ``{issuer_name}``.
+    """
+
+    __tablename__ = "inv_email_templates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    profile_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    attach_pdf: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class InvEmailLog(Base):
+    """Audit row for every invoice email dispatched through the system."""
+
+    __tablename__ = "inv_email_log"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    invoice_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    profile_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    company_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    template_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    to_email: Mapped[str] = mapped_column(String(500), nullable=False)
+    cc_emails: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bcc_emails: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subject: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    attached_pdf: Mapped[bool] = mapped_column(Boolean, default=False)
+    message_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # delivery_status values: queued, sent, failed
+    delivery_status: Mapped[str] = mapped_column(String(20), default="queued")
+    delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    open_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class InvSyncSettings(Base):
     __tablename__ = "inv_sync_settings"
 

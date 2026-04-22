@@ -1,10 +1,15 @@
 import { apiFetch } from './client'
 import type {
+  EmailTemplate,
+  EmailTemplateCreate,
+  EmailTemplateUpdate,
   InvoiceClient,
-  InvoiceItem,
-  InvoiceStub,
+  InvoiceEmailLog,
+  InvoiceEmailSendRequest,
   InvoiceFormData,
+  InvoiceItem,
   InvoiceLine,
+  InvoiceStub,
   IssuedInvoiceMeta,
 } from '@/types/invoicing.types'
 
@@ -227,9 +232,32 @@ export const invoicingApi = {
       body: JSON.stringify({ ...data, company_id: companyId, profile_id: profileId }),
     }),
 
-  sendEmail: (invoiceId: string, to: string, subject: string, body: string) =>
-    apiFetch<void>('/invoicing/send-email', {
+  listEmailTemplates: (companyId: string, profileId: string) =>
+    apiFetch<EmailTemplate[]>(
+      `/invoicing/companies/${companyId}/email-templates?profile_id=${profileId}`,
+    ),
+
+  createEmailTemplate: (data: EmailTemplateCreate) =>
+    apiFetch<EmailTemplate>('/invoicing/email-templates', {
       method: 'POST',
-      body: JSON.stringify({ invoice_id: invoiceId, to, subject, body }),
+      body: JSON.stringify(data),
+    }),
+
+  updateEmailTemplate: (templateId: string, data: EmailTemplateUpdate) =>
+    apiFetch<EmailTemplate>(`/invoicing/email-templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteEmailTemplate: (templateId: string) =>
+    apiFetch<void>(`/invoicing/email-templates/${templateId}`, { method: 'DELETE' }),
+
+  listInvoiceEmailLog: (invoiceId: string) =>
+    apiFetch<InvoiceEmailLog[]>(`/invoicing/invoices/${invoiceId}/email-log`),
+
+  sendInvoiceEmail: (invoiceId: string, data: InvoiceEmailSendRequest) =>
+    apiFetch<InvoiceEmailLog>(`/invoicing/invoices/${invoiceId}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 }
