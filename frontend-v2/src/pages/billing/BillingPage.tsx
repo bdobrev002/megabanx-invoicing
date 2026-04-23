@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, History, LayoutGrid } from 'lucide-react'
 import Spinner from '@/components/ui/Spinner'
 import { billingApi } from '@/api/billing.api'
+import { authApi } from '@/api/auth.api'
 import { useBillingStore } from '@/stores/billingStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -20,7 +21,9 @@ const TABS: { key: Tab; label: string; icon: typeof LayoutGrid }[] = [
 export default function BillingPage() {
   const { setPlans, setPayments } = useBillingStore()
   const subscription = useAuthStore((s) => s.user?.subscription) ?? null
+  const setUser = useAuthStore((s) => s.setUser)
   const setError = useUiStore((s) => s.setError)
+  const setSuccess = useUiStore((s) => s.setSuccess)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('plans')
 
@@ -43,6 +46,24 @@ export default function BillingPage() {
     fetchData()
   }, [fetchData])
 
+  // Stage 9: when Stripe redirects us back with ?billing=success, refresh the
+  // user (subscription fields flip after webhook persists) and show a toast.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const flag = params.get('billing')
+    if (!flag) return
+    if (flag === 'success') {
+      setSuccess?.('Благодарим! Абонаментът ви е активен.')
+      authApi.me().then((u) => setUser(u)).catch(() => {})
+      billingApi.getPaymentHistory().then(setPayments).catch(() => {})
+    } else if (flag === 'cancel') {
+      setError('Плащането беше отказано.')
+    }
+    params.delete('billing')
+    const qs = params.toString()
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''))
+  }, [setUser, setPayments, setSuccess, setError])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -59,7 +80,10 @@ export default function BillingPage() {
 
       {subscription && <SubscriptionStatus subscription={subscription} />}
 
-      {subscription?.status === 'trial' && <TrialActivation />}
+      {/* TrialActivation is only for the non-Stripe 30-day trial. If the user
+          is already on a Stripe-managed trial (stripe_subscription_id set),
+          they have a real subscription and /trial would 400. */}
+      {subscription?.status === 'trial' && !subscription?.stripe_subscription_id && <TrialActivation />}
 
       <div className="mb-4 flex gap-1 border-b">
         {TABS.map(({ key, label, icon: Icon }) => {

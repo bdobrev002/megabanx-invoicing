@@ -1,4 +1,4 @@
-import { Crown, Shield, AlertTriangle, RefreshCw, XCircle, Loader2 } from 'lucide-react'
+import { Crown, Shield, AlertTriangle, RefreshCw, XCircle, Loader2, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { billingApi } from '@/api/billing.api'
 import { useUiStore } from '@/stores/uiStore'
@@ -90,6 +90,17 @@ export default function SubscriptionStatus({ subscription }: Props) {
     }
   }
 
+  const openPortal = async () => {
+    setBusy('portal')
+    try {
+      const { url } = await billingApi.openPortal()
+      window.location.href = url
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при отваряне на портала')
+      setBusy(null)
+    }
+  }
+
   return (
     <div className={`mb-6 rounded-xl border p-4 ${colors.wrap}`}>
       <div className="flex items-start justify-between gap-3">
@@ -127,7 +138,7 @@ export default function SubscriptionStatus({ subscription }: Props) {
         </div>
       )}
 
-      {subscription.status === 'active' && subscription.stripe_subscription_id && (
+      {(subscription.status === 'active' || subscription.status === 'trial') && subscription.stripe_subscription_id && (
         <div className="mt-3 flex flex-wrap gap-2">
           {subscription.cancel_at_period_end ? (
             <button
@@ -158,6 +169,19 @@ export default function SubscriptionStatus({ subscription }: Props) {
               Спри автоматично подновяване
             </button>
           )}
+          <button
+            type="button"
+            onClick={openPortal}
+            disabled={busy !== null}
+            className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs text-indigo-600 transition hover:bg-indigo-100 disabled:opacity-60"
+          >
+            {busy === 'portal' ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <ExternalLink className="h-3 w-3" />
+            )}
+            Управление на плащанията
+          </button>
         </div>
       )}
     </div>

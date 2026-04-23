@@ -31,4 +31,6 @@ export const billingApi = {
 
   activateTrial: () =>
     apiFetch<{ message: string }>('/billing/trial', { method: 'POST' }),
+
+  openPortal: () => apiFetch<{ url: string }>('/billing/portal'),
 }
