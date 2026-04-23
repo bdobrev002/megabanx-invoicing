@@ -180,26 +180,28 @@ export default function FilesPage() {
               }}
             />
           </div>
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value)
-              if (e.target.value) setTimeframe('')
-            }}
-            className="w-40"
-            placeholder="От дата"
-          />
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value)
-              if (e.target.value) setTimeframe('')
-            }}
-            className="w-40"
-            placeholder="До дата"
-          />
+          <div className="w-40">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value)
+                if (e.target.value) setTimeframe('')
+              }}
+              placeholder="От дата"
+            />
+          </div>
+          <div className="w-40">
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value)
+                if (e.target.value) setTimeframe('')
+              }}
+              placeholder="До дата"
+            />
+          </div>
           <div className="ml-auto flex items-center gap-1">
             <span className="text-xs text-gray-500">Сортирай:</span>
             {sortBtn('name', 'Име')}
