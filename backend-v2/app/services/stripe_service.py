@@ -354,6 +354,11 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
             billing.subscription_status = "active"
         billing.cancel_at_period_end = False
         billing.subscription_start = datetime.utcnow()
+        # The real period end arrives via customer.subscription.created/updated.
+        # Clear any stale value (old trial_ends_at / previous subscription_end)
+        # so build_subscription_info doesn't pair the new status with an old
+        # expiry during the brief window before that event lands.
+        billing.current_period_end = None
         await db.flush()
 
     elif event_type in (
@@ -424,7 +429,9 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
     elif event_type == "invoice.payment_failed":
         customer_id = data.get("customer")
         billing = await _find_billing(db, customer_id=customer_id) if customer_id else None
-        if billing is not None:
+        # Don't clobber a terminal "canceled" status with "past_due" if Stripe
+        # delivers a late payment-failed event after subscription deletion.
+        if billing is not None and billing.subscription_status not in ("canceled", "cancelled"):
             billing.subscription_status = "past_due"
             await db.flush()
 
