@@ -122,6 +122,13 @@ async def subscribe(
         raise HTTPException(status_code=400, detail="Невалиден план")
 
     billing = await _get_or_create_billing(user, db)
+    # Prevent double-charging: plan changes must go through the Customer Portal
+    # (or /cancel then re-subscribe) so the old subscription isn't orphaned.
+    if billing.stripe_subscription_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Вече имате активен абонамент. Моля, отменете текущия преди да смените плана.",
+        )
     origin = request.headers.get("origin") or request.headers.get("referer", "")
     try:
         url = await stripe_service.create_checkout_session(user, billing, body.plan_id, origin, db)
