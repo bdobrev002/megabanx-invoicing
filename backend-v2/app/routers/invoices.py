@@ -305,6 +305,19 @@ async def _process_single_inbox_file(
                 "analysis": analysis,
             }
 
+    # Clean up any stale unmatched Invoice rows for this same inbox file from
+    # prior processing runs. Without this, reprocessing accumulates duplicate
+    # unmatched rows, and stale rows remain after a file finally gets matched.
+    stale_unmatched = await db.execute(
+        select(Invoice).where(
+            Invoice.profile_id == profile_id,
+            Invoice.destination_path == inbox_path,
+            Invoice.status == "unmatched",
+        )
+    )
+    for old_inv in stale_unmatched.scalars().all():
+        await db.delete(old_inv)
+
     if matched_company is None:
         # v1 parity: unmatched files stay in the inbox directory; we create an
         # Invoice row (status="unmatched") so the frontend can render a
