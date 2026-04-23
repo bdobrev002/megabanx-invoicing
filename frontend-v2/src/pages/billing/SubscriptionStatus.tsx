@@ -138,7 +138,7 @@ export default function SubscriptionStatus({ subscription }: Props) {
         </div>
       )}
 
-      {subscription.status === 'active' && subscription.stripe_subscription_id && (
+      {(subscription.status === 'active' || subscription.status === 'trial') && subscription.stripe_subscription_id && (
         <div className="mt-3 flex flex-wrap gap-2">
           {subscription.cancel_at_period_end ? (
             <button

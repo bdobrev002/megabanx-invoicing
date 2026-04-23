@@ -126,7 +126,7 @@ async def subscribe(
         url = await stripe_service.create_checkout_session(user, billing, body.plan_id, origin, db)
     except Exception as e:  # noqa: BLE001 — Stripe errors vary
         logger.exception("[STRIPE] create_checkout_session failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Грешка при Stripe: {e}")
+        raise HTTPException(status_code=500, detail="Грешка при създаване на абонамент")
 
     await db.commit()
     return {"checkout_url": url}
@@ -232,6 +232,9 @@ async def activate_trial(
 
     billing.plan = "pro"
     billing.is_trial = True
+    # Clear any stale Stripe status (e.g. "canceled" from a prior subscription)
+    # so the frontend reliably shows the trial banner.
+    billing.subscription_status = None
     billing.trial_ends_at = datetime.utcnow() + timedelta(days=30)
     billing.invoices_limit = int(get_plan("pro").get("max_invoices", 999_999))
     await db.commit()

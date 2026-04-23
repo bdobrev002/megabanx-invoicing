@@ -46,6 +46,27 @@ _price_lock = asyncio.Lock()
 # Paid plans we expose via Checkout. `free` never hits Stripe.
 PAID_PLANS = ("starter", "pro", "business")
 
+# Map raw Stripe subscription statuses to the vocabulary the frontend
+# (SubscriptionStatus.tsx) understands. Stripe statuses the UI doesn't handle
+# fall back to a reasonable equivalent.
+_STATUS_MAP = {
+    "trialing": "trial",
+    "active": "active",
+    "past_due": "past_due",
+    "canceled": "canceled",
+    "cancelled": "canceled",
+    "unpaid": "past_due",
+    "incomplete": "past_due",
+    "incomplete_expired": "expired",
+    "paused": "past_due",
+}
+
+
+def _normalize_status(raw: str | None) -> str | None:
+    if not raw:
+        return raw
+    return _STATUS_MAP.get(raw, raw)
+
 
 def is_configured() -> bool:
     """Whether Stripe can be used (secret key present)."""
@@ -377,7 +398,7 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
             billing.plan = plan_id
             billing.invoices_limit = int(get_plan(plan_id).get("max_invoices", 30))
         if status:
-            billing.subscription_status = status
+            billing.subscription_status = _normalize_status(status)
         billing.cancel_at_period_end = cancel_flag
         if cpe_ts:
             billing.current_period_end = datetime.utcfromtimestamp(int(cpe_ts))
