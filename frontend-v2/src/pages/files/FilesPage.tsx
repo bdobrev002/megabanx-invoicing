@@ -150,21 +150,21 @@ export default function FilesPage() {
         <h2 className="mb-3 text-base font-semibold text-gray-900">Структура на файловете</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-48">
-            <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+            <Search size={14} className="absolute left-2.5 top-1.5 text-gray-400" />
             <Input
               value={fileSearch}
               onChange={(e) => setFileSearch(e.target.value)}
               placeholder="Търсене по файл..."
-              className="pl-8"
+              className="pl-8 py-1"
             />
           </div>
           <div className="relative w-48">
-            <Building2 size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
+            <Building2 size={14} className="absolute left-2.5 top-1.5 text-gray-400" />
             <Input
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
               placeholder="Филтър по фирма..."
-              className="pl-8"
+              className="pl-8 py-1"
             />
           </div>
           <div className="w-36">
@@ -178,6 +178,7 @@ export default function FilesPage() {
                   setDateTo('')
                 }
               }}
+              className="py-1"
             />
           </div>
           <div className="w-36">
@@ -189,6 +190,7 @@ export default function FilesPage() {
                 if (e.target.value) setTimeframe('')
               }}
               placeholder="От дата"
+              className="py-1"
             />
           </div>
           <div className="w-36">
@@ -200,6 +202,7 @@ export default function FilesPage() {
                 if (e.target.value) setTimeframe('')
               }}
               placeholder="До дата"
+              className="py-1"
             />
           </div>
           <div className="ml-auto flex items-center gap-1">
