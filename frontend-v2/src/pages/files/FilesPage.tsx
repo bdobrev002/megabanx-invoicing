@@ -55,6 +55,15 @@ export default function FilesPage() {
     lastClickedIdRef.current = null
   }, [])
 
+  const deselectId = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
+
   /**
    * Read the currently-visible invoice IDs in DOM order across every expanded
    * company. Each InvoiceRow renders `data-file-id={inv.id}`; this matches v1's
@@ -466,6 +475,7 @@ export default function FilesPage() {
               profileId={activeProfileId}
               selectedIds={selectedIds}
               onRowClick={handleRowClick}
+              onDeselectId={deselectId}
               refreshKey={refreshKey}
             />
           ))}

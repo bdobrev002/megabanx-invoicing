@@ -57,6 +57,8 @@ interface Props {
    *   - shift        → range-add from last-clicked row in the same section
    */
   onRowClick: (id: string, e: React.MouseEvent, orderedIds: string[]) => void
+  /** Remove a single id from the parent's selection (used after single-row delete). */
+  onDeselectId: (id: string) => void
   /** Bumped by parent after a batch delete / refresh so we reload rows. */
   refreshKey?: number
 }
@@ -137,6 +139,7 @@ export default function CompanyFolder({
   profileId: profileIdProp,
   selectedIds,
   onRowClick,
+  onDeselectId,
   refreshKey = 0,
 }: Props) {
   const ownProfileId = useAuthStore((s) => s.user?.profile_id) ?? ''
@@ -271,6 +274,7 @@ export default function CompanyFolder({
         }
         return next
       })
+      if (selectedIds.has(inv.id)) onDeselectId(inv.id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при изтриване')
     }
