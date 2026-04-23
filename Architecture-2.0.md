@@ -873,7 +873,36 @@ Email+Code (без пароли):
 
 ---
 
-## 13.11 Познати production инциденти
+## 13.11 Billing catalog + subscription meta (PR #30)
+
+Минимална имплементация на `/api/billing/plans` и обогатяване на `/api/auth/me`
+със `subscription` обект — достатъчно за да се покаже Абонамент страницата
+(план-карти + статус банер) без Stripe. Пълната Stripe интеграция (checkout,
+webhooks, trial activation, payments история, upgrade/downgrade) остава
+за **Stage 9**.
+
+### Backend
+
+- `app/services/plans.py` — **нов модул** с plan catalog (4 плана, inv.bg референция):
+  - Безплатен — 0 BGN, 1 фирма, 30 фактури/месец
+  - Стандарт — 6 BGN, 1 фирма, неограничени фактури
+  - Про — 12 BGN, 5 фирми, неограничени фактури (`popular: true`)
+  - Бизнес — 24 BGN, неограничени фирми/фактури
+  - `999_999` е "unlimited" sentinel — `SubscriptionStatus.tsx` рендерира ∞.
+  - `get_plan(id)`, `plan_limits(id)`, `build_subscription_info(billing, companies, invoices)` helpers.
+- `app/routers/billing.py`:
+  - Нов `GET /api/billing/plans` → `PLANS` (статичен catalog).
+  - Запазен `GET /api/billing/` (legacy shape за Качване banner).
+- `app/routers/auth.py`:
+  - `_subscription_for(user, db)` — чете `Billing`, брои `Company` by `profile_id` и `InvoiceMonthlyUsage` за текущия месец, forward-ва към `build_subscription_info`.
+  - `GET /api/auth/me`, `PUT /api/auth/me`, `POST /api/auth/verify` → връщат `subscription` обект (shape ↔ `frontend-v2/src/types/auth.types.ts::SubscriptionInfo`).
+
+### Frontend
+- Без промени — `BillingPage`, `PlanCards`, `SubscriptionStatus`, `authStore.fetchUser` вече консумират правилните shape-ове; досега получаваха празни данни защото endpoint-ите липсваха.
+
+---
+
+## 13.12 Познати production инциденти
 
 | Инцидент | Причина | Fix | PR |
 |----------|---------|-----|-----|

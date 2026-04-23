@@ -1,4 +1,13 @@
-"""Billing router: plan info, usage stats."""
+"""Billing router: plan catalog + usage stats.
+
+Per plan § 6.5.7, this router exposes two read-only endpoints:
+
+* `GET /api/billing/plans` — static plan catalog for the Абонамент page.
+* `GET /api/billing/`      — current plan + monthly usage for the Качване banner.
+
+Stripe checkout, webhooks, trial activation, subscribe/cancel/resume and
+payment history are deferred to Stage 9.
+"""
 
 from datetime import datetime
 
@@ -10,6 +19,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.billing import Billing, InvoiceMonthlyUsage
 from app.models.user import User
+from app.services.plans import PLANS
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -32,7 +42,6 @@ async def get_billing(
         }
 
     now = datetime.utcnow()
-
     result = await db.execute(
         select(InvoiceMonthlyUsage).where(
             InvoiceMonthlyUsage.user_id == user.id,
@@ -50,3 +59,9 @@ async def get_billing(
         "remaining": max(0, billing.invoices_limit - current_count),
         "started_at": billing.created_at.isoformat() if billing.created_at else None,
     }
+
+
+@router.get("/plans")
+async def list_plans():
+    """Return the static plan catalog consumed by the Абонамент page."""
+    return PLANS

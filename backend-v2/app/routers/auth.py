@@ -4,12 +4,13 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.billing import Billing
+from app.models.billing import Billing, InvoiceMonthlyUsage
+from app.models.company import Company
 from app.models.profile import Profile
 from app.models.sharing import CompanyShare
 from app.models.user import Session, TosConsent, User
@@ -17,6 +18,7 @@ from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest
 from app.services.auth_service import generate_otp, generate_session_token, store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.services.file_manager import ensure_profile_dirs
+from app.services.plans import build_subscription_info
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -164,19 +166,50 @@ async def verify_code(req: VerifyCodeRequest, response: Response, db: AsyncSessi
             "email": user.email,
             "profile_id": user.profile_id,
             "is_admin": user.is_admin,
+            "subscription": await _subscription_for(user, db),
         },
     }
 
 
+async def _subscription_for(user: User, db: AsyncSession) -> dict:
+    """Assemble the SubscriptionInfo payload expected by the frontend.
+
+    Reads the user's `billing` row (plan, trial/subscription window) and
+    attaches the current usage numbers (companies in the user's profile +
+    monthly invoice count).
+    """
+    billing_row = (await db.execute(select(Billing).where(Billing.user_id == user.id))).scalar_one_or_none()
+
+    companies_count = (await db.execute(select(func.count(Company.id)).where(Company.profile_id == user.profile_id))).scalar_one() or 0
+
+    now = datetime.utcnow()
+    usage_row = (
+        await db.execute(
+            select(InvoiceMonthlyUsage).where(
+                InvoiceMonthlyUsage.user_id == user.id,
+                InvoiceMonthlyUsage.year == now.year,
+                InvoiceMonthlyUsage.month == now.month,
+            )
+        )
+    ).scalar_one_or_none()
+    invoices_count = usage_row.count if usage_row else 0
+
+    return build_subscription_info(billing_row, int(companies_count), int(invoices_count))
+
+
 @router.get("/me")
-async def get_me(user: User = Depends(get_current_user)):
-    """Return the current authenticated user."""
+async def get_me(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current authenticated user with subscription metadata."""
     return {
         "id": user.id,
         "name": user.name,
         "email": user.email,
         "profile_id": user.profile_id,
         "is_admin": user.is_admin,
+        "subscription": await _subscription_for(user, db),
     }
 
 
@@ -202,6 +235,7 @@ async def update_me(
         "email": user.email,
         "profile_id": user.profile_id,
         "is_admin": user.is_admin,
+        "subscription": await _subscription_for(user, db),
     }
 
 
