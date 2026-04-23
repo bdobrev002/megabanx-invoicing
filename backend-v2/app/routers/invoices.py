@@ -659,6 +659,30 @@ async def get_folder_structure(
     for c in companies:
         company_by_dir.setdefault(sanitize_path_component(c.name), []).append(c)
 
+    # Proforma counts per own company: InvInvoiceMeta rows on this profile
+    # with document_type='proforma' and status='issued'. v1 surfaces this
+    # inline in the folder header ("X покупки, Y продажби, Z проформи"), so
+    # the count flows through alongside the on-disk purchases/sales counts.
+    proforma_count_by_company: dict[str, int] = {}
+    my_company_ids = [c.id for c in companies]
+    if my_company_ids:
+        proforma_rows = (
+            (
+                await db.execute(
+                    select(InvInvoiceMeta.company_id).where(
+                        InvInvoiceMeta.company_id.in_(my_company_ids),
+                        InvInvoiceMeta.document_type == "proforma",
+                        InvInvoiceMeta.status == "issued",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for cid in proforma_rows:
+            if cid:
+                proforma_count_by_company[cid] = proforma_count_by_company.get(cid, 0) + 1
+
     # Pending cross-copy counts per company EIK: invoices issued by *other*
     # profiles to a client whose EIK matches one of our companies and which
     # are still awaiting this profile's approval. These live in
@@ -742,6 +766,7 @@ async def get_folder_structure(
                             "name": comp.name,
                             "company_id": comp.id,
                             "eik": comp.eik,
+                            "proforma_count": proforma_count_by_company.get(comp.id, 0),
                             "subfolders": _with_pending(subfolders, comp.eik or ""),
                         }
                     )
@@ -754,6 +779,7 @@ async def get_folder_structure(
                         "name": item,
                         "company_id": None,
                         "eik": "",
+                        "proforma_count": 0,
                         "subfolders": subfolders,
                     }
                 )
@@ -767,6 +793,7 @@ async def get_folder_structure(
                 "name": comp.name,
                 "company_id": comp.id,
                 "eik": comp.eik,
+                "proforma_count": proforma_count_by_company.get(comp.id, 0),
                 "subfolders": _with_pending([], comp.eik or ""),
             }
         )

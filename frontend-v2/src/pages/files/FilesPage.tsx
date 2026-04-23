@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Spinner from '@/components/ui/Spinner'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
-import { Search, FolderOpen } from 'lucide-react'
+import { Search, FolderOpen, Building2, Clock, ArrowUp } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { sharingApi } from '@/api/sharing.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -95,24 +95,24 @@ export default function FilesPage() {
     )
   }
 
-  const sortBtn = (key: 'name' | 'date', label: string) => (
+  const sortBtn = (key: 'name' | 'date', label: string, Icon?: typeof Clock) => (
     <button
       type="button"
       onClick={() => setSortBy(key)}
-      className={`rounded border px-3 py-1 text-xs font-medium transition ${
+      className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition ${
         sortBy === key
           ? 'border-indigo-600 bg-indigo-600 text-white'
           : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
       }`}
     >
+      {Icon && <Icon size={12} />}
       {label}
+      {sortBy === key && <ArrowUp size={11} />}
     </button>
   )
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Структура на файловете</h2>
-
       {sharedCompanies.length > 0 && (
         <div className="rounded-lg bg-white p-3 shadow-sm">
           <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -143,10 +143,13 @@ export default function FilesPage() {
         </div>
       )}
 
-      {/* Toolbar — v1 parity: single flex-wrap row with sort pushed to right */}
-      <div className="rounded-lg bg-white p-3 shadow-sm">
+      {/* v1-parity card: title + inline toolbar in one container. Widths are
+          fixed so the row doesn't wrap at typical desktop sizes; sort buttons
+          sit flush-right via ml-auto. */}
+      <div className="rounded-lg bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold text-gray-900">Структура на файловете</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
+          <div className="relative w-56">
             <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             <Input
               value={fileSearch}
@@ -155,24 +158,28 @@ export default function FilesPage() {
               className="pl-8"
             />
           </div>
-          <div className="min-w-[200px] flex-1">
+          <div className="relative w-56">
+            <Building2 size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             <Input
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
               placeholder="Филтър по фирма..."
+              className="pl-8"
             />
           </div>
-          <Select
-            options={TIMEFRAMES}
-            value={timeframe}
-            onChange={(e) => {
-              setTimeframe(e.target.value)
-              if (e.target.value) {
-                setDateFrom('')
-                setDateTo('')
-              }
-            }}
-          />
+          <div className="w-40">
+            <Select
+              options={TIMEFRAMES}
+              value={timeframe}
+              onChange={(e) => {
+                setTimeframe(e.target.value)
+                if (e.target.value) {
+                  setDateFrom('')
+                  setDateTo('')
+                }
+              }}
+            />
+          </div>
           <Input
             type="date"
             value={dateFrom}
@@ -180,6 +187,7 @@ export default function FilesPage() {
               setDateFrom(e.target.value)
               if (e.target.value) setTimeframe('')
             }}
+            className="w-40"
             placeholder="От дата"
           />
           <Input
@@ -189,12 +197,13 @@ export default function FilesPage() {
               setDateTo(e.target.value)
               if (e.target.value) setTimeframe('')
             }}
+            className="w-40"
             placeholder="До дата"
           />
           <div className="ml-auto flex items-center gap-1">
             <span className="text-xs text-gray-500">Сортирай:</span>
             {sortBtn('name', 'Име')}
-            {sortBtn('date', 'Дата')}
+            {sortBtn('date', 'Дата', Clock)}
           </div>
         </div>
       </div>
