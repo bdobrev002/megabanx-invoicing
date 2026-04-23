@@ -69,8 +69,13 @@ const PROCESSING_ANIMATION_CSS = `
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+@keyframes megabanxFileProgressBar {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 .megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; }
-.megabanx-spin-slow      { animation: megabanxSpinSlow 4s linear infinite; }
+.megabanx-spin-slow       { animation: megabanxSpinSlow 4s linear infinite; }
+.megabanx-file-progress   { animation: megabanxFileProgressBar 2.5s linear infinite; background-size: 200% 100%; }
 `
 
 const fileStatusStyles: Record<
@@ -174,26 +179,50 @@ function ProcessingStream({
           </div>
         </div>
 
-        <ul className="divide-y divide-gray-100 text-sm">
+        <ul className="space-y-1 text-sm">
           {files.map((f) => {
             const status: FileStatus = statuses[f.inbox_filename] ?? 'pending'
             const s = fileStatusStyles[status]
             return (
               <li
                 key={f.inbox_filename}
-                className={`flex items-center justify-between gap-3 rounded border px-3 py-2 my-1 ${s.box}`}
+                className={`relative overflow-hidden rounded border ${s.box}`}
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0">{s.icon}</span>
-                  <span className="truncate text-gray-800">
-                    {f.original_filename}
+                {status === 'processing' && (
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div
+                      className="megabanx-file-progress h-full w-full bg-gradient-to-r from-blue-200 via-indigo-400 to-blue-200 opacity-50"
+                    />
+                  </div>
+                )}
+                {status === 'processed' && (
+                  <div className="pointer-events-none absolute inset-0 bg-green-200 opacity-20" />
+                )}
+                <div className="relative flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0">{s.icon}</span>
+                    <span
+                      className={`truncate ${
+                        status === 'processing'
+                          ? 'font-medium text-indigo-700'
+                          : status === 'processed'
+                            ? 'text-green-700'
+                            : status === 'error' || status === 'over_limit'
+                              ? 'text-red-700'
+                              : status === 'unmatched'
+                                ? 'text-yellow-700'
+                                : 'text-gray-800'
+                      }`}
+                    >
+                      {f.original_filename}
+                    </span>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap ${s.label}`}
+                  >
+                    {s.labelText}
                   </span>
                 </div>
-                <span
-                  className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${s.label}`}
-                >
-                  {s.labelText}
-                </span>
               </li>
             )
           })}
