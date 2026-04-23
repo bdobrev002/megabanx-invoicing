@@ -961,9 +961,7 @@ async def batch_delete_invoices(
     notified_profiles: set[str] = set()
 
     for inv_id in invoice_ids:
-        result = await db.execute(
-            select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id)
-        )
+        result = await db.execute(select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id))
         invoice = result.scalar_one_or_none()
         if not invoice:
             failed.append({"invoice_id": inv_id, "error": "Фактурата не е намерена"})
@@ -981,10 +979,7 @@ async def batch_delete_invoices(
                         profile_id=src_invoice.profile_id,
                         type="cross_copy_deleted",
                         title="Контрагентът изтри фактура",
-                        message=(
-                            f"Контрагентът изтри копието на фактура {invoice.new_filename}. "
-                            "Можете да я синхронизирате наново."
-                        ),
+                        message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. " "Можете да я синхронизирате наново."),
                         filename=src_invoice.new_filename,
                         source="cross-copy",
                     )
@@ -1033,9 +1028,7 @@ async def batch_download_invoices(
     used_arcnames: set[str] = set()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for inv_id in invoice_ids:
-            result = await db.execute(
-                select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id)
-            )
+            result = await db.execute(select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id))
             invoice = result.scalar_one_or_none()
             if not invoice:
                 continue
@@ -1046,9 +1039,7 @@ async def batch_download_invoices(
 
             company_name = "Без фирма"
             if invoice.company_id:
-                company_row = await db.execute(
-                    select(Company).where(Company.id == invoice.company_id)
-                )
+                company_row = await db.execute(select(Company).where(Company.id == invoice.company_id))
                 company = company_row.scalar_one_or_none()
                 if company:
                     company_name = company.name or company_name
