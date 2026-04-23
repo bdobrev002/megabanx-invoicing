@@ -1,21 +1,16 @@
 import { useState, useCallback, useEffect } from 'react'
-import { filesApi } from '@/api/files.api'
+import { filesApi, type InboxFile, type ProcessInboxResponse } from '@/api/files.api'
 import { billingApi, type BillingUsage } from '@/api/billing.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
-import type { InvoiceRecord } from '@/types/file.types'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
+import { Sparkles, Trash2, FileText, RotateCcw } from 'lucide-react'
 import DropZone from './DropZone'
 import ProcessingProgress from './ProcessingProgress'
-import ProcessResults from './ProcessResults'
 import InboxFileList from './InboxFileList'
 
-type Stage = 'idle' | 'uploading' | 'results'
-
-interface UploadResult {
-  invoice: InvoiceRecord
-  analysis: Record<string, string | null> | null
-  duplicate?: boolean
-}
+type Stage = 'idle' | 'uploading' | 'processing' | 'results'
 
 type QuotaTone = 'indigo' | 'yellow' | 'red'
 
@@ -100,13 +95,26 @@ export default function UploadPage() {
   const [stage, setStage] = useState<Stage>('idle')
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
-  const [results, setResults] = useState<InvoiceRecord[]>([])
-  const [duplicateCount, setDuplicateCount] = useState(0)
+  const [inboxFiles, setInboxFiles] = useState<InboxFile[]>([])
   const [billing, setBilling] = useState<BillingUsage | null>(null)
+  const [summary, setSummary] = useState<ProcessInboxResponse | null>(null)
+  const [inboxKey, setInboxKey] = useState(0)
 
   useEffect(() => {
     billingApi.getCurrent().then(setBilling).catch(() => setBilling(null))
   }, [stage])
+
+  const refreshInbox = useCallback(() => {
+    if (!profileId) return Promise.resolve()
+    return filesApi
+      .getInboxFiles(profileId)
+      .then((res) => setInboxFiles(res.files))
+      .catch(() => setInboxFiles([]))
+  }, [profileId])
+
+  useEffect(() => {
+    void refreshInbox()
+  }, [refreshInbox])
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -114,37 +122,58 @@ export default function UploadPage() {
       setStage('uploading')
       setTotal(files.length)
       setProgress(0)
-      setDuplicateCount(0)
-      const uploaded: InvoiceRecord[] = []
-      let duplicates = 0
 
       for (let i = 0; i < files.length; i++) {
         try {
-          const res = await filesApi.upload(profileId, files[i])
-          const data: UploadResult | null = await res.json()
-          if (data?.invoice) {
-            uploaded.push(data.invoice)
-            if (data.duplicate) duplicates += 1
-          }
+          await filesApi.upload(profileId, files[i])
         } catch (e: unknown) {
           setError(e instanceof Error ? e.message : `Грешка при качване на ${files[i].name}`)
         }
         setProgress(i + 1)
       }
 
-      setResults(uploaded)
-      setDuplicateCount(duplicates)
-      setStage('results')
+      await refreshInbox()
+      setStage('idle')
     },
-    [profileId, setError],
+    [profileId, setError, refreshInbox],
   )
+
+  const handleProcess = useCallback(async () => {
+    if (!profileId || inboxFiles.length === 0) return
+    setStage('processing')
+    setTotal(inboxFiles.length)
+    setProgress(0)
+    try {
+      const res = await filesApi.processInbox(profileId)
+      setSummary(res)
+      setStage('results')
+      setInboxKey((k) => k + 1)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при обработката')
+      setStage('idle')
+    }
+    await refreshInbox()
+  }, [profileId, inboxFiles.length, setError, refreshInbox])
+
+  const handleClear = useCallback(async () => {
+    if (!profileId) return
+    if (!window.confirm('Да изчистим ли всички файлове от Входяща кутия?')) return
+    try {
+      await filesApi.clearInbox(profileId)
+      setInboxFiles([])
+      setSummary(null)
+      setInboxKey((k) => k + 1)
+      setStage('idle')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при изчистване')
+    }
+  }, [profileId, setError])
 
   const handleReset = () => {
     setStage('idle')
-    setResults([])
     setProgress(0)
     setTotal(0)
-    setDuplicateCount(0)
+    setSummary(null)
   }
 
   return (
@@ -158,18 +187,93 @@ export default function UploadPage() {
       {stage === 'idle' && <DropZone onFiles={handleFiles} />}
 
       {stage === 'uploading' && (
-        <ProcessingProgress current={progress} total={total} />
+        <Card>
+          <div className="py-8 text-center">
+            <p className="text-lg font-medium text-gray-900">
+              Качване на файлове... {progress}/{total}
+            </p>
+            <div className="mx-auto mt-4 h-3 w-64 overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all"
+                style={{ width: `${total > 0 ? Math.round((progress / total) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        </Card>
       )}
 
-      {stage === 'results' && (
-        <>
-          {duplicateCount > 0 && (
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-              {duplicateCount} от файловете са дубликати на вече качени фактури — пропуснати са.
+      {stage === 'processing' && (
+        <ProcessingProgress current={0} total={total} />
+      )}
+
+      {stage === 'results' && summary && (
+        <Card>
+          <div className="flex flex-col gap-3 py-4">
+            <h3 className="text-lg font-semibold text-gray-900">Резултат от обработката</h3>
+            <div className="grid gap-2 text-sm sm:grid-cols-3">
+              <div className="rounded bg-green-50 px-3 py-2 text-green-800">
+                Обработени: <strong>{summary.processed}</strong>
+              </div>
+              <div className="rounded bg-yellow-50 px-3 py-2 text-yellow-800">
+                Без съвпадение: <strong>{summary.unmatched}</strong>
+              </div>
+              <div className="rounded bg-gray-50 px-3 py-2 text-gray-800">
+                Дубликати: <strong>{summary.duplicate}</strong>
+              </div>
+              {summary.over_limit > 0 && (
+                <div className="rounded bg-red-50 px-3 py-2 text-red-800">
+                  Над лимита: <strong>{summary.over_limit}</strong>
+                </div>
+              )}
+              {summary.errors > 0 && (
+                <div className="rounded bg-red-50 px-3 py-2 text-red-800">
+                  Грешки: <strong>{summary.errors}</strong>
+                </div>
+              )}
             </div>
-          )}
-          <ProcessResults results={results} onReset={handleReset} />
-        </>
+            <div>
+              <Button size="sm" variant="outline" onClick={handleReset}>
+                <RotateCcw size={14} className="mr-1" /> Качи още файлове
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Inbox staging area + action buttons (v1 parity) */}
+      {inboxFiles.length > 0 && stage !== 'processing' && stage !== 'uploading' && (
+        <Card>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                <FileText size={18} className="text-indigo-600" />
+                Чакат обработка ({inboxFiles.length})
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleProcess}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Sparkles size={14} className="mr-1" /> Обработи с AI
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleClear}>
+                  <Trash2 size={14} className="mr-1" /> Изчисти
+                </Button>
+              </div>
+            </div>
+            <ul className="divide-y divide-gray-100 text-sm">
+              {inboxFiles.map((f) => (
+                <li key={f.inbox_filename} className="flex items-center justify-between py-1.5">
+                  <span className="truncate text-gray-800">{f.original_filename}</span>
+                  <span className="shrink-0 text-xs text-gray-500">
+                    {(f.size / 1024).toFixed(1)} KB
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
       )}
 
       {/* AI info banner (v1 parity) */}
@@ -177,11 +281,11 @@ export default function UploadPage() {
         <span className="text-xl" aria-hidden>🤖</span>
         <p>
           Качете фактури покупки и продажби свързани с вашите фирми.
-          Нашият AI автоматично ще разпредели и сортира фактурите по съответните фирми и папки.
+          След качването натиснете <strong>Обработи с AI</strong> и системата автоматично ще разпредели и сортира файловете по съответните фирми и папки.
         </p>
       </div>
 
-      <InboxFileList />
+      <InboxFileList key={inboxKey} />
     </div>
   )
 }

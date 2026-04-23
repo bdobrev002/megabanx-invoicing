@@ -30,8 +30,12 @@ from app.services.file_manager import (
     sanitize_path_component,
 )
 from app.services.gemini import analyze_invoice_with_gemini
+from app.services.matching import (
+    build_invoice_filename,
+    match_company,
+    unique_destination_path,
+)
 from app.services.ws_manager import ws_manager
-from app.utils.helpers import sanitize_filename
 
 logger = logging.getLogger("megabanx.invoices")
 
@@ -142,18 +146,14 @@ async def _check_and_increment_usage(user_id: str, db: AsyncSession) -> None:
 async def upload_invoice(
     profile_id: str,
     file: UploadFile = File(...),
-    company_id: str = Query(default=""),
-    invoice_type: str = Query(default="auto"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload an invoice file, analyze with AI, auto-classify by EIK match, and store.
+    """Save an uploaded invoice to the profile inbox (no AI, no quota).
 
-    ``invoice_type`` accepts ``auto`` (default), ``purchase``, or ``sale``. When
-    ``auto``, the type is derived from which EIK in the extracted analysis matches
-    one of the profile's registered companies — issuer match → ``sale`` (the
-    profile issued it), recipient match → ``purchase``. If no EIK matches and no
-    company_id is supplied, the invoice is stored as ``unmatched`` in the inbox.
+    v1 parity: upload is a pure file-staging step. Call ``POST /process``
+    afterwards to run Gemini analysis + matching + classification across
+    every file currently in the inbox.
     """
     await _verify_profile_access(profile_id, user, db)
 
@@ -167,182 +167,343 @@ async def upload_invoice(
             detail=f"Неподдържан формат: {ext}. Поддържани: {', '.join(SUPPORTED_EXTENSIONS)}",
         )
 
-    # Read file content
     content = await file.read()
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Файлът е празен")
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Файлът е твърде голям (макс. 20MB)")
 
-    # Save to inbox (encrypted)
     inbox_dir = get_inbox_dir(profile_id)
     os.makedirs(inbox_dir, exist_ok=True)
-
     safe_name = f"{uuid.uuid4().hex[:8]}_{sanitize_path_component(file.filename)}"
     inbox_path = os.path.join(inbox_dir, safe_name)
     write_encrypted_file(inbox_path, content)
 
-    # Analyze with AI
-    analysis = {}
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "inbox_uploaded"},
+    )
+    return {
+        "original_filename": file.filename,
+        "inbox_filename": safe_name,
+        "size": len(content),
+    }
+
+
+async def _process_single_inbox_file(
+    *,
+    profile_id: str,
+    user: User,
+    db: AsyncSession,
+    inbox_path: str,
+    inbox_filename: str,
+    companies: list[Company],
+) -> dict:
+    """Run Gemini analysis + matching + classification for a single inbox file.
+
+    Shared by the legacy single-file path and the new batch processor.
+    Returns a dict describing the outcome (processed / unmatched / duplicate /
+    over_limit / error) plus the Invoice row (if one was created).
+    """
+    original_filename = inbox_filename.split("_", 1)[1] if "_" in inbox_filename else inbox_filename
+    ext = os.path.splitext(inbox_filename)[1].lower()
+
+    analysis: dict = {}
     try:
         analysis = await analyze_invoice_with_gemini(inbox_path)
     except Exception as e:
-        logger.warning(f"AI analysis failed: {e}")
-
-    # Determine company + invoice_type by matching EIK against profile's companies.
-    matched_company_id = company_id
-    matched_company_name = ""
-    resolved_type = invoice_type if invoice_type in ("purchase", "sale") else ""
+        logger.warning(f"AI analysis failed for {inbox_filename}: {e}")
 
     issuer_eik = (analysis.get("issuer_eik") or "").strip()
+    issuer_vat = (analysis.get("issuer_vat") or "").strip()
+    issuer_name = (analysis.get("issuer_name") or "").strip()
     recipient_eik = (analysis.get("recipient_eik") or "").strip()
+    recipient_vat = (analysis.get("recipient_vat") or "").strip()
+    recipient_name = (analysis.get("recipient_name") or "").strip()
+    is_credit_note = bool(analysis.get("is_credit_note"))
 
-    if not matched_company_id and (issuer_eik or recipient_eik):
-        candidate_eiks = [e for e in (issuer_eik, recipient_eik) if e]
-        result = await db.execute(
-            select(Company).where(
-                Company.profile_id == profile_id,
-                Company.eik.in_(candidate_eiks),
-            )
-        )
-        matches = result.scalars().all()
-        # Prefer issuer match (profile issued the invoice → sale) over recipient
-        # match; this keeps classification deterministic when both EIKs belong
-        # to companies registered under the same profile.
-        chosen = next((c for c in matches if issuer_eik and c.eik == issuer_eik), None) or next(
-            (c for c in matches if recipient_eik and c.eik == recipient_eik), None
-        )
-        if chosen is not None:
-            matched_company_id = chosen.id
-            matched_company_name = chosen.name
-            if chosen.eik == issuer_eik:
-                resolved_type = "sale"
-            elif chosen.eik == recipient_eik:
-                resolved_type = "purchase"
+    # v1 parity: try issuer first (profile issued it → sale), then recipient
+    # (profile received it → purchase). Each tier uses EIK → VAT → VAT-digits
+    # fallback → fuzzy name, via ``match_company``.
+    issuer_match = match_company(companies, issuer_eik, issuer_vat, issuer_name)
+    recipient_match = match_company(companies, recipient_eik, recipient_vat, recipient_name)
 
-    if matched_company_id and not matched_company_name:
-        result = await db.execute(select(Company).where(Company.id == matched_company_id))
-        comp = result.scalar_one_or_none()
-        if comp:
-            matched_company_name = comp.name
-            if not resolved_type:
-                if issuer_eik and comp.eik == issuer_eik:
-                    resolved_type = "sale"
-                elif recipient_eik and comp.eik == recipient_eik:
-                    resolved_type = "purchase"
+    matched_company: Company | None = None
+    invoice_type = ""
+    if issuer_match is not None:
+        matched_company = issuer_match
+        invoice_type = "sale"
+    elif recipient_match is not None:
+        matched_company = recipient_match
+        invoice_type = "purchase"
 
-    if not resolved_type:
-        resolved_type = "purchase"
-
-    invoice_type = resolved_type
-
-    # Duplicate detection: same profile + issuer_eik + invoice_number already exists
-    inv_number_raw = str(analysis.get("invoice_number") or "")
-    duplicate_of: Invoice | None = None
-    if inv_number_raw and issuer_eik:
+    # Duplicate detection (only meaningful when we have an issuer EIK + number)
+    inv_number = str(analysis.get("invoice_number") or "").strip()
+    inv_date = str(analysis.get("date") or "").strip()
+    if inv_number and issuer_eik:
         dup_result = await db.execute(
             select(Invoice).where(
                 Invoice.profile_id == profile_id,
                 Invoice.issuer_eik == issuer_eik,
-                Invoice.invoice_number == inv_number_raw,
+                Invoice.invoice_number == inv_number,
             )
         )
         duplicate_of = dup_result.scalars().first()
+        if duplicate_of is not None:
+            try:
+                os.remove(inbox_path)
+            except OSError as err:
+                logger.warning(f"Failed to remove duplicate temp file {inbox_path}: {err}")
+            return {
+                "status": "duplicate",
+                "original_filename": original_filename,
+                "invoice": InvoiceOut.model_validate(duplicate_of),
+                "analysis": analysis,
+            }
 
-    if duplicate_of is not None:
-        # Remove the freshly-uploaded temp file; existing invoice takes precedence.
-        # No quota is consumed because `_check_and_increment_usage` runs only for
-        # genuinely new invoices (below).
-        try:
-            os.remove(inbox_path)
-        except OSError as err:
-            logger.warning(f"Failed to remove duplicate temp file {inbox_path}: {err}")
-        return {
-            "invoice": InvoiceOut.model_validate(duplicate_of),
-            "analysis": analysis,
-            "duplicate": True,
-        }
+    if matched_company is None:
+        # v1 parity: unmatched files stay in the inbox directory; we create an
+        # Invoice row (status="unmatched") so the frontend can render a
+        # reclassify list with the AI-extracted details. No quota is consumed.
+        reason_parts: list[str] = []
+        if not issuer_eik and not issuer_vat and not issuer_name and not recipient_eik and not recipient_vat and not recipient_name:
+            reason_parts.append("AI не извлече данни за фирмите")
+        elif not analysis:
+            reason_parts.append("AI анализът не успя")
+        else:
+            reason_parts.append("Няма съвпадение с регистрирана фирма")
+        reason = "; ".join(reason_parts)
 
-    # New invoice is going to be stored — consume monthly quota now. If the
-    # user is over limit, clean up the inbox file so we don't leak disk space.
-    try:
-        await _check_and_increment_usage(user.id, db)
-    except HTTPException:
-        try:
-            os.remove(inbox_path)
-        except OSError as err:
-            logger.warning(f"Failed to remove over-quota temp file {inbox_path}: {err}")
-        raise
-
-    # Build new filename from analysis
-    inv_date = analysis.get("date", "")
-    inv_number = analysis.get("invoice_number", "")
-    inv_issuer = analysis.get("issuer_name", "") if invoice_type == "purchase" else analysis.get("recipient_name", "")
-    new_filename = sanitize_filename(f"{inv_date}_{inv_number}_{inv_issuer}") + ext if inv_date else safe_name
-
-    # Determine destination path
-    dest_subdir = "Фактури покупки" if invoice_type == "purchase" else "Фактури продажби"
-    if matched_company_name:
-        dest_path = os.path.join(get_profile_dir(profile_id), sanitize_path_component(matched_company_name), dest_subdir, new_filename)
-    else:
-        dest_path = os.path.join(inbox_dir, new_filename)
-
-    # Move file to destination
-    dest_dir = os.path.dirname(dest_path)
-    os.makedirs(dest_dir, exist_ok=True)
-    if inbox_path != dest_path:
-        os.rename(inbox_path, dest_path)
-
-    # Create invoice record
-    invoice = Invoice(
-        id=str(uuid.uuid4()),
-        profile_id=profile_id,
-        original_filename=file.filename,
-        new_filename=new_filename,
-        invoice_type=invoice_type,
-        company_id=matched_company_id,
-        company_name=matched_company_name,
-        date=inv_date,
-        issuer_name=analysis.get("issuer_name") or "",
-        issuer_eik=analysis.get("issuer_eik") or "",
-        issuer_vat=analysis.get("issuer_vat") or "",
-        recipient_name=analysis.get("recipient_name") or "",
-        recipient_eik=analysis.get("recipient_eik") or "",
-        recipient_vat=analysis.get("recipient_vat") or "",
-        invoice_number=str(analysis.get("invoice_number") or ""),
-        total_amount=str(analysis.get("total_amount") or ""),
-        vat_amount=str(analysis.get("vat_amount") or ""),
-        destination_path=dest_path,
-        status="processed" if matched_company_id else "unmatched",
-        source="scan",
-    )
-    db.add(invoice)
-
-    # Notify if unmatched
-    if not matched_company_id:
+        invoice = Invoice(
+            id=str(uuid.uuid4()),
+            profile_id=profile_id,
+            original_filename=original_filename,
+            new_filename=original_filename,
+            invoice_type="unknown",
+            company_id="",
+            company_name="",
+            date=inv_date,
+            issuer_name=issuer_name,
+            issuer_eik=issuer_eik,
+            issuer_vat=issuer_vat,
+            recipient_name=recipient_name,
+            recipient_eik=recipient_eik,
+            recipient_vat=recipient_vat,
+            invoice_number=inv_number,
+            total_amount=str(analysis.get("total_amount") or ""),
+            vat_amount=str(analysis.get("vat_amount") or ""),
+            destination_path=inbox_path,
+            status="unmatched",
+            error_message=reason,
+            is_credit_note=is_credit_note,
+            source="scan",
+        )
+        db.add(invoice)
         db.add(
             Notification(
                 profile_id=profile_id,
                 type="unmatched_invoice",
-                title="Несъответстваща фактура",
-                message=f"Фактура {file.filename} не може да бъде съпоставена с фирма.",
-                filename=file.filename,
+                title="Без съвпадение",
+                message=f"Файл {original_filename}: {reason}. Отворете 'Качване' за ръчно разпределение.",
+                filename=original_filename,
                 source="upload",
             )
         )
+        await db.flush()
+        return {
+            "status": "unmatched",
+            "original_filename": original_filename,
+            "invoice": InvoiceOut.model_validate(invoice),
+            "analysis": analysis,
+            "reason": reason,
+        }
 
-    await db.flush()
+    # Matched — consume quota, then move the file into the company folder.
+    try:
+        await _check_and_increment_usage(user.id, db)
+    except HTTPException as err:
+        logger.info(f"Over quota while processing {original_filename}: {err.detail}")
+        return {
+            "status": "over_limit",
+            "original_filename": original_filename,
+            "analysis": analysis,
+            "reason": err.detail,
+        }
 
-    # Real-time notification via WebSocket
-    await ws_manager.notify_profile(
-        profile_id,
-        {"type": "refresh", "reason": "invoice_uploaded"},
+    new_filename = build_invoice_filename(
+        invoice_type=invoice_type,
+        date=inv_date or "без_дата",
+        invoice_number=inv_number,
+        issuer_name=issuer_name,
+        recipient_name=recipient_name,
+        is_credit_note=is_credit_note,
+        ext=ext,
     )
+    dest_subdir = "Фактури покупки" if invoice_type == "purchase" else "Фактури продажби"
+    dest_dir = os.path.join(
+        get_profile_dir(profile_id),
+        sanitize_path_component(matched_company.name),
+        dest_subdir,
+    )
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = unique_destination_path(dest_dir, new_filename)
+    try:
+        os.rename(inbox_path, dest_path)
+    except OSError as err:
+        logger.warning(f"Failed to move {inbox_path} -> {dest_path}: {err}")
+        return {
+            "status": "error",
+            "original_filename": original_filename,
+            "reason": f"Неуспешно преместване: {err}",
+        }
 
+    # Keep new_filename in sync with the actual on-disk name (unique_destination_path
+    # may have added a " (1)"-style suffix to avoid collisions).
+    new_filename = os.path.basename(dest_path)
+
+    invoice = Invoice(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        original_filename=original_filename,
+        new_filename=new_filename,
+        invoice_type=invoice_type,
+        company_id=matched_company.id,
+        company_name=matched_company.name,
+        date=inv_date,
+        issuer_name=issuer_name,
+        issuer_eik=issuer_eik,
+        issuer_vat=issuer_vat,
+        recipient_name=recipient_name,
+        recipient_eik=recipient_eik,
+        recipient_vat=recipient_vat,
+        invoice_number=inv_number,
+        total_amount=str(analysis.get("total_amount") or ""),
+        vat_amount=str(analysis.get("vat_amount") or ""),
+        destination_path=dest_path,
+        status="processed",
+        is_credit_note=is_credit_note,
+        source="scan",
+    )
+    db.add(invoice)
+    await db.flush()
     return {
+        "status": "processed",
+        "original_filename": original_filename,
         "invoice": InvoiceOut.model_validate(invoice),
         "analysis": analysis,
     }
+
+
+@router.post("/process")
+async def process_inbox(
+    profile_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch-process every file currently in the profile's inbox.
+
+    Runs Gemini analysis + v1-style matching + naming on each file.
+    Matched files are moved into the correct company folder and get a
+    ``processed`` Invoice row (consuming monthly quota); unmatched files
+    stay in the inbox with a ``unmatched`` Invoice row so the UI can
+    surface them for manual reclassification. Returns a summary + per-file
+    result list.
+    """
+    await _verify_profile_access(profile_id, user, db)
+
+    inbox_dir = get_inbox_dir(profile_id)
+    if not os.path.isdir(inbox_dir):
+        return {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0, "results": []}
+
+    companies_result = await db.execute(select(Company).where(Company.profile_id == profile_id))
+    companies = list(companies_result.scalars().all())
+
+    filenames = sorted(
+        f for f in os.listdir(inbox_dir)
+        if os.path.isfile(os.path.join(inbox_dir, f))
+        and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
+    )
+
+    results: list[dict] = []
+    counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0}
+    for fname in filenames:
+        fpath = os.path.join(inbox_dir, fname)
+        try:
+            res = await _process_single_inbox_file(
+                profile_id=profile_id,
+                user=user,
+                db=db,
+                inbox_path=fpath,
+                inbox_filename=fname,
+                companies=companies,
+            )
+        except Exception as e:
+            logger.exception(f"Error processing inbox file {fname}: {e}")
+            res = {"status": "error", "original_filename": fname, "reason": str(e)}
+        status = res.get("status", "error")
+        counts[status if status in counts else "errors"] = counts.get(status if status in counts else "errors", 0) + 1
+        # Strip non-serializable bits (analysis dict is fine; keep small)
+        results.append(
+            {
+                "status": status,
+                "original_filename": res.get("original_filename", fname),
+                "reason": res.get("reason"),
+                "invoice": res.get("invoice"),
+            }
+        )
+
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "inbox_processed"},
+    )
+    return {**counts, "results": results}
+
+
+@router.delete("/inbox-files")
+async def clear_inbox_files(
+    profile_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear the inbox (v1 "Изчисти" button).
+
+    Removes every file currently in the inbox directory AND every
+    ``unmatched`` Invoice row for this profile (and its on-disk file,
+    which also lives in the inbox). Matched invoices in company folders
+    are untouched.
+    """
+    await _verify_profile_access(profile_id, user, db)
+
+    inbox_dir = get_inbox_dir(profile_id)
+    removed_files = 0
+    if os.path.isdir(inbox_dir):
+        for fname in os.listdir(inbox_dir):
+            fpath = os.path.join(inbox_dir, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                    removed_files += 1
+                except OSError as err:
+                    logger.warning(f"Failed to remove inbox file {fpath}: {err}")
+
+    unmatched_result = await db.execute(
+        select(Invoice).where(Invoice.profile_id == profile_id, Invoice.status == "unmatched")
+    )
+    unmatched_invoices = list(unmatched_result.scalars().all())
+    for inv in unmatched_invoices:
+        if inv.destination_path and os.path.exists(inv.destination_path):
+            try:
+                os.remove(inv.destination_path)
+            except OSError as err:
+                logger.warning(f"Failed to remove unmatched invoice file {inv.destination_path}: {err}")
+        await db.delete(inv)
+
+    await db.flush()
+    await ws_manager.notify_profile(
+        profile_id,
+        {"type": "refresh", "reason": "inbox_cleared"},
+    )
+    return {"cleared_files": removed_files, "cleared_invoices": len(unmatched_invoices)}
 
 
 @router.get("/invoices")
@@ -623,6 +784,46 @@ async def list_inbox(
     )
     invoices = result.scalars().all()
     return [InvoiceOut.model_validate(inv) for inv in invoices]
+
+
+@router.get("/inbox-files")
+async def list_inbox_files(
+    profile_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List raw (unprocessed) files currently staged in the profile inbox.
+
+    These are files uploaded via ``POST /upload`` but not yet processed
+    through Gemini via ``POST /process``. Frontend uses this to render
+    the "awaiting AI processing" list when the user re-opens the page.
+    """
+    await _verify_profile_access(profile_id, user, db)
+    inbox_dir = get_inbox_dir(profile_id)
+    if not os.path.isdir(inbox_dir):
+        return {"files": []}
+    entries: list[dict] = []
+    for fname in sorted(os.listdir(inbox_dir)):
+        fpath = os.path.join(inbox_dir, fname)
+        if not os.path.isfile(fpath):
+            continue
+        if os.path.splitext(fname)[1].lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        try:
+            stat = os.stat(fpath)
+        except OSError:
+            continue
+        # Strip the 8-char uuid prefix added by POST /upload so the UI can
+        # show the user-friendly original filename.
+        display = fname.split("_", 1)[1] if "_" in fname else fname
+        entries.append(
+            {
+                "inbox_filename": fname,
+                "original_filename": display,
+                "size": stat.st_size,
+            }
+        )
+    return {"files": entries}
 
 
 @router.get("/folder-structure")

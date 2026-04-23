@@ -73,7 +73,10 @@ export default function InboxFileList() {
               <p className="text-xs text-gray-500">
                 {item.issuer_name || '—'} → {item.recipient_name || '—'}
               </p>
-              <Badge variant="warning" className="self-start">Несъответстваща</Badge>
+              {item.error_message && (
+                <p className="text-xs text-gray-500">{item.error_message}</p>
+              )}
+              <Badge variant="warning" className="self-start">Без съвпадение</Badge>
               <div className="mt-2 flex flex-col gap-2">
                 <select
                   className="w-full rounded border border-gray-300 px-2 py-1 text-xs"

@@ -57,9 +57,46 @@ export const filesApi = {
   getInbox: (profileId: string) =>
     apiFetch<InvoiceRecord[]>(`/profiles/${profileId}/inbox`),
 
+  getInboxFiles: (profileId: string) =>
+    apiFetch<{ files: InboxFile[] }>(`/profiles/${profileId}/inbox-files`),
+
+  processInbox: (profileId: string) =>
+    apiFetch<ProcessInboxResponse>(
+      `/profiles/${profileId}/process`,
+      { method: 'POST' },
+    ),
+
+  clearInbox: (profileId: string) =>
+    apiFetch<{ cleared_files: number; cleared_invoices: number }>(
+      `/profiles/${profileId}/inbox-files`,
+      { method: 'DELETE' },
+    ),
+
   resync: (profileId: string, invoiceId: string) =>
     apiFetch<{ message: string; invoice: InvoiceRecord }>(
       `/profiles/${profileId}/invoices/${invoiceId}/resync`,
       { method: 'POST' },
     ),
+}
+
+export interface InboxFile {
+  inbox_filename: string
+  original_filename: string
+  size: number
+}
+
+export interface ProcessInboxResult {
+  status: 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
+  original_filename: string
+  reason?: string | null
+  invoice?: InvoiceRecord | null
+}
+
+export interface ProcessInboxResponse {
+  processed: number
+  unmatched: number
+  duplicate: number
+  over_limit: number
+  errors: number
+  results: ProcessInboxResult[]
 }
