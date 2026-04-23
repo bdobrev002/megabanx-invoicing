@@ -80,7 +80,10 @@ export default function BillingPage() {
 
       {subscription && <SubscriptionStatus subscription={subscription} />}
 
-      {subscription?.status === 'trial' && <TrialActivation />}
+      {/* TrialActivation is only for the non-Stripe 30-day trial. If the user
+          is already on a Stripe-managed trial (stripe_subscription_id set),
+          they have a real subscription and /trial would 400. */}
+      {subscription?.status === 'trial' && !subscription?.stripe_subscription_id && <TrialActivation />}
 
       <div className="mb-4 flex gap-1 border-b">
         {TABS.map(({ key, label, icon: Icon }) => {
