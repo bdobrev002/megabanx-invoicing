@@ -38,10 +38,9 @@ logger = logging.getLogger("megabanx.stripe")
 
 stripe.api_key = settings.STRIPE_SECRET_KEY or None
 
-# In-memory cache of lazily-created Stripe Price IDs, keyed by plan id.
+# In-memory cache of lazily-resolved Stripe Price IDs, keyed by plan id.
 # Prices are billed monthly in BGN; amount_minor = price * 100.
 _price_cache: dict[str, str] = {}
-_product_cache: str | None = None
 _price_lock = asyncio.Lock()
 
 # Paid plans we expose via Checkout. `free` never hits Stripe.
@@ -56,22 +55,6 @@ def is_configured() -> bool:
 # ---------------------------------------------------------------------------
 # Product + Price bootstrap (lazy, idempotent)
 # ---------------------------------------------------------------------------
-
-
-async def _ensure_product() -> str:
-    global _product_cache
-    if _product_cache:
-        return _product_cache
-
-    def _create() -> str:
-        product = stripe.Product.create(
-            name="MegaBanx v2 Абонамент",
-            description="Месечен абонамент за MegaBanx v2 — управление на фактури, AI класификация, кросс-копиране.",
-        )
-        return str(product.id)
-
-    _product_cache = await asyncio.to_thread(_create)
-    return _product_cache
 
 
 async def ensure_prices() -> dict[str, str]:
@@ -91,11 +74,38 @@ async def ensure_prices() -> dict[str, str]:
         if not missing:
             return dict(_price_cache)
 
-        product_id = await _ensure_product()
+        def _resolve_prices() -> dict[str, str]:
+            """Prefer existing Stripe Prices (looked up via lookup_key) over creating new ones.
 
-        def _create_prices() -> dict[str, str]:
+            Avoids duplicate Price objects on every cold start and lets webhook
+            plan-lookup work even before the first `/subscribe` call in a
+            given process.
+            """
             out: dict[str, str] = {}
+            lookup_keys = [f"megabanx_v2_{p}_monthly" for p in missing]
+            existing: dict[str, stripe.Price] = {}
+            try:
+                resp = stripe.Price.list(lookup_keys=lookup_keys, active=True, limit=len(lookup_keys) or 1)
+                for pr in resp.auto_paging_iter():
+                    if pr.lookup_key:
+                        existing[str(pr.lookup_key)] = pr
+            except Exception:  # noqa: BLE001 — best-effort lookup; fall through to create
+                existing = {}
+
+            product_id: str | None = None
             for plan_id in missing:
+                key = f"megabanx_v2_{plan_id}_monthly"
+                pre = existing.get(key)
+                if pre is not None:
+                    out[plan_id] = str(pre.id)
+                    continue
+                # Need to create; resolve product only when needed.
+                if product_id is None:
+                    product = stripe.Product.create(
+                        name="MegaBanx v2 Абонамент",
+                        description="Месечен абонамент за MegaBanx v2 — управление на фактури, AI класификация, кросс-копиране.",
+                    )
+                    product_id = str(product.id)
                 plan = get_plan(plan_id)
                 amount_minor = int(round(float(plan.get("price", 0.0)) * 100))
                 currency = str(plan.get("currency", "BGN")).lower()
@@ -105,13 +115,13 @@ async def ensure_prices() -> dict[str, str]:
                     currency=currency,
                     recurring={"interval": "month"},
                     nickname=str(plan.get("name", plan_id)),
-                    lookup_key=f"megabanx_v2_{plan_id}_monthly",
+                    lookup_key=key,
                 )
                 out[plan_id] = str(price.id)
             return out
 
-        created = await asyncio.to_thread(_create_prices)
-        _price_cache.update(created)
+        resolved = await asyncio.to_thread(_resolve_prices)
+        _price_cache.update(resolved)
         return dict(_price_cache)
 
 
@@ -317,7 +327,10 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
         if plan_id:
             billing.plan = plan_id
             billing.invoices_limit = int(get_plan(plan_id).get("max_invoices", 30))
-        billing.subscription_status = "active"
+        # Don't overwrite "trialing" that may have arrived via
+        # customer.subscription.created — Stripe doesn't guarantee ordering.
+        if not billing.subscription_status or billing.subscription_status in {"free", "expired", "cancelled", "canceled"}:
+            billing.subscription_status = "active"
         billing.cancel_at_period_end = False
         billing.subscription_start = datetime.utcnow()
         await db.flush()
@@ -334,7 +347,22 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
 
         items = (data.get("items") or {}).get("data") or []
         price_id = items[0].get("price", {}).get("id") if items else None
+        price_lookup_key = items[0].get("price", {}).get("lookup_key") if items else None
         plan_id = _lookup_plan_from_price(price_id)
+        if not plan_id:
+            # Fallback 1: subscription metadata (set at checkout time).
+            plan_id = (data.get("metadata") or {}).get("plan")
+        if not plan_id and price_lookup_key:
+            # Fallback 2: Stripe Price lookup_key (stable across restarts —
+            # `megabanx_v2_<plan>_monthly`).
+            key = str(price_lookup_key)
+            for candidate in PAID_PLANS:
+                if key == f"megabanx_v2_{candidate}_monthly":
+                    plan_id = candidate
+                    # Prime cache so subsequent events avoid this branch.
+                    if price_id:
+                        _price_cache[candidate] = str(price_id)
+                    break
 
         billing = await _find_billing(db, subscription_id=subscription_id) if subscription_id else None
         if billing is None and customer_id:
