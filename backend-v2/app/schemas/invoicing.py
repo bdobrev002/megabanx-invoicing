@@ -162,6 +162,37 @@ class InvoiceCreateSchema(BaseModel):
     lines: list[InvoiceLineCreateSchema] = []
 
 
+class InvoiceUpdateSchema(BaseModel):
+    """Partial-update schema for PUT /invoices/{id}.
+
+    Every field is optional so that ``model_dump(exclude_unset=True)``
+    returns only the keys the caller explicitly provided.
+    """
+
+    company_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    client_id: Optional[str] = None
+    document_type: Optional[str] = None
+    invoice_number: Optional[int] = None
+    stub_id: Optional[str] = None
+    issue_date: Optional[str] = None
+    tax_event_date: Optional[str] = None
+    due_date: Optional[str] = None
+    vat_rate: Optional[float] = None
+    no_vat: Optional[bool] = None
+    no_vat_reason: Optional[str] = None
+    discount: Optional[float] = None
+    discount_type: Optional[str] = None
+    payment_method: Optional[str] = None
+    notes: Optional[str] = None
+    internal_notes: Optional[str] = None
+    currency: Optional[str] = None
+    status: Optional[str] = None
+    composed_by: Optional[str] = None
+    template_id: Optional[str] = None
+    lines: Optional[list[InvoiceLineCreateSchema]] = None
+
+
 class InvoiceMetaOut(BaseModel):
     id: str
     invoice_id: str
