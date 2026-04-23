@@ -147,10 +147,11 @@ def build_subscription_info(
         expires = ""
 
     # Stage 9: Stripe status overrides the trial/subscription_end heuristic.
+    # `expires` must be recomputed from `current_period_end` (or cleared) — the
+    # heuristic above may have populated it from a stale trial_ends_at.
     if billing and billing.subscription_status:
         status = billing.subscription_status
-        if billing.current_period_end:
-            expires = billing.current_period_end.isoformat()
+        expires = billing.current_period_end.isoformat() if billing.current_period_end else ""
 
     return {
         "status": status,
