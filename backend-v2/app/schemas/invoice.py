@@ -34,6 +34,7 @@ class InvoiceOut(BaseModel):
     recipient_eik: str
     recipient_vat: str
     invoice_number: str
+    subtotal: str
     total_amount: str
     vat_amount: str
     status: str
