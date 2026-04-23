@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Spinner from '@/components/ui/Spinner'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
-import { Search, FolderOpen, Building2, Clock, ArrowUp } from 'lucide-react'
+import { Search, FolderOpen, Building2, Clock, ArrowUp, Download, Trash2, X } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { sharingApi } from '@/api/sharing.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -40,6 +40,25 @@ export default function FilesPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name')
+  // Lifted selection state so the toolbar (N избрани · Свали · Изтрий · Отмени)
+  // can act on files picked across multiple companies at once.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  // Hidden anchor used to trigger ZIP download (eslint forbids document.createElement).
+  const downloadAnchorRef = useRef<HTMLAnchorElement>(null)
 
   useEffect(() => {
     if (sharedCompanies.length > 0) return
@@ -77,6 +96,50 @@ export default function FilesPage() {
   }, [fetchFolders])
 
   useWsRefresh(fetchFolders)
+
+  const handleBulkDownload = useCallback(async () => {
+    if (selectedIds.size === 0 || bulkBusy) return
+    setBulkBusy(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const blob = await filesApi.batchDownload(activeProfileId, ids)
+      const url = URL.createObjectURL(blob)
+      const now = new Date()
+      const pad = (n: number) => n.toString().padStart(2, '0')
+      const filename = `megabanx-invoices-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.zip`
+      const anchor = downloadAnchorRef.current
+      if (anchor) {
+        anchor.href = url
+        anchor.download = filename
+        anchor.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при сваляне')
+    } finally {
+      setBulkBusy(false)
+    }
+  }, [activeProfileId, bulkBusy, selectedIds, setError])
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0 || bulkBusy) return
+    if (!window.confirm(`Изтриване на ${selectedIds.size} файла?`)) return
+    setBulkBusy(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const res = await filesApi.batchDelete(activeProfileId, ids)
+      setSelectedIds(new Set())
+      setRefreshKey((k) => k + 1)
+      await fetchFolders()
+      if (res.failed && res.failed.length > 0) {
+        setError(`${res.deleted.length} изтрити, ${res.failed.length} неуспешни.`)
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при изтриване')
+    } finally {
+      setBulkBusy(false)
+    }
+  }, [activeProfileId, bulkBusy, fetchFolders, selectedIds, setError])
 
   const filtered = useMemo(() => {
     const cfl = companyFilter.trim().toLowerCase()
@@ -124,6 +187,7 @@ export default function FilesPage() {
               const v = e.target.value
               setSelectedOwnerProfileId(v === ownProfileId ? null : v)
               setLoading(true)
+              clearSelection()
             }}
             options={[
               { value: ownProfileId, label: 'Моите файлове' },
@@ -232,8 +296,54 @@ export default function FilesPage() {
               dateTo={dateTo}
               sortBy={sortBy}
               profileId={activeProfileId}
+              selectedIds={selectedIds}
+              onToggleSelected={toggleSelected}
+              refreshKey={refreshKey}
             />
           ))}
+        </div>
+      )}
+
+      <a ref={downloadAnchorRef} className="hidden" aria-hidden="true" />
+
+      {selectedIds.size > 0 && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-lg">
+            <span className="text-xs font-medium text-gray-700">
+              {selectedIds.size} избрани
+            </span>
+            <span className="text-gray-300">·</span>
+            <button
+              type="button"
+              onClick={handleBulkDownload}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+              title="Свали като ZIP"
+            >
+              <Download size={12} />
+              Свали
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
+              title="Изтрий избраните"
+            >
+              <Trash2 size={12} />
+              Изтрий
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+              title="Отмени избора"
+            >
+              <X size={12} />
+              Отмени
+            </button>
+          </div>
         </div>
       )}
     </div>
