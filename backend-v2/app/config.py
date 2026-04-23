@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # Google Drive
     GOOGLE_DRIVE_CREDENTIALS_JSON: str = ""
 
+    # Stripe (Stage 9)
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

@@ -21,6 +21,12 @@ class Billing(Base):
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     subscription_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     subscription_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Stage 9: Stripe linkage.
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    subscription_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

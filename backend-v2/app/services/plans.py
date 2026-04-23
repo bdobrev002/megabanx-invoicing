@@ -54,6 +54,7 @@ PLANS: list[Plan] = [
         "price": 6.0,
         "currency": "BGN",
         "interval": "monthly",
+        "trial_days": 30,
         "max_companies": 1,
         "max_invoices": 999_999,
         "features": [
@@ -69,6 +70,7 @@ PLANS: list[Plan] = [
         "price": 12.0,
         "currency": "BGN",
         "interval": "monthly",
+        "trial_days": 30,
         "popular": True,
         "max_companies": 5,
         "max_invoices": 999_999,
@@ -144,6 +146,12 @@ def build_subscription_info(
         status = "active" if plan_id == "free" else "expired"
         expires = ""
 
+    # Stage 9: Stripe status overrides the trial/subscription_end heuristic.
+    if billing and billing.subscription_status:
+        status = billing.subscription_status
+        if billing.current_period_end:
+            expires = billing.current_period_end.isoformat()
+
     return {
         "status": status,
         "plan": plan_id,
@@ -160,5 +168,7 @@ def build_subscription_info(
             "companies": companies_count,
             "invoices": invoices_count,
         },
-        "cancel_at_period_end": False,
+        "cancel_at_period_end": bool(getattr(billing, "cancel_at_period_end", False)) if billing else False,
+        "stripe_customer_id": getattr(billing, "stripe_customer_id", None) if billing else None,
+        "stripe_subscription_id": getattr(billing, "stripe_subscription_id", None) if billing else None,
     }
