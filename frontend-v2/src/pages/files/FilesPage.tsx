@@ -155,7 +155,7 @@ export default function FilesPage() {
               value={fileSearch}
               onChange={(e) => setFileSearch(e.target.value)}
               placeholder="Търсене по файл..."
-              className="pl-8 py-1"
+              className="pl-8 !py-1"
             />
           </div>
           <div className="relative w-48">
@@ -164,7 +164,7 @@ export default function FilesPage() {
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
               placeholder="Филтър по фирма..."
-              className="pl-8 py-1"
+              className="pl-8 !py-1"
             />
           </div>
           <div className="w-36">
@@ -178,7 +178,7 @@ export default function FilesPage() {
                   setDateTo('')
                 }
               }}
-              className="py-1"
+              className="!py-1"
             />
           </div>
           <div className="w-36">
@@ -190,7 +190,7 @@ export default function FilesPage() {
                 if (e.target.value) setTimeframe('')
               }}
               placeholder="От дата"
-              className="py-1"
+              className="!py-1"
             />
           </div>
           <div className="w-36">
@@ -202,7 +202,7 @@ export default function FilesPage() {
                 if (e.target.value) setTimeframe('')
               }}
               placeholder="До дата"
-              className="py-1"
+              className="!py-1"
             />
           </div>
           <div className="ml-auto flex items-center gap-1">
