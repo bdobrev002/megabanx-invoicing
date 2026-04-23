@@ -108,6 +108,9 @@ export default function FilesPage() {
             for (let i = lo; i <= hi; i += 1) next.add(all[i])
             return next
           })
+          // Move the anchor to the clicked row so Shift+Arrow / next
+          // Shift+click extends from *here* rather than the original anchor.
+          lastClickedIdRef.current = id
           return
         }
       }
