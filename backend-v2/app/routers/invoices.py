@@ -277,6 +277,21 @@ async def _process_single_inbox_file(
         matched_company = recipient_match
         invoice_type = "purchase"
 
+    # Clean up any stale unmatched Invoice rows for this same inbox file from
+    # prior processing runs. Without this, reprocessing accumulates duplicate
+    # unmatched rows, and stale rows remain after a file finally gets matched
+    # or detected as a duplicate. Placed before the duplicate-detection early
+    # return so every branch cleans up its own stale placeholder.
+    stale_unmatched = await db.execute(
+        select(Invoice).where(
+            Invoice.profile_id == profile_id,
+            Invoice.destination_path == inbox_path,
+            Invoice.status == "unmatched",
+        )
+    )
+    for old_inv in stale_unmatched.scalars().all():
+        await db.delete(old_inv)
+
     # Duplicate detection (only meaningful when we have an issuer EIK + number)
     inv_number = str(analysis.get("invoice_number") or "").strip()
     inv_date = str(analysis.get("date") or "").strip()
@@ -304,19 +319,6 @@ async def _process_single_inbox_file(
                 "invoice": InvoiceOut.model_validate(duplicate_of),
                 "analysis": analysis,
             }
-
-    # Clean up any stale unmatched Invoice rows for this same inbox file from
-    # prior processing runs. Without this, reprocessing accumulates duplicate
-    # unmatched rows, and stale rows remain after a file finally gets matched.
-    stale_unmatched = await db.execute(
-        select(Invoice).where(
-            Invoice.profile_id == profile_id,
-            Invoice.destination_path == inbox_path,
-            Invoice.status == "unmatched",
-        )
-    )
-    for old_inv in stale_unmatched.scalars().all():
-        await db.delete(old_inv)
 
     if matched_company is None:
         # v1 parity: unmatched files stay in the inbox directory; we create an
