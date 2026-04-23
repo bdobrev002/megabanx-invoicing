@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.billing import Billing, InvoiceMonthlyUsage
@@ -187,8 +188,11 @@ async def portal(
     if not billing.stripe_customer_id:
         raise HTTPException(status_code=400, detail="Няма Stripe профил")
 
-    origin = request.headers.get("origin") or request.headers.get("referer", "")
-    return_url = f"{(origin or '').rstrip('/')}/dashboard/subscription" if origin else "/dashboard/subscription"
+    # Origin header only (Referer may include a full path; Stripe requires an
+    # absolute URL, so fall back to settings.BASE_URL like /subscribe does).
+    origin = request.headers.get("origin") or ""
+    base = origin.rstrip("/") or settings.BASE_URL.rstrip("/")
+    return_url = f"{base}/dashboard/subscription"
     try:
         url = await stripe_service.create_portal_session(billing.stripe_customer_id, return_url)
     except Exception as e:  # noqa: BLE001
