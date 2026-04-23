@@ -18,20 +18,13 @@ def _extract_text_from_html(html: str) -> str:
 
 
 def _strip_address_prefix(text: str) -> str:
-    """Strip everything before the street part; keep address from ул./ж.к./бул. onwards."""
-    # Drop everything up to and including the last "п.к. NNNN[,]?" occurrence.
-    m = re.search(r"п\.к\.\s*\d+[,.]?\s*", text)
-    if m:
-        text = text[m.end() :].strip()
-    else:
-        # Fallback: drop up to and including "Населено място: ... ," segment.
-        m = re.search(r"Населено\s+място:\s*[^,]+,?\s*", text)
-        if m:
-            text = text[m.end() :].strip()
-    # Drop any leftover "Държава:/Област:/Община:" prefix fragments.
-    text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
-    # Drop "р-н NNN" prefix (district) — the user wants address starting from ул./ж.к./бул.
-    text = re.sub(r"^р-н\s+[^,]+,?\s*", "", text).strip()
+    """Return the address starting from the ул./бул./ж.к. prefix (prefix kept).
+
+    TR registered-office blobs look like
+    ``Държава: БЪЛГАРИЯ Област: ... Община: ... Населено място: гр. X,
+    п.к. NNNN р-н ... ж.к./ул./бул. <street> ...``
+    and we want everything from the street-type prefix onwards.
+    """
     # TR sometimes prefixes fields with label hints like "ж.к. ж.к. Банишора" or
     # "бул./ул. ул. Скопие". Collapse these to a single prefix.
     text = re.sub(r"\bж\.к\.\s+ж\.к\.\s+", "ж.к. ", text)
@@ -41,10 +34,21 @@ def _strip_address_prefix(text: str) -> str:
     text = re.sub(r"\bбул\./ул\.\s+бул\.\s+", "бул. ", text)
     text = re.sub(r"\bбул\./ул\.\s+ж\.к\.\s+", "ж.к. ", text)
     text = re.sub(r"\bбул\./ул\.\s+", "ул. ", text)
-    # Truncate everything before first ж.к./ул./бул. if still anything noisy ahead.
+    # Primary path: keep everything from the first street-type prefix onwards.
     m = re.search(r"(ж\.к\.|ул\.|бул\.)", text)
-    if m and m.start() > 0:
-        text = text[m.start() :].strip()
+    if m:
+        return text[m.start() :].strip().lstrip(",").strip()
+    # Fallback when no street prefix is present: drop locality/district labels
+    # so the caller at least gets something usable.
+    m = re.search(r"п\.к\.\s*\d+[,.]?\s*", text)
+    if m:
+        text = text[m.end() :].strip()
+    else:
+        m = re.search(r"Населено\s+място:\s*[^,]+,?\s*", text)
+        if m:
+            text = text[m.end() :].strip()
+    text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
+    text = re.sub(r"^р-н\s+[^,]+,?\s*", "", text).strip()
     return text.lstrip(",").strip()
 
 

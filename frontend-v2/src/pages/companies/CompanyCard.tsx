@@ -61,6 +61,12 @@ export default function CompanyCard({ company, onEdit, onDelete }: Props) {
               </div>
             )}
           </div>
+          {company.city && (
+            <div>
+              <span className="text-gray-500">Град: </span>
+              <span className="text-gray-800">{company.city}</span>
+            </div>
+          )}
           {company.address && (
             <div>
               <span className="text-gray-500">Адрес: </span>
