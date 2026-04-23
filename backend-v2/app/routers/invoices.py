@@ -8,6 +8,7 @@ import os
 import uuid
 import zipfile
 from datetime import datetime
+from urllib.parse import quote as _url_quote
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
@@ -43,6 +44,23 @@ from app.services.matching import (
 from app.services.ws_manager import ws_manager
 
 logger = logging.getLogger("megabanx.invoices")
+
+
+def _content_disposition(disposition: str, filename: str) -> str:
+    """Build a Content-Disposition header value that survives non-ASCII
+    (Cyrillic) filenames.
+
+    HTTP header values are encoded as latin-1; raw Cyrillic in the
+    ``filename="..."`` parameter causes a UnicodeEncodeError at send time.
+    Per RFC 5987 we provide both an ASCII fallback and a percent-encoded
+    UTF-8 version in ``filename*=UTF-8''...``, which every modern browser
+    understands.
+    """
+    safe = filename.replace('"', "_").replace("\r", "").replace("\n", "")
+    ascii_fallback = safe.encode("ascii", errors="replace").decode("ascii").replace("?", "_")
+    encoded = _url_quote(safe, safe="")
+    return f"{disposition}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
+
 
 router = APIRouter(prefix="/api/profiles/{profile_id}", tags=["invoices"])
 
@@ -815,11 +833,10 @@ async def download_invoice(
     def iterfile():
         yield content
 
-    safe_filename = invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")
     return StreamingResponse(
         iterfile(),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+        headers={"Content-Disposition": _content_disposition("attachment", invoice.new_filename)},
     )
 
 
@@ -928,12 +945,11 @@ async def preview_invoice(
     def iterfile():
         yield content
 
-    safe_filename = invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")
     # inline disposition so the browser renders the file instead of downloading
     return StreamingResponse(
         iterfile(),
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{safe_filename}"'},
+        headers={"Content-Disposition": _content_disposition("inline", invoice.new_filename)},
     )
 
 
@@ -979,7 +995,7 @@ async def batch_delete_invoices(
                         profile_id=src_invoice.profile_id,
                         type="cross_copy_deleted",
                         title="Контрагентът изтри фактура",
-                        message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. " "Можете да я синхронизирате наново."),
+                        message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. Можете да я синхронизирате наново."),
                         filename=src_invoice.new_filename,
                         source="cross-copy",
                     )
@@ -1076,7 +1092,7 @@ async def batch_download_invoices(
     return StreamingResponse(
         iterbuf(),
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{archive_name}"'},
+        headers={"Content-Disposition": _content_disposition("attachment", archive_name)},
     )
 
 
