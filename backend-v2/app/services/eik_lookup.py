@@ -48,7 +48,7 @@ def _strip_address_prefix(text: str) -> str:
         if m:
             text = text[m.end() :].strip()
     text = re.sub(r"^(?:Държава:|Област:|Община:)[^,]*,?\s*", "", text).strip()
-    text = re.sub(r"^р-н\s+\S+\s*,?\s*", "", text).strip()
+    text = re.sub(r"^р-н\s+[^,]+,?\s*", "", text).strip()
     return text.lstrip(",").strip()
 
 
