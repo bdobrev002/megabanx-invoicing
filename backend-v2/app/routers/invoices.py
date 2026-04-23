@@ -419,9 +419,9 @@ async def process_inbox(
     companies = list(companies_result.scalars().all())
 
     filenames = sorted(
-        f for f in os.listdir(inbox_dir)
-        if os.path.isfile(os.path.join(inbox_dir, f))
-        and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
+        f
+        for f in os.listdir(inbox_dir)
+        if os.path.isfile(os.path.join(inbox_dir, f)) and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
     )
 
     results: list[dict] = []
@@ -486,9 +486,7 @@ async def clear_inbox_files(
                 except OSError as err:
                     logger.warning(f"Failed to remove inbox file {fpath}: {err}")
 
-    unmatched_result = await db.execute(
-        select(Invoice).where(Invoice.profile_id == profile_id, Invoice.status == "unmatched")
-    )
+    unmatched_result = await db.execute(select(Invoice).where(Invoice.profile_id == profile_id, Invoice.status == "unmatched"))
     unmatched_invoices = list(unmatched_result.scalars().all())
     for inv in unmatched_invoices:
         if inv.destination_path and os.path.exists(inv.destination_path):
