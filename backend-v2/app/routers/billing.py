@@ -231,6 +231,9 @@ async def activate_trial(
     billing = await _get_or_create_billing(user, db)
     if billing.is_trial and billing.trial_ends_at and billing.trial_ends_at > datetime.utcnow():
         return {"message": "Триалът ви вече е активен"}
+    # One trial per user — expired trials stay marked and can't be re-activated.
+    if billing.is_trial:
+        raise HTTPException(status_code=400, detail="Вече сте използвали пробния период")
     if billing.stripe_subscription_id:
         raise HTTPException(status_code=400, detail="Вече имате активен абонамент")
 
