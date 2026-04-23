@@ -129,7 +129,7 @@ async def ensure_prices() -> dict[str, str]:
                     product_id = str(product.id)
                 plan = get_plan(plan_id)
                 amount_minor = int(round(float(plan.get("price", 0.0)) * 100))
-                currency = str(plan.get("currency", "BGN")).lower()
+                currency = str(plan.get("currency", "EUR")).lower()
                 price = stripe.Price.create(
                     product=product_id,
                     unit_amount=amount_minor,

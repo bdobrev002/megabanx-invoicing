@@ -207,7 +207,7 @@ def build_subscription_info(
         "prices": {
             "monthly": plan.get("price", 0.0),
             "yearly": round(plan.get("price", 0.0) * 12 * 0.9, 2),
-            "currency": plan.get("currency", "BGN"),
+            "currency": plan.get("currency", "EUR"),
         },
         "usage": {
             "companies": companies_count,
