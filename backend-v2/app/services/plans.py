@@ -139,8 +139,9 @@ def build_subscription_info(
         status = "active" if billing.subscription_end > datetime.utcnow() else "expired"
         expires = billing.subscription_end.isoformat()
     else:
-        # No explicit subscription window — the free plan is always "active".
-        status = "active" if plan_id == "free" else "active"
+        # No explicit subscription window: free is always active; paid plans
+        # without trial/subscription dates are treated as never-activated.
+        status = "active" if plan_id == "free" else "expired"
         expires = ""
 
     return {
