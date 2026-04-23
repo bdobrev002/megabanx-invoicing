@@ -149,7 +149,7 @@ export default function FilesPage() {
       <div className="rounded-lg bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-base font-semibold text-gray-900">Структура на файловете</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-56">
+          <div className="relative w-48">
             <Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             <Input
               value={fileSearch}
@@ -158,7 +158,7 @@ export default function FilesPage() {
               className="pl-8"
             />
           </div>
-          <div className="relative w-56">
+          <div className="relative w-48">
             <Building2 size={14} className="absolute left-2.5 top-2.5 text-gray-400" />
             <Input
               value={companyFilter}
@@ -167,7 +167,7 @@ export default function FilesPage() {
               className="pl-8"
             />
           </div>
-          <div className="w-40">
+          <div className="w-36">
             <Select
               options={TIMEFRAMES}
               value={timeframe}
@@ -180,7 +180,7 @@ export default function FilesPage() {
               }}
             />
           </div>
-          <div className="w-40">
+          <div className="w-36">
             <Input
               type="date"
               value={dateFrom}
@@ -191,7 +191,7 @@ export default function FilesPage() {
               placeholder="От дата"
             />
           </div>
-          <div className="w-40">
+          <div className="w-36">
             <Input
               type="date"
               value={dateTo}
