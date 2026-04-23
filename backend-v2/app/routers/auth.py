@@ -178,15 +178,9 @@ async def _subscription_for(user: User, db: AsyncSession) -> dict:
     attaches the current usage numbers (companies in the user's profile +
     monthly invoice count).
     """
-    billing_row = (
-        await db.execute(select(Billing).where(Billing.user_id == user.id))
-    ).scalar_one_or_none()
+    billing_row = (await db.execute(select(Billing).where(Billing.user_id == user.id))).scalar_one_or_none()
 
-    companies_count = (
-        await db.execute(
-            select(func.count(Company.id)).where(Company.profile_id == user.profile_id)
-        )
-    ).scalar_one() or 0
+    companies_count = (await db.execute(select(func.count(Company.id)).where(Company.profile_id == user.profile_id))).scalar_one() or 0
 
     now = datetime.utcnow()
     usage_row = (
