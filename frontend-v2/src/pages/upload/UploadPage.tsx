@@ -69,13 +69,21 @@ const PROCESSING_ANIMATION_CSS = `
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-@keyframes megabanxFileProgressBar {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes megabanxFileShimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 .megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; }
 .megabanx-spin-slow       { animation: megabanxSpinSlow 4s linear infinite; }
-.megabanx-file-progress   { animation: megabanxFileProgressBar 2.5s linear infinite; background-size: 200% 100%; }
+.megabanx-file-shimmer    {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+}
+.megabanx-file-shimmer::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 60%;
+  background: linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.55) 40%, rgba(99,102,241,0.75) 50%, rgba(129,140,248,0.55) 60%, transparent 100%);
+  animation: megabanxFileShimmer 1.6s linear infinite;
+  will-change: transform;
+}
 `
 
 const fileStatusStyles: Record<
@@ -189,11 +197,7 @@ function ProcessingStream({
                 className={`relative overflow-hidden rounded border ${s.box}`}
               >
                 {status === 'processing' && (
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div
-                      className="megabanx-file-progress h-full w-full bg-gradient-to-r from-blue-200 via-indigo-400 to-blue-200 opacity-50"
-                    />
-                  </div>
+                  <div className="megabanx-file-shimmer" aria-hidden />
                 )}
                 {status === 'processed' && (
                   <div className="pointer-events-none absolute inset-0 bg-green-200 opacity-20" />

@@ -281,11 +281,15 @@ async def _process_single_inbox_file(
     inv_number = str(analysis.get("invoice_number") or "").strip()
     inv_date = str(analysis.get("date") or "").strip()
     if inv_number and issuer_eik:
+        # Only treat a real, matched invoice as a duplicate. Unmatched rows are
+        # placeholders for files still sitting in the inbox — reprocessing them
+        # must not flag the same file as a duplicate of its own prior pass.
         dup_result = await db.execute(
             select(Invoice).where(
                 Invoice.profile_id == profile_id,
                 Invoice.issuer_eik == issuer_eik,
                 Invoice.invoice_number == inv_number,
+                Invoice.status != "unmatched",
             )
         )
         duplicate_of = dup_result.scalars().first()
