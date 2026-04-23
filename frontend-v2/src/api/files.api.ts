@@ -104,9 +104,30 @@ export const filesApi = {
       responseType: 'blob',
     }),
 
+  /** URL for opening the decrypted file inline in a new browser tab. */
+  previewUrl: (profileId: string, invoiceId: string) =>
+    `${API_BASE_URL}/profiles/${profileId}/invoices/${invoiceId}/preview`,
+
+  /** URL for triggering a browser download of a single file. */
+  downloadUrl: (profileId: string, invoiceId: string) =>
+    `${API_BASE_URL}/profiles/${profileId}/invoices/${invoiceId}/download`,
+
   remove: (profileId: string, invoiceId: string) =>
     apiFetch<void>(`/profiles/${profileId}/invoices/${invoiceId}`, {
       method: 'DELETE',
+    }),
+
+  batchDelete: (profileId: string, invoiceIds: string[]) =>
+    apiFetch<{ deleted: string[]; failed: { invoice_id: string; error: string }[] }>(
+      `/profiles/${profileId}/invoices/batch-delete`,
+      { method: 'POST', body: JSON.stringify({ invoice_ids: invoiceIds }) },
+    ),
+
+  batchDownload: (profileId: string, invoiceIds: string[]) =>
+    apiFetch<Blob>(`/profiles/${profileId}/invoices/batch-download`, {
+      method: 'POST',
+      body: JSON.stringify({ invoice_ids: invoiceIds }),
+      responseType: 'blob',
     }),
 
   getInbox: (profileId: string) =>

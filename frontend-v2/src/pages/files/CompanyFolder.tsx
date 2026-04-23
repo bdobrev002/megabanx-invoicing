@@ -16,10 +16,13 @@ import {
   Mail,
   Clock,
   X,
+  Download,
+  Trash2,
 } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { invoicingApi } from '@/api/invoicing.api'
 import { useAuthStore } from '@/stores/authStore'
+import { useUiStore } from '@/stores/uiStore'
 import { ROUTES } from '@/utils/constants'
 import type { InvoiceRecord } from '@/types/file.types'
 import type { IncomingCrossCopy } from '@/types/invoicing.types'
@@ -44,26 +47,23 @@ interface Props {
   dateFrom: string
   dateTo: string
   sortBy: 'name' | 'date'
-  /** Profile whose files we render. Defaults to the logged-in user's
-   *  own profile but shared users pass the owner's profile_id. */
   profileId?: string
+  /** Lifted selection state so the page-level toolbar can batch-delete/download. */
+  selectedIds: Set<string>
+  onToggleSelected: (id: string) => void
+  /** Bumped by parent after a batch delete / refresh so we reload rows. */
+  refreshKey?: number
 }
 
 const SUBTYPE_LABEL: Record<string, string> = {
   purchases: 'Фактури покупки',
   sales: 'Фактури продажби',
-  pending: 'Чакащи одобрение',
 }
 
-// purchases/sales hit /invoices?invoice_type=... against the scan-upload table.
-// pending is sourced from inv_invoice_meta via the invoicing /incoming endpoint
-// (cross_copy_status='pending') and has its own branch in loadSection.
 const SUBTYPE_API: Record<string, string> = {
   purchases: 'purchase',
   sales: 'sale',
 }
-
-const SUBTYPE_ORDER = ['purchases', 'sales', 'pending']
 
 function countOf(folder: FolderData, name: string): number {
   return folder.subfolders.find((sf) => sf.name === name)?.file_count ?? 0
@@ -78,8 +78,6 @@ function withinTimeframe(
   if (!tf && !from && !to) return true
   if (!dateStr) return !tf && !from && !to
   const d = new Date(dateStr)
-  // With an active filter, records without a usable date are hidden (same as
-  // the empty-string branch above) rather than silently bypassing the filter.
   if (Number.isNaN(d.getTime())) return false
   const now = new Date()
   if (tf === 'today') return d.toDateString() === now.toDateString()
@@ -131,13 +129,17 @@ export default function CompanyFolder({
   dateTo,
   sortBy,
   profileId: profileIdProp,
+  selectedIds,
+  onToggleSelected,
+  refreshKey = 0,
 }: Props) {
   const ownProfileId = useAuthStore((s) => s.user?.profile_id) ?? ''
   const profileId = profileIdProp ?? ownProfileId
+  const setError = useUiStore((s) => s.setError)
   const [expanded, setExpanded] = useState(false)
   const [invoices, setInvoices] = useState<Record<string, InvoiceRecord[]>>({})
   const [loading, setLoading] = useState(false)
-  const [openSection, setOpenSection] = useState<string | null>(null)
+  const [pendingOpen, setPendingOpen] = useState(false)
 
   const purchases = countOf(folder, 'purchases')
   const sales = countOf(folder, 'sales')
@@ -147,38 +149,53 @@ export default function CompanyFolder({
     null,
   )
 
-  const loadSection = useCallback(
-    async (sub: string, force = false) => {
+  const loadPurchasesAndSales = useCallback(
+    async (force = false) => {
       if (!folder.company_id) return
-      if (sub === 'pending') {
-        if (!force && pendingRows) return
-        setLoading(true)
-        try {
-          const list = await invoicingApi.getIncomingCrossCopies(
-            profileId,
-            folder.company_id,
-          )
-          setPendingRows(list)
-        } catch {
-          setPendingRows([])
-        } finally {
-          setLoading(false)
-        }
-        return
-      }
-      if (!force && invoices[sub]) return
       setLoading(true)
       try {
-        const apiType = SUBTYPE_API[sub]
-        const list = await filesApi.list(profileId, folder.company_id, apiType)
-        setInvoices((prev) => ({ ...prev, [sub]: list }))
+        const needs = (['purchases', 'sales'] as const).filter(
+          (s) => force || !invoices[s],
+        )
+        const results = await Promise.all(
+          needs.map((s) =>
+            filesApi.list(profileId, folder.company_id!, SUBTYPE_API[s]),
+          ),
+        )
+        setInvoices((prev) => {
+          const next = { ...prev }
+          needs.forEach((s, i) => {
+            next[s] = results[i]
+          })
+          return next
+        })
       } catch {
-        setInvoices((prev) => ({ ...prev, [sub]: [] }))
+        // Keep previously loaded rows if refresh fails.
       } finally {
         setLoading(false)
       }
     },
-    [folder.company_id, invoices, pendingRows, profileId],
+    [folder.company_id, invoices, profileId],
+  )
+
+  const loadPending = useCallback(
+    async (force = false) => {
+      if (!folder.company_id) return
+      if (!force && pendingRows) return
+      setLoading(true)
+      try {
+        const list = await invoicingApi.getIncomingCrossCopies(
+          profileId,
+          folder.company_id,
+        )
+        setPendingRows(list)
+      } catch {
+        setPendingRows([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [folder.company_id, pendingRows, profileId],
   )
 
   const actOnPending = async (
@@ -191,56 +208,67 @@ export default function CompanyFolder({
       } else {
         await invoicingApi.rejectIncomingCrossCopy(invoiceId)
       }
-      // Drop the row locally; the WS refresh will re-fetch counts shortly.
       setPendingRows((prev) =>
         (prev ?? []).filter((row) => row.meta.invoice_id !== invoiceId),
       )
     } catch {
-      // Swallow — WS refresh or a manual reopen will resync the list.
+      /* WS refresh will resync */
     }
   }
 
-  // When file counts change (e.g. after a WebSocket refresh), invalidate the
-  // cached invoice lists so the header counts and expanded rows stay in sync.
-  // If a section is currently open, immediately refetch it so the user never
-  // sees a blank rows area while the new data is fetched.
-  const countsKey = `${purchases}|${sales}|${pending}`
+  // Re-fetch on external changes (file counts or forced refresh from parent).
+  const countsKey = `${purchases}|${sales}|${pending}|${refreshKey}`
   const prevCountsKey = useRef(countsKey)
-  const loadSectionRef = useRef(loadSection)
+  const loadPandSRef = useRef(loadPurchasesAndSales)
+  const loadPendingRef = useRef(loadPending)
   useEffect(() => {
-    loadSectionRef.current = loadSection
-  }, [loadSection])
+    loadPandSRef.current = loadPurchasesAndSales
+  }, [loadPurchasesAndSales])
+  useEffect(() => {
+    loadPendingRef.current = loadPending
+  }, [loadPending])
   useEffect(() => {
     if (prevCountsKey.current !== countsKey) {
       prevCountsKey.current = countsKey
       setInvoices({})
       setPendingRows(null)
-      if (openSection) {
-        void loadSectionRef.current(openSection, true)
+      if (expanded) {
+        void loadPandSRef.current(true)
+        if (pendingOpen) void loadPendingRef.current(true)
       }
     }
-  }, [countsKey, openSection])
+  }, [countsKey, expanded, pendingOpen])
 
   const toggleExpanded = () => {
     const next = !expanded
     setExpanded(next)
-    // When opening for the first time, auto-select the first non-empty section.
-    if (next && !openSection) {
-      const first = SUBTYPE_ORDER.find((s) => countOf(folder, s) > 0)
-      if (first) {
-        setOpenSection(first)
-        loadSection(first)
-      }
+    if (next) {
+      void loadPurchasesAndSales()
     }
   }
 
-  const toggleSection = (sub: string) => {
-    if (openSection === sub) {
-      setOpenSection(null)
-      return
+  const togglePending = () => {
+    const next = !pendingOpen
+    setPendingOpen(next)
+    if (next) void loadPending()
+  }
+
+  const handleDeleteOne = async (inv: InvoiceRecord) => {
+    if (!window.confirm(`Изтриване на "${inv.new_filename || inv.original_filename}"?`)) return
+    try {
+      await filesApi.remove(profileId, inv.id)
+      // Remove from local state; the WS refresh will also reload counts.
+      setInvoices((prev) => {
+        const next = { ...prev }
+        for (const k of Object.keys(next)) {
+          next[k] = (next[k] ?? []).filter((r) => r.id !== inv.id)
+        }
+        return next
+      })
+      if (selectedIds.has(inv.id)) onToggleSelected(inv.id)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при изтриване')
     }
-    setOpenSection(sub)
-    loadSection(sub)
   }
 
   const filterAndSort = (rows: InvoiceRecord[]): InvoiceRecord[] => {
@@ -275,6 +303,42 @@ export default function CompanyFolder({
 
   const actionBtn =
     'inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium text-white shadow-sm transition'
+
+  // Rendered when a company is expanded: both Фактури покупки AND Фактури продажби
+  // are shown simultaneously (v1 parity — no inner accordion).
+  const renderSection = (sub: 'purchases' | 'sales') => {
+    const rows = filterAndSort(invoices[sub] ?? [])
+    const count = countOf(folder, sub)
+    return (
+      <div key={sub} className="mt-3">
+        <h4 className="mb-2 flex items-center gap-4 text-xs font-semibold uppercase text-gray-500">
+          {SUBTYPE_LABEL[sub]} ({count})
+          <span className="ml-auto flex items-center gap-3 text-[11px] normal-case text-gray-400">
+            <span>Дата</span>
+            <span>Статус</span>
+          </span>
+        </h4>
+        {loading && !invoices[sub] ? (
+          <p className="pl-4 text-xs text-gray-500">Зареждане…</p>
+        ) : rows.length === 0 ? (
+          <p className="pl-4 text-xs text-gray-400">Няма файлове</p>
+        ) : (
+          <div className="space-y-1">
+            {rows.map((inv) => (
+              <InvoiceRow
+                key={inv.id}
+                inv={inv}
+                profileId={profileId}
+                selected={selectedIds.has(inv.id)}
+                onToggleSelected={() => onToggleSelected(inv.id)}
+                onDelete={() => handleDeleteOne(inv)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -350,72 +414,49 @@ export default function CompanyFolder({
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50/50 px-2 pb-2">
-          {SUBTYPE_ORDER.map((sub) => {
-            const count = countOf(folder, sub)
-            // v1 parity: always render purchases/sales (with count (0) if empty);
-            // pending stays conditional — it appears only when there's work to do.
-            if (sub === 'pending' && count === 0) return null
-            const isOpen = openSection === sub
-            const isPending = sub === 'pending'
-            const rows = isPending ? [] : filterAndSort(invoices[sub] ?? [])
-            const pendingLoaded = pendingRows !== null
-            return (
-              <div key={sub} className="mt-2 rounded border border-gray-200 bg-white">
-                <button
-                  type="button"
-                  onClick={() => toggleSection(sub)}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
-                >
-                  <span className="flex items-center gap-2 font-medium text-gray-800">
-                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    {isPending && <Clock size={14} className="text-amber-500" />}
-                    {SUBTYPE_LABEL[sub]} ({count})
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {isPending ? 'Очаква одобрение' : 'Дата · Статус'}
-                  </span>
-                </button>
-                {isOpen && !isPending && (
-                  <div className="divide-y divide-gray-100 border-t border-gray-100">
-                    {loading && !invoices[sub] && (
-                      <p className="px-3 py-3 text-xs text-gray-500">Зареждане…</p>
-                    )}
-                    {invoices[sub] && rows.length === 0 && (
-                      <p className="px-3 py-3 text-xs text-gray-500">
-                        Няма резултати за приложените филтри.
-                      </p>
-                    )}
-                    {rows.map((inv) => (
-                      <InvoiceRow key={inv.id} inv={inv} />
-                    ))}
-                  </div>
-                )}
-                {isOpen && isPending && (
-                  <div className="divide-y divide-gray-100 border-t border-gray-100">
-                    {loading && !pendingLoaded && (
-                      <p className="px-3 py-3 text-xs text-gray-500">Зареждане…</p>
-                    )}
-                    {pendingLoaded && (pendingRows ?? []).length === 0 && (
-                      <p className="px-3 py-3 text-xs text-gray-500">
-                        Няма фактури, очакващи одобрение.
-                      </p>
-                    )}
-                    {(pendingRows ?? []).map((row) => (
-                      <PendingRow
-                        key={row.meta.invoice_id}
-                        row={row}
-                        onApprove={() => actOnPending(row.meta.invoice_id, 'approve')}
-                        onReject={() => actOnPending(row.meta.invoice_id, 'reject')}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="border-t border-gray-100 bg-gray-50/50 px-4 pb-3 pt-1">
+          {renderSection('purchases')}
+          {renderSection('sales')}
+
+          {pending > 0 && (
+            <div className="mt-3 rounded border border-amber-200 bg-amber-50/40">
+              <button
+                type="button"
+                onClick={togglePending}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-amber-50"
+              >
+                <span className="flex items-center gap-2 font-medium text-amber-800">
+                  {pendingOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <Clock size={14} />
+                  Чакащи одобрение ({pending})
+                </span>
+                <span className="text-xs text-amber-700">Очаква одобрение</span>
+              </button>
+              {pendingOpen && (
+                <div className="divide-y divide-amber-100 border-t border-amber-100 bg-white">
+                  {loading && !pendingRows && (
+                    <p className="px-3 py-3 text-xs text-gray-500">Зареждане…</p>
+                  )}
+                  {pendingRows && pendingRows.length === 0 && (
+                    <p className="px-3 py-3 text-xs text-gray-500">
+                      Няма фактури, очакващи одобрение.
+                    </p>
+                  )}
+                  {(pendingRows ?? []).map((row) => (
+                    <PendingRow
+                      key={row.meta.invoice_id}
+                      row={row}
+                      onApprove={() => actOnPending(row.meta.invoice_id, 'approve')}
+                      onReject={() => actOnPending(row.meta.invoice_id, 'reject')}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {purchases + sales + pending === 0 && (
-            <p className="py-3 pl-8 text-xs text-gray-500">
+            <p className="py-3 pl-4 text-xs text-gray-500">
               Все още няма качени фактури за тази фирма.
             </p>
           )}
@@ -473,31 +514,82 @@ function PendingRow({
   )
 }
 
-function InvoiceRow({ inv }: { inv: InvoiceRecord }) {
+function InvoiceRow({
+  inv,
+  profileId,
+  selected,
+  onToggleSelected,
+  onDelete,
+}: {
+  inv: InvoiceRecord
+  profileId: string
+  selected: boolean
+  onToggleSelected: () => void
+  onDelete: () => void
+}) {
   const name = inv.new_filename || inv.original_filename || inv.invoice_number || '—'
   const isCredit = inv.is_credit_note
+  const rowBase = 'group flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-default'
+  const rowState = selected ? 'bg-indigo-100' : 'hover:bg-gray-100'
+  const openPreview = () => {
+    window.open(filesApi.previewUrl(profileId, inv.id), '_blank', 'noopener,noreferrer')
+  }
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-xs">
+    <div
+      className={`${rowBase} ${rowState}`}
+      onDoubleClick={openPreview}
+      title="Двоен клик за преглед"
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelected}
+        onClick={(e) => e.stopPropagation()}
+        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-indigo-600"
+        aria-label="Избери фактура"
+      />
       <FileText
         size={14}
         className={isCredit ? 'text-red-500' : 'text-gray-400'}
       />
-      <span className={`flex-1 truncate ${isCredit ? 'text-red-600' : 'text-gray-800'}`}>
+      <span className={`flex-1 truncate ${isCredit ? 'text-red-600 font-medium' : 'text-gray-800'}`}>
         {name}
       </span>
       <span className="w-28 shrink-0 text-right text-gray-500">
         {inv.date || '—'}
       </span>
-      <span className="w-20 shrink-0 text-right">
+      <span className="w-16 shrink-0 text-right">
         <span className="inline-flex items-center gap-1 text-gray-500">
           <SyncBadge inv={inv} />
-          {inv.cross_copied_from && (
+          {inv.cross_copied_from ? (
             <span title={`Изпратена от ${inv.cross_copied_from}`} className="text-blue-500">
               <Mail size={12} />
             </span>
+          ) : (
+            <span className="inline-block w-3" />
           )}
         </span>
       </span>
+      <a
+        href={filesApi.downloadUrl(profileId, inv.id)}
+        onClick={(e) => e.stopPropagation()}
+        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600"
+        title="Свали"
+        download
+      >
+        <Download size={14} />
+      </a>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600"
+        title="Изтрий"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   )
 }

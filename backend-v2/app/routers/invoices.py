@@ -1,13 +1,15 @@
 """Invoices router: upload, AI analysis, list, download, delete, batch operations."""
 
 import asyncio
+import io
 import json
 import logging
 import os
 import uuid
+import zipfile
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -886,6 +888,196 @@ async def delete_invoice(
     )
 
     return {"message": "Фактурата е изтрита"}
+
+
+@router.get("/invoices/{invoice_id}/preview")
+async def preview_invoice(
+    profile_id: str,
+    invoice_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the decrypted invoice file inline (for opening in a new tab)."""
+    allowed = await _accessible_company_ids(profile_id, user, db)
+
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.profile_id == profile_id))
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Фактурата не е намерена")
+    if allowed is not None and invoice.company_id not in allowed:
+        raise HTTPException(status_code=403, detail="Нямате достъп до тази фактура")
+
+    if not invoice.destination_path or not os.path.exists(invoice.destination_path):
+        raise HTTPException(status_code=404, detail="Файлът не е намерен на диска")
+
+    content = read_decrypted_file(invoice.destination_path)
+    ext = os.path.splitext(invoice.new_filename)[1].lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".tiff": "image/tiff",
+        ".tif": "image/tiff",
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    def iterfile():
+        yield content
+
+    safe_filename = invoice.new_filename.replace(chr(34), "_").replace(chr(10), "").replace(chr(13), "")
+    # inline disposition so the browser renders the file instead of downloading
+    return StreamingResponse(
+        iterfile(),
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{safe_filename}"'},
+    )
+
+
+@router.post("/invoices/batch-delete")
+async def batch_delete_invoices(
+    profile_id: str,
+    payload: dict = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete multiple invoices by ID. Mirrors v1 `delete-batch` semantics.
+
+    Returns per-invoice results so the UI can report partial failures
+    (e.g. cross-copied invoices approved by the counterparty, which can't
+    be deleted from the issuer side).
+    """
+    await _verify_profile_access(profile_id, user, db)
+    raw_ids = payload.get("invoice_ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="Не са посочени фактури за изтриване.")
+    invoice_ids = [str(x) for x in raw_ids if isinstance(x, (str, int))]
+
+    deleted: list[str] = []
+    failed: list[dict] = []
+    notified_profiles: set[str] = set()
+
+    for inv_id in invoice_ids:
+        result = await db.execute(select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id))
+        invoice = result.scalar_one_or_none()
+        if not invoice:
+            failed.append({"invoice_id": inv_id, "error": "Фактурата не е намерена"})
+            continue
+
+        source_invoice_id = invoice.source_invoice_id
+        if source_invoice_id:
+            src_result = await db.execute(select(Invoice).where(Invoice.id == source_invoice_id))
+            src_invoice = src_result.scalar_one_or_none()
+            if src_invoice:
+                src_invoice.cross_copy_status = "deleted_by_recipient"
+                notified_profiles.add(src_invoice.profile_id)
+                db.add(
+                    Notification(
+                        profile_id=src_invoice.profile_id,
+                        type="cross_copy_deleted",
+                        title="Контрагентът изтри фактура",
+                        message=(f"Контрагентът изтри копието на фактура {invoice.new_filename}. " "Можете да я синхронизирате наново."),
+                        filename=src_invoice.new_filename,
+                        source="cross-copy",
+                    )
+                )
+
+        if invoice.destination_path and os.path.exists(invoice.destination_path):
+            try:
+                os.remove(invoice.destination_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete file {invoice.destination_path}: {e}")
+
+        await db.delete(invoice)
+        deleted.append(inv_id)
+
+    await db.flush()
+
+    for pid in notified_profiles:
+        await ws_manager.notify_profile(pid, {"type": "refresh", "reason": "cross_copy_deleted"})
+    await ws_manager.notify_profile(profile_id, {"type": "refresh", "reason": "invoice_deleted"})
+
+    return {"deleted": deleted, "failed": failed}
+
+
+@router.post("/invoices/batch-download")
+async def batch_download_invoices(
+    profile_id: str,
+    payload: dict = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a ZIP archive containing the selected invoice files.
+
+    Mirrors v1 `download-batch`. Files inside the archive are grouped by
+    ``{company}/{Фактури покупки|продажби}/{filename}`` so unzipping
+    reproduces the on-disk folder structure the user sees in the UI.
+    """
+    allowed = await _accessible_company_ids(profile_id, user, db)
+    raw_ids = payload.get("invoice_ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="Не са посочени фактури за сваляне.")
+    invoice_ids = [str(x) for x in raw_ids if isinstance(x, (str, int))]
+
+    buf = io.BytesIO()
+    type_folder = {"purchase": "Фактури покупки", "sale": "Фактури продажби"}
+    added = 0
+    used_arcnames: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for inv_id in invoice_ids:
+            result = await db.execute(select(Invoice).where(Invoice.id == inv_id, Invoice.profile_id == profile_id))
+            invoice = result.scalar_one_or_none()
+            if not invoice:
+                continue
+            if allowed is not None and invoice.company_id not in allowed:
+                continue
+            if not invoice.destination_path or not os.path.exists(invoice.destination_path):
+                continue
+
+            company_name = "Без фирма"
+            if invoice.company_id:
+                company_row = await db.execute(select(Company).where(Company.id == invoice.company_id))
+                company = company_row.scalar_one_or_none()
+                if company:
+                    company_name = company.name or company_name
+
+            folder = type_folder.get(invoice.invoice_type or "", "Други")
+            arcname = f"{company_name}/{folder}/{invoice.new_filename}"
+            # Deduplicate if two invoices happen to resolve to the same path
+            base_arcname = arcname
+            counter = 1
+            while arcname in used_arcnames:
+                stem, ext = os.path.splitext(base_arcname)
+                arcname = f"{stem} ({counter}){ext}"
+                counter += 1
+            used_arcnames.add(arcname)
+
+            try:
+                content = read_decrypted_file(invoice.destination_path)
+            except Exception as e:
+                logger.warning(f"batch-download: failed to read {invoice.destination_path}: {e}")
+                continue
+            zf.writestr(arcname, content)
+            added += 1
+
+    if added == 0:
+        raise HTTPException(status_code=404, detail="Няма достъпни файлове за сваляне.")
+
+    buf.seek(0)
+    zip_bytes = buf.getvalue()
+
+    def iterbuf():
+        yield zip_bytes
+
+    archive_name = f"megabanx-invoices-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return StreamingResponse(
+        iterbuf(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{archive_name}"'},
+    )
 
 
 @router.post("/invoices/{invoice_id}/resync")
