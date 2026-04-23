@@ -39,12 +39,12 @@ logger = logging.getLogger("megabanx.stripe")
 stripe.api_key = settings.STRIPE_SECRET_KEY or None
 
 # In-memory cache of lazily-resolved Stripe Price IDs, keyed by plan id.
-# Prices are billed monthly in BGN; amount_minor = price * 100.
+# Prices are billed monthly in the plan's currency; amount_minor = price * 100.
 _price_cache: dict[str, str] = {}
 _price_lock = asyncio.Lock()
 
-# Paid plans we expose via Checkout. `free` never hits Stripe.
-PAID_PLANS = ("starter", "pro", "business")
+# Paid plans we expose via Checkout. `free` and `personal` (contact-us) skip Stripe.
+PAID_PLANS = ("starter", "pro", "business", "corporate")
 
 # Map raw Stripe subscription statuses to the vocabulary the frontend
 # (SubscriptionStatus.tsx) understands. Stripe statuses the UI doesn't handle
