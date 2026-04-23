@@ -129,7 +129,9 @@ async def subscribe(
             status_code=400,
             detail="Вече имате активен абонамент. Моля, отменете текущия преди да смените плана.",
         )
-    origin = request.headers.get("origin") or request.headers.get("referer", "")
+    # Origin only — Referer carries a full path and would produce malformed
+    # redirect URLs. create_checkout_session falls back to settings.BASE_URL.
+    origin = request.headers.get("origin") or ""
     try:
         url = await stripe_service.create_checkout_session(user, billing, body.plan_id, origin, db)
     except Exception as e:  # noqa: BLE001 — Stripe errors vary
