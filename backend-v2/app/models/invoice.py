@@ -27,6 +27,7 @@ class Invoice(Base):
     recipient_eik: Mapped[str] = mapped_column(String(20), default="")
     recipient_vat: Mapped[str] = mapped_column(String(20), default="")
     invoice_number: Mapped[str] = mapped_column(String(50), default="")
+    subtotal: Mapped[str] = mapped_column(String(50), default="")
     total_amount: Mapped[str] = mapped_column(String(50), default="")
     vat_amount: Mapped[str] = mapped_column(String(50), default="")
     destination_path: Mapped[str] = mapped_column(Text, default="")
