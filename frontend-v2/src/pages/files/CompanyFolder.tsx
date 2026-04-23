@@ -50,7 +50,15 @@ interface Props {
   profileId?: string
   /** Lifted selection state so the page-level toolbar can batch-delete/download. */
   selectedIds: Set<string>
-  onToggleSelected: (id: string) => void
+  /**
+   * v1 click semantics:
+   *   - plain click  → replace selection with this id
+   *   - ctrl / meta  → toggle this id in selection
+   *   - shift        → range-add from last-clicked row in the same section
+   */
+  onRowClick: (id: string, e: React.MouseEvent, orderedIds: string[]) => void
+  /** Remove a single id from the parent's selection (used after single-row delete). */
+  onDeselectId: (id: string) => void
   /** Bumped by parent after a batch delete / refresh so we reload rows. */
   refreshKey?: number
 }
@@ -130,7 +138,8 @@ export default function CompanyFolder({
   sortBy,
   profileId: profileIdProp,
   selectedIds,
-  onToggleSelected,
+  onRowClick,
+  onDeselectId,
   refreshKey = 0,
 }: Props) {
   const ownProfileId = useAuthStore((s) => s.user?.profile_id) ?? ''
@@ -265,7 +274,7 @@ export default function CompanyFolder({
         }
         return next
       })
-      if (selectedIds.has(inv.id)) onToggleSelected(inv.id)
+      if (selectedIds.has(inv.id)) onDeselectId(inv.id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при изтриване')
     }
@@ -330,7 +339,13 @@ export default function CompanyFolder({
                 inv={inv}
                 profileId={profileId}
                 selected={selectedIds.has(inv.id)}
-                onToggleSelected={() => onToggleSelected(inv.id)}
+                onRowClick={(e) =>
+                  onRowClick(
+                    inv.id,
+                    e,
+                    rows.map((r) => r.id),
+                  )
+                }
                 onDelete={() => handleDeleteOne(inv)}
               />
             ))}
@@ -518,36 +533,32 @@ function InvoiceRow({
   inv,
   profileId,
   selected,
-  onToggleSelected,
+  onRowClick,
   onDelete,
 }: {
   inv: InvoiceRecord
   profileId: string
   selected: boolean
-  onToggleSelected: () => void
+  onRowClick: (e: React.MouseEvent) => void
   onDelete: () => void
 }) {
   const name = inv.new_filename || inv.original_filename || inv.invoice_number || '—'
   const isCredit = inv.is_credit_note
-  const rowBase = 'group flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-default'
-  const rowState = selected ? 'bg-indigo-100' : 'hover:bg-gray-100'
+  const rowBase = 'group flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-default select-none'
+  const rowState = selected
+    ? 'bg-indigo-100 ring-1 ring-indigo-300'
+    : 'hover:bg-gray-50'
   const openPreview = () => {
     window.open(filesApi.previewUrl(profileId, inv.id), '_blank', 'noopener,noreferrer')
   }
   return (
     <div
+      data-file-id={inv.id}
       className={`${rowBase} ${rowState}`}
+      onClick={onRowClick}
       onDoubleClick={openPreview}
-      title="Двоен клик за преглед"
+      title="Клик за избор, двоен клик за преглед"
     >
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggleSelected}
-        onClick={(e) => e.stopPropagation()}
-        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-indigo-600"
-        aria-label="Избери фактура"
-      />
       <FileText
         size={14}
         className={isCredit ? 'text-red-500' : 'text-gray-400'}
