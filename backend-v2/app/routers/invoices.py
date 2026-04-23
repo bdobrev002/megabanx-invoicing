@@ -1,5 +1,7 @@
 """Invoices router: upload, AI analysis, list, download, delete, batch operations."""
 
+import asyncio
+import json
 import logging
 import os
 import uuid
@@ -40,6 +42,38 @@ from app.services.ws_manager import ws_manager
 logger = logging.getLogger("megabanx.invoices")
 
 router = APIRouter(prefix="/api/profiles/{profile_id}", tags=["invoices"])
+
+
+# --- Parallel processing (v1 parity) ---
+# v1 runs up to 10 concurrent Gemini calls per profile during batch processing.
+# Each profile gets its own ``asyncio.Semaphore`` so one user's big batch does
+# not starve another user, but DB writes + filesystem moves remain serialized
+# on the request's shared session.
+GEMINI_MAX_PARALLEL_PER_PROFILE = 10
+_profile_gemini_semaphores: dict[str, asyncio.Semaphore] = {}
+
+
+def _profile_semaphore(profile_id: str) -> asyncio.Semaphore:
+    sem = _profile_gemini_semaphores.get(profile_id)
+    if sem is None:
+        sem = asyncio.Semaphore(GEMINI_MAX_PARALLEL_PER_PROFILE)
+        _profile_gemini_semaphores[profile_id] = sem
+    return sem
+
+
+async def _analyze_with_semaphore(profile_id: str, inbox_path: str, inbox_filename: str) -> dict:
+    """Run Gemini analysis under the profile's concurrency limit.
+
+    Returns the parsed analysis dict, or ``{}`` if the call failed (caller
+    treats an empty analysis as 'AI не успя').
+    """
+    sem = _profile_semaphore(profile_id)
+    async with sem:
+        try:
+            return await analyze_invoice_with_gemini(inbox_path)
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {inbox_filename}: {e}")
+            return {}
 
 
 async def _verify_profile_access(profile_id: str, user: User, db: AsyncSession) -> Profile:
@@ -198,21 +232,26 @@ async def _process_single_inbox_file(
     inbox_path: str,
     inbox_filename: str,
     companies: list[Company],
+    analysis: dict | None = None,
 ) -> dict:
     """Run Gemini analysis + matching + classification for a single inbox file.
 
-    Shared by the legacy single-file path and the new batch processor.
+    Shared by the legacy single-file path and the new batch processor. If
+    ``analysis`` is provided the Gemini call is skipped (used by the SSE
+    streaming path, which runs analysis in parallel upfront).
+
     Returns a dict describing the outcome (processed / unmatched / duplicate /
     over_limit / error) plus the Invoice row (if one was created).
     """
     original_filename = inbox_filename.split("_", 1)[1] if "_" in inbox_filename else inbox_filename
     ext = os.path.splitext(inbox_filename)[1].lower()
 
-    analysis: dict = {}
-    try:
-        analysis = await analyze_invoice_with_gemini(inbox_path)
-    except Exception as e:
-        logger.warning(f"AI analysis failed for {inbox_filename}: {e}")
+    if analysis is None:
+        analysis = {}
+        try:
+            analysis = await analyze_invoice_with_gemini(inbox_path)
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {inbox_filename}: {e}")
 
     issuer_eik = (analysis.get("issuer_eik") or "").strip()
     issuer_vat = (analysis.get("issuer_vat") or "").strip()
@@ -459,6 +498,163 @@ async def process_inbox(
         {"type": "refresh", "reason": "inbox_processed"},
     )
     return {**counts, "results": results}
+
+
+@router.get("/process-stream")
+async def process_inbox_stream(
+    profile_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE variant of ``POST /process`` with v1-style parallel Gemini calls.
+
+    The server runs up to ``GEMINI_MAX_PARALLEL_PER_PROFILE`` Gemini analyses
+    at once and streams per-file progress so the frontend can mark each file
+    as pending → processing → done/error with a live spinner.
+
+    Events (``data: <json>``, SSE):
+      - ``{"type": "init"}`` — stream opened, doing setup
+      - ``{"type": "start", "total": N, "parallel": 10}`` — starting batch
+      - ``{"type": "file_processing", "filename": "..."}`` — Gemini call began
+      - ``{"type": "progress", "filename": "...", "status": "processed|unmatched|duplicate|over_limit|error", "current": i, "total": N}``
+      - ``{"type": "complete", "counts": {...}, "results": [...]}``
+      - ``{"type": "error", "message": "..."}`` — fatal (setup) error
+    """
+    await _verify_profile_access(profile_id, user, db)
+    profile_id_local = profile_id
+    user_local = user
+    db_local = db
+
+    async def event_generator():
+        def sse(payload: dict) -> str:
+            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        yield sse({"type": "init", "message": "Подготовка..."})
+
+        empty_counts = {
+            "processed": 0,
+            "unmatched": 0,
+            "duplicate": 0,
+            "over_limit": 0,
+            "errors": 0,
+        }
+        inbox_dir = get_inbox_dir(profile_id_local)
+        if not os.path.isdir(inbox_dir):
+            yield sse({"type": "complete", "counts": empty_counts, "results": []})
+            return
+
+        companies_result = await db_local.execute(select(Company).where(Company.profile_id == profile_id_local))
+        companies = list(companies_result.scalars().all())
+
+        filenames = sorted(
+            f
+            for f in os.listdir(inbox_dir)
+            if os.path.isfile(os.path.join(inbox_dir, f)) and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
+        )
+        total = len(filenames)
+
+        if total == 0:
+            yield sse({"type": "complete", "counts": empty_counts, "results": []})
+            return
+
+        yield sse({"type": "start", "total": total, "parallel": GEMINI_MAX_PARALLEL_PER_PROFILE})
+
+        # Fan out: spawn one analysis task per file. ``_analyze_with_semaphore``
+        # serializes to at most GEMINI_MAX_PARALLEL_PER_PROFILE concurrent calls.
+        # We use an ``asyncio.Queue`` so the main loop can yield ``file_processing``
+        # events the moment a task acquires the semaphore (before Gemini returns)
+        # and ``progress`` events when it finishes.
+        started_queue: asyncio.Queue = asyncio.Queue()
+        finished_queue: asyncio.Queue = asyncio.Queue()
+
+        async def analyze_task(fname: str):
+            fpath = os.path.join(inbox_dir, fname)
+            sem = _profile_semaphore(profile_id_local)
+            async with sem:
+                await started_queue.put(fname)
+                try:
+                    analysis = await analyze_invoice_with_gemini(fpath)
+                except Exception as e:
+                    logger.warning(f"AI analysis failed for {fname}: {e}")
+                    analysis = {}
+            await finished_queue.put((fname, analysis))
+
+        tasks = [asyncio.create_task(analyze_task(f)) for f in filenames]
+
+        counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0}
+        results: list[dict] = []
+        processed = 0
+
+        try:
+            while processed < total:
+                # Drain any already-started notifications first so UI can show
+                # spinners as soon as Gemini calls begin.
+                while not started_queue.empty():
+                    started = started_queue.get_nowait()
+                    yield sse({"type": "file_processing", "filename": started})
+
+                fname, analysis = await finished_queue.get()
+                # Drain started queue once more (started may have fired in between)
+                while not started_queue.empty():
+                    started = started_queue.get_nowait()
+                    yield sse({"type": "file_processing", "filename": started})
+
+                fpath = os.path.join(inbox_dir, fname)
+                try:
+                    res = await _process_single_inbox_file(
+                        profile_id=profile_id_local,
+                        user=user_local,
+                        db=db_local,
+                        inbox_path=fpath,
+                        inbox_filename=fname,
+                        companies=companies,
+                        analysis=analysis,
+                    )
+                    await db_local.commit()
+                except Exception as e:
+                    logger.exception(f"Error processing inbox file {fname}: {e}")
+                    await db_local.rollback()
+                    res = {"status": "error", "original_filename": fname, "reason": str(e)}
+
+                status = res.get("status", "error")
+                counts_key = status if status in counts else "errors"
+                counts[counts_key] = counts.get(counts_key, 0) + 1
+                results.append(
+                    {
+                        "status": status,
+                        "original_filename": res.get("original_filename", fname),
+                        "reason": res.get("reason"),
+                        "invoice": res.get("invoice"),
+                    }
+                )
+                processed += 1
+                yield sse(
+                    {
+                        "type": "progress",
+                        "filename": fname,
+                        "status": status,
+                        "current": processed,
+                        "total": total,
+                    }
+                )
+        finally:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            # Let cancellations settle.
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        await ws_manager.notify_profile(
+            profile_id_local,
+            {"type": "refresh", "reason": "inbox_processed"},
+        )
+        yield sse({"type": "complete", "counts": counts, "results": results})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.delete("/inbox-files")

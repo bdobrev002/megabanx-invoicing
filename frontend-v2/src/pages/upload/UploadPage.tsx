@@ -1,14 +1,29 @@
-import { useState, useCallback, useEffect } from 'react'
-import { filesApi, type InboxFile, type ProcessInboxResponse } from '@/api/files.api'
+import { useState, useCallback, useEffect, type ReactElement } from 'react'
+import {
+  filesApi,
+  processInboxStream,
+  type InboxFile,
+  type ProcessInboxResponse,
+} from '@/api/files.api'
 import { billingApi, type BillingUsage } from '@/api/billing.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
-import { Sparkles, Trash2, FileText, RotateCcw } from 'lucide-react'
+import {
+  Sparkles,
+  Trash2,
+  FileText,
+  RotateCcw,
+  Loader2,
+  Check,
+  AlertTriangle,
+  Clock,
+} from 'lucide-react'
 import DropZone from './DropZone'
-import ProcessingProgress from './ProcessingProgress'
 import InboxFileList from './InboxFileList'
+
+type FileStatus = 'pending' | 'processing' | 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
 
 type Stage = 'idle' | 'uploading' | 'processing' | 'results'
 
@@ -39,6 +54,153 @@ const quotaStyles: Record<QuotaTone, { box: string; head: string; line: string }
     head: 'text-red-800',
     line: 'text-red-700',
   },
+}
+
+// v1-style processing animation: gradient "brain" logo that breathes
+// (processingGlow keyframe, 3s ease-in-out) with a slow-spinning ring and a
+// per-file status list. Keyframes are injected once via a <style> tag so we
+// don't need a global stylesheet edit.
+const PROCESSING_ANIMATION_CSS = `
+@keyframes megabanxProcessingGlow {
+  0%, 100% { filter: drop-shadow(0 0 0.5rem rgba(99,102,241,0.35)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 1.25rem rgba(99,102,241,0.7));  transform: scale(1.05); }
+}
+@keyframes megabanxSpinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; }
+.megabanx-spin-slow      { animation: megabanxSpinSlow 4s linear infinite; }
+`
+
+const fileStatusStyles: Record<
+  FileStatus,
+  { box: string; label: string; labelText: string; icon: ReactElement }
+> = {
+  pending: {
+    box: 'bg-gray-50 border-gray-200',
+    label: 'bg-gray-100 text-gray-600',
+    labelText: 'Изчаква',
+    icon: <Clock size={14} className="text-gray-400" />,
+  },
+  processing: {
+    box: 'bg-indigo-50 border-indigo-200',
+    label: 'bg-indigo-100 text-indigo-700',
+    labelText: 'Обработва се...',
+    icon: <Loader2 size={14} className="animate-spin text-indigo-600" />,
+  },
+  processed: {
+    box: 'bg-green-50 border-green-200',
+    label: 'bg-green-100 text-green-700',
+    labelText: 'Готово',
+    icon: <Check size={14} className="text-green-600" />,
+  },
+  unmatched: {
+    box: 'bg-yellow-50 border-yellow-200',
+    label: 'bg-yellow-100 text-yellow-700',
+    labelText: 'Без съвпадение',
+    icon: <AlertTriangle size={14} className="text-yellow-600" />,
+  },
+  duplicate: {
+    box: 'bg-gray-50 border-gray-200',
+    label: 'bg-gray-100 text-gray-700',
+    labelText: 'Дубликат',
+    icon: <AlertTriangle size={14} className="text-gray-500" />,
+  },
+  over_limit: {
+    box: 'bg-red-50 border-red-200',
+    label: 'bg-red-100 text-red-700',
+    labelText: 'Над лимита',
+    icon: <AlertTriangle size={14} className="text-red-600" />,
+  },
+  error: {
+    box: 'bg-red-50 border-red-200',
+    label: 'bg-red-100 text-red-700',
+    labelText: 'Грешка',
+    icon: <AlertTriangle size={14} className="text-red-600" />,
+  },
+}
+
+function ProcessingStream({
+  current,
+  total,
+  parallel,
+  files,
+  statuses,
+}: {
+  current: number
+  total: number
+  parallel: number
+  files: InboxFile[]
+  statuses: Record<string, FileStatus>
+}) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0
+  return (
+    <Card>
+      <style>{PROCESSING_ANIMATION_CSS}</style>
+      <div className="flex flex-col gap-4 py-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="relative">
+            <div
+              className="megabanx-processing-glow flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg"
+              aria-hidden
+            >
+              <Sparkles size={28} />
+            </div>
+            <Loader2
+              size={72}
+              className="megabanx-spin-slow absolute -left-1 -top-1 text-indigo-300/60"
+              strokeWidth={1}
+            />
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-gray-900">
+              Обработка с AI...
+            </p>
+            <p className="text-sm text-gray-600">
+              {current}/{total} файла
+              {parallel > 0 && (
+                <span className="ml-2 text-gray-500">
+                  (до {parallel} едновременно)
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="h-2 w-full max-w-md overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        <ul className="divide-y divide-gray-100 text-sm">
+          {files.map((f) => {
+            const status: FileStatus = statuses[f.inbox_filename] ?? 'pending'
+            const s = fileStatusStyles[status]
+            return (
+              <li
+                key={f.inbox_filename}
+                className={`flex items-center justify-between gap-3 rounded border px-3 py-2 my-1 ${s.box}`}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0">{s.icon}</span>
+                  <span className="truncate text-gray-800">
+                    {f.original_filename}
+                  </span>
+                </div>
+                <span
+                  className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${s.label}`}
+                >
+                  {s.labelText}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </Card>
+  )
 }
 
 function QuotaBanner({ billing }: { billing: BillingUsage | null }) {
@@ -95,10 +257,12 @@ export default function UploadPage() {
   const [stage, setStage] = useState<Stage>('idle')
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
+  const [parallel, setParallel] = useState(0)
   const [inboxFiles, setInboxFiles] = useState<InboxFile[]>([])
   const [billing, setBilling] = useState<BillingUsage | null>(null)
   const [summary, setSummary] = useState<ProcessInboxResponse | null>(null)
   const [inboxKey, setInboxKey] = useState(0)
+  const [fileStatus, setFileStatus] = useState<Record<string, FileStatus>>({})
 
   useEffect(() => {
     billingApi.getCurrent().then(setBilling).catch(() => setBilling(null))
@@ -143,17 +307,47 @@ export default function UploadPage() {
     setStage('processing')
     setTotal(inboxFiles.length)
     setProgress(0)
+    setParallel(0)
+    setFileStatus(
+      Object.fromEntries(inboxFiles.map((f) => [f.inbox_filename, 'pending' as FileStatus])),
+    )
+
     try {
-      const res = await filesApi.processInbox(profileId)
-      setSummary(res)
-      setStage('results')
-      setInboxKey((k) => k + 1)
+      for await (const event of processInboxStream(profileId)) {
+        switch (event.type) {
+          case 'start':
+            setTotal(event.total)
+            setParallel(event.parallel)
+            break
+          case 'file_processing':
+            setFileStatus((prev) => ({ ...prev, [event.filename]: 'processing' }))
+            break
+          case 'progress':
+            setFileStatus((prev) => ({ ...prev, [event.filename]: event.status }))
+            setProgress(event.current)
+            break
+          case 'complete': {
+            const summaryPayload: ProcessInboxResponse = {
+              ...event.counts,
+              results: event.results,
+            }
+            setSummary(summaryPayload)
+            setStage('results')
+            setInboxKey((k) => k + 1)
+            break
+          }
+          case 'error':
+            setError(event.message || 'Грешка при обработката')
+            setStage('idle')
+            break
+        }
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при обработката')
       setStage('idle')
     }
     await refreshInbox()
-  }, [profileId, inboxFiles.length, setError, refreshInbox])
+  }, [profileId, inboxFiles, setError, refreshInbox])
 
   const handleClear = useCallback(async () => {
     if (!profileId) return
@@ -203,7 +397,13 @@ export default function UploadPage() {
       )}
 
       {stage === 'processing' && (
-        <ProcessingProgress current={0} total={total} />
+        <ProcessingStream
+          current={progress}
+          total={total}
+          parallel={parallel}
+          files={inboxFiles}
+          statuses={fileStatus}
+        />
       )}
 
       {stage === 'results' && summary && (

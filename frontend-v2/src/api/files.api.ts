@@ -1,5 +1,60 @@
 import { apiFetch, uploadFetch } from './client'
+import { API_BASE_URL } from '@/utils/constants'
 import type { InvoiceRecord } from '@/types/file.types'
+
+export type ProcessStreamEvent =
+  | { type: 'init'; message?: string }
+  | { type: 'start'; total: number; parallel: number }
+  | { type: 'file_processing'; filename: string }
+  | {
+      type: 'progress'
+      filename: string
+      status: 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
+      current: number
+      total: number
+    }
+  | { type: 'complete'; counts: ProcessInboxResponse; results: ProcessInboxResult[] }
+  | { type: 'error'; message: string }
+
+/**
+ * Stream v1-style parallel Gemini processing via SSE. Yields parsed events
+ * as they arrive; caller decides how to update UI state.
+ */
+export async function* processInboxStream(profileId: string): AsyncGenerator<ProcessStreamEvent> {
+  const token = localStorage.getItem('token')
+  const res = await fetch(`${API_BASE_URL}/profiles/${profileId}/process-stream`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? `Грешка при обработката (${res.status})`)
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let idx: number
+    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+      const raw = buffer.slice(0, idx)
+      buffer = buffer.slice(idx + 2)
+      const line = raw.split('\n').find((l) => l.startsWith('data: '))
+      if (!line) continue
+      const json = line.slice(6).trim()
+      if (!json) continue
+      try {
+        yield JSON.parse(json) as ProcessStreamEvent
+      } catch {
+        // ignore malformed chunks
+      }
+    }
+  }
+}
 
 /** Invoice file endpoints — all scoped to profile_id. */
 export const filesApi = {
