@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Spinner from '@/components/ui/Spinner'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
-import { Search, FolderOpen, Building2, Clock, ArrowUp, Download, Trash2, X } from 'lucide-react'
+import { Search, FolderOpen, Building2, Clock, ArrowUp, Download, Trash2 } from 'lucide-react'
 import { filesApi } from '@/api/files.api'
 import { sharingApi } from '@/api/sharing.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -40,22 +40,74 @@ export default function FilesPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name')
-  // Lifted selection state so the toolbar (N избрани · Свали · Изтрий · Отмени)
-  // can act on files picked across multiple companies at once.
+  // Lifted selection state — the toolbar in the "Структура на файловете" header
+  // (N избрани · Свали · Изтрий · Отмени) acts on files picked across any
+  // number of expanded companies.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [refreshKey, setRefreshKey] = useState(0)
   const [bulkBusy, setBulkBusy] = useState(false)
+  // v1-style anchor: tracks the last-clicked row id so Shift+click and
+  // Shift+Arrow can extend from it.
+  const lastClickedIdRef = useRef<string | null>(null)
 
-  const toggleSelected = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+    lastClickedIdRef.current = null
   }, [])
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+  /**
+   * Read the currently-visible invoice IDs in DOM order across every expanded
+   * company. Each InvoiceRow renders `data-file-id={inv.id}`; this matches v1's
+   * approach of iterating `[data-file-key]` nodes for range / arrow selection.
+   * Scoped to the list container ref so we satisfy the "no document.* queries"
+   * lint rule (RULES.md §1.2).
+   */
+  const listContainerRef = useRef<HTMLDivElement>(null)
+  const getVisibleIds = useCallback((): string[] => {
+    const container = listContainerRef.current
+    if (!container) return []
+    return Array.from(
+      container.querySelectorAll<HTMLElement>('[data-file-id]'),
+    ).map((el) => el.getAttribute('data-file-id') ?? '')
+  }, [])
+
+  const handleRowClick = useCallback(
+    (id: string, e: React.MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        // Toggle this id in the selection (Ctrl/Cmd+click — Windows/Mac style).
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+        lastClickedIdRef.current = id
+        return
+      }
+      if (e.shiftKey && lastClickedIdRef.current) {
+        // Range-add from the last-clicked row (across all expanded companies).
+        const all = getVisibleIds()
+        const lastIdx = all.indexOf(lastClickedIdRef.current)
+        const curIdx = all.indexOf(id)
+        if (lastIdx >= 0 && curIdx >= 0) {
+          const [lo, hi] = [
+            Math.min(lastIdx, curIdx),
+            Math.max(lastIdx, curIdx),
+          ]
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            for (let i = lo; i <= hi; i += 1) next.add(all[i])
+            return next
+          })
+          return
+        }
+      }
+      // Plain click — replace selection with this single id.
+      setSelectedIds(new Set([id]))
+      lastClickedIdRef.current = id
+    },
+    [getVisibleIds],
+  )
 
   // Hidden anchor used to trigger ZIP download (eslint forbids document.createElement).
   const downloadAnchorRef = useRef<HTMLAnchorElement>(null)
@@ -141,6 +193,85 @@ export default function FilesPage() {
     }
   }, [activeProfileId, bulkBusy, fetchFolders, selectedIds, setError])
 
+  /**
+   * Windows-style keyboard selection:
+   *   - Shift + ArrowUp / ArrowDown  \u2014 extend / shrink selection one row
+   *   - Ctrl/Cmd + A                 \u2014 select all currently-visible rows
+   *   - Escape                       \u2014 clear selection
+   * Ignored when typing inside an <input> / <textarea>.
+   */
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLInputElement ||
+      t instanceof HTMLTextAreaElement ||
+      (t instanceof HTMLElement && t.isContentEditable)
+
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return
+
+      // Ctrl/Cmd + A \u2014 select all visible
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'a') {
+        const all = getVisibleIds()
+        if (all.length === 0) return
+        e.preventDefault()
+        setSelectedIds(new Set(all))
+        lastClickedIdRef.current = all[all.length - 1]
+        return
+      }
+
+      // Escape \u2014 clear
+      if (e.key === 'Escape') {
+        if (selectedIds.size === 0) return
+        e.preventDefault()
+        clearSelection()
+        return
+      }
+
+      // Shift + ArrowUp / ArrowDown \u2014 extend
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        const all = getVisibleIds()
+        if (all.length === 0) return
+        e.preventDefault()
+        const anchor = lastClickedIdRef.current
+        if (!anchor) {
+          const first = e.key === 'ArrowDown' ? all[0] : all[all.length - 1]
+          setSelectedIds(new Set([first]))
+          lastClickedIdRef.current = first
+          return
+        }
+        const idx = all.indexOf(anchor)
+        if (idx < 0) return
+        const nextIdx =
+          e.key === 'ArrowDown'
+            ? Math.min(idx + 1, all.length - 1)
+            : Math.max(idx - 1, 0)
+        if (nextIdx === idx) return
+        const nextId = all[nextIdx]
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          // If the next row is already selected we're shrinking the range:
+          // drop the current anchor.
+          if (next.has(nextId)) next.delete(anchor)
+          else next.add(nextId)
+          return next
+        })
+        lastClickedIdRef.current = nextId
+        // Scroll the newly-anchored row into view (v1 parity).
+        setTimeout(() => {
+          const container = listContainerRef.current
+          if (!container) return
+          const el = container.querySelector<HTMLElement>(
+            `[data-file-id="${CSS.escape(nextId)}"]`,
+          )
+          el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }, 0)
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [clearSelection, getVisibleIds, selectedIds])
+
   const filtered = useMemo(() => {
     const cfl = companyFilter.trim().toLowerCase()
     const out = folders.filter((f) =>
@@ -211,7 +342,44 @@ export default function FilesPage() {
           fixed so the row doesn't wrap at typical desktop sizes; sort buttons
           sit flush-right via ml-auto. */}
       <div className="rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-900">Структура на файловете</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-gray-900">Структура на файловете</h2>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">
+                {selectedIds.size} избрани
+              </span>
+              <button
+                type="button"
+                onClick={handleBulkDownload}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+                title="Свали като ZIP"
+              >
+                <Download size={12} />
+                Свали
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
+                title="Изтрий избраните"
+              >
+                <Trash2 size={12} />
+                Изтрий
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={bulkBusy}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Отмени
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-48">
             <Search size={14} className="absolute left-2.5 top-1.5 text-gray-400" />
@@ -285,7 +453,7 @@ export default function FilesPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div ref={listContainerRef} className="space-y-2">
           {filtered.map((f) => (
             <CompanyFolder
               key={f.company_id ?? `dir:${f.name}`}
@@ -297,7 +465,7 @@ export default function FilesPage() {
               sortBy={sortBy}
               profileId={activeProfileId}
               selectedIds={selectedIds}
-              onToggleSelected={toggleSelected}
+              onRowClick={handleRowClick}
               refreshKey={refreshKey}
             />
           ))}
@@ -305,47 +473,6 @@ export default function FilesPage() {
       )}
 
       <a ref={downloadAnchorRef} className="hidden" aria-hidden="true" />
-
-      {selectedIds.size > 0 && (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-lg">
-            <span className="text-xs font-medium text-gray-700">
-              {selectedIds.size} избрани
-            </span>
-            <span className="text-gray-300">·</span>
-            <button
-              type="button"
-              onClick={handleBulkDownload}
-              disabled={bulkBusy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
-              title="Свали като ZIP"
-            >
-              <Download size={12} />
-              Свали
-            </button>
-            <button
-              type="button"
-              onClick={handleBulkDelete}
-              disabled={bulkBusy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
-              title="Изтрий избраните"
-            >
-              <Trash2 size={12} />
-              Изтрий
-            </button>
-            <button
-              type="button"
-              onClick={clearSelection}
-              disabled={bulkBusy}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
-              title="Отмени избора"
-            >
-              <X size={12} />
-              Отмени
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
