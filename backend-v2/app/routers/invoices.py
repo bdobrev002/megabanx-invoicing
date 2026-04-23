@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -527,7 +528,7 @@ async def process_inbox_stream(
 
     async def event_generator():
         def sse(payload: dict) -> str:
-            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            return f"data: {json.dumps(jsonable_encoder(payload), ensure_ascii=False)}\n\n"
 
         yield sse({"type": "init", "message": "Подготовка..."})
 
