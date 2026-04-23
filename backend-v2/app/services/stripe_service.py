@@ -407,7 +407,10 @@ async def handle_webhook_event(event: dict[str, Any], db: AsyncSession) -> None:
 
     elif event_type in ("customer.subscription.deleted", "customer.subscription.canceled"):
         subscription_id = data.get("id")
+        customer_id = data.get("customer")
         billing = await _find_billing(db, subscription_id=subscription_id) if subscription_id else None
+        if billing is None and customer_id:
+            billing = await _find_billing(db, customer_id=customer_id)
         if billing is None:
             logger.warning("[STRIPE] subscription.deleted without matching Billing row: %s", subscription_id)
             return
