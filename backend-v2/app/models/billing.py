@@ -14,8 +14,8 @@ class Billing(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True, index=True)
-    plan: Mapped[str] = mapped_column(String(50), default="free")  # free, starter, professional, enterprise
-    invoices_limit: Mapped[int] = mapped_column(Integer, default=30)
+    plan: Mapped[str] = mapped_column(String(50), default="free")  # free, starter, pro, business, corporate, personal
+    invoices_limit: Mapped[int] = mapped_column(Integer, default=10)
     invoices_used: Mapped[int] = mapped_column(Integer, default=0)
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False)
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

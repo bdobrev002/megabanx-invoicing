@@ -44,7 +44,8 @@ async def _get_or_create_billing(user: User, db: AsyncSession) -> Billing:
     result = await db.execute(select(Billing).where(Billing.user_id == user.id))
     billing = result.scalar_one_or_none()
     if billing is None:
-        billing = Billing(user_id=user.id, plan="free", invoices_limit=30)
+        free_limit = int(get_plan("free").get("max_invoices", 10))
+        billing = Billing(user_id=user.id, plan="free", invoices_limit=free_limit)
         db.add(billing)
         await db.flush()
     return billing
@@ -65,11 +66,12 @@ async def get_billing(
     billing = result.scalar_one_or_none()
 
     if not billing:
+        free_limit = int(get_plan("free").get("max_invoices", 10))
         return {
             "plan": "free",
-            "invoices_limit": 30,
+            "invoices_limit": free_limit,
             "current_usage": 0,
-            "remaining": 30,
+            "remaining": free_limit,
         }
 
     now = datetime.utcnow()

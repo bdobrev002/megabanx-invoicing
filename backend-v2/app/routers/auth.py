@@ -18,7 +18,7 @@ from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest
 from app.services.auth_service import generate_otp, generate_session_token, store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.services.file_manager import ensure_profile_dirs
-from app.services.plans import build_subscription_info
+from app.services.plans import build_subscription_info, get_plan
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -54,7 +54,8 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
     db.add(user)
 
     # Create billing record (free plan)
-    billing = Billing(user_id=user_id, plan="free", invoices_limit=30)
+    free_limit = int(get_plan("free").get("max_invoices", 10))
+    billing = Billing(user_id=user_id, plan="free", invoices_limit=free_limit)
     db.add(billing)
 
     # TOS consent
