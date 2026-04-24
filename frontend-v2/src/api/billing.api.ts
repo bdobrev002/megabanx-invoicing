@@ -29,8 +29,11 @@ export const billingApi = {
   getPaymentHistory: () =>
     apiFetch<StripePayment[]>('/billing/payments'),
 
-  activateTrial: () =>
-    apiFetch<{ message: string }>('/billing/trial', { method: 'POST' }),
+  activateTrial: (planId = 'pro') =>
+    apiFetch<{ message: string; plan: string; trial_ends_at: string | null }>(
+      '/billing/trial',
+      { method: 'POST', body: JSON.stringify({ plan_id: planId }) },
+    ),
 
   openPortal: () => apiFetch<{ url: string }>('/billing/portal'),
 }
