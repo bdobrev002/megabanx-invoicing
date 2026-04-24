@@ -31,8 +31,12 @@ class Invoice(Base):
     total_amount: Mapped[str] = mapped_column(String(50), default="")
     vat_amount: Mapped[str] = mapped_column(String(50), default="")
     destination_path: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(20), default="processed")  # processed, unmatched, error
+    status: Mapped[str] = mapped_column(String(20), default="processed")
+    # processed, unmatched, error, duplicate_pending
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # For status=duplicate_pending: the existing Invoice this one duplicates.
+    # Resolution endpoint uses this to replace / keep_both / keep_existing.
+    duplicate_of_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     cross_copy_status: Mapped[str] = mapped_column(String(30), default="none")
     # Possible values: none, no_subscriber, pending, approved, deleted_by_recipient
     cross_copied_from: Mapped[str] = mapped_column(String(255), default="")

@@ -27,7 +27,10 @@ from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.sharing import CompanyShare
 from app.models.user import User
-from app.schemas.invoice import InvoiceOut
+from app.schemas.invoice import (
+    InvoiceOut,
+    ResolveDuplicateChoiceRequest,
+)
 from app.services.encryption import read_decrypted_file, write_encrypted_file
 from app.services.file_manager import (
     SUPPORTED_EXTENSIONS,
@@ -329,14 +332,64 @@ async def _process_single_inbox_file(
         )
         duplicate_of = dup_result.scalars().first()
         if duplicate_of is not None:
+            # v1 parity: instead of removing the new file, quarantine it in
+            # ``_duplicate_temp/`` and create a ``duplicate_pending`` Invoice
+            # row. The frontend opens a 3-choice dialog (keep_existing /
+            # replace / keep_both) and calls ``/resolve-duplicate-choice``.
+            profile_dir = get_profile_dir(profile_id)
+            temp_dir = os.path.join(profile_dir, "_duplicate_temp")
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_filename = f"{uuid.uuid4()}{ext}"
+            temp_path = os.path.join(temp_dir, temp_filename)
             try:
-                os.remove(inbox_path)
+                os.rename(inbox_path, temp_path)
             except OSError as err:
-                logger.warning(f"Failed to remove duplicate temp file {inbox_path}: {err}")
+                logger.warning(f"Failed to quarantine duplicate {inbox_path} -> {temp_path}: {err}")
+                # Fall back to v1's pre-dialog behaviour: drop the new file.
+                try:
+                    os.remove(inbox_path)
+                except OSError:
+                    pass
+                return {
+                    "status": "duplicate",
+                    "original_filename": original_filename,
+                    "invoice": InvoiceOut.model_validate(duplicate_of),
+                    "analysis": analysis,
+                }
+
+            pending = Invoice(
+                id=str(uuid.uuid4()),
+                profile_id=profile_id,
+                original_filename=original_filename,
+                new_filename=original_filename,
+                invoice_type=duplicate_of.invoice_type,
+                company_id=duplicate_of.company_id,
+                company_name=duplicate_of.company_name,
+                date=inv_date,
+                issuer_name=issuer_name,
+                issuer_eik=issuer_eik,
+                issuer_vat=issuer_vat,
+                recipient_name=recipient_name,
+                recipient_eik=recipient_eik,
+                recipient_vat=recipient_vat,
+                invoice_number=inv_number,
+                subtotal=str(analysis.get("subtotal") or ""),
+                total_amount=str(analysis.get("total_amount") or ""),
+                vat_amount=str(analysis.get("vat_amount") or ""),
+                destination_path=temp_path,
+                status="duplicate_pending",
+                error_message=f"Дублирана фактура за {duplicate_of.company_name}",
+                is_credit_note=is_credit_note,
+                source="scan",
+                duplicate_of_id=duplicate_of.id,
+            )
+            db.add(pending)
+            await db.flush()
             return {
-                "status": "duplicate",
+                "status": "duplicate_pending",
                 "original_filename": original_filename,
-                "invoice": InvoiceOut.model_validate(duplicate_of),
+                "invoice": InvoiceOut.model_validate(pending),
+                "duplicate_of": InvoiceOut.model_validate(duplicate_of),
                 "analysis": analysis,
             }
 
@@ -506,7 +559,7 @@ async def process_inbox(
     )
 
     results: list[dict] = []
-    counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0}
+    counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "duplicate_pending": 0, "over_limit": 0, "errors": 0}
     for fname in filenames:
         fpath = os.path.join(inbox_dir, fname)
         try:
@@ -530,6 +583,7 @@ async def process_inbox(
                 "original_filename": res.get("original_filename", fname),
                 "reason": res.get("reason"),
                 "invoice": res.get("invoice"),
+                "duplicate_of": res.get("duplicate_of"),
             }
         )
 
@@ -575,6 +629,7 @@ async def process_inbox_stream(
             "processed": 0,
             "unmatched": 0,
             "duplicate": 0,
+            "duplicate_pending": 0,
             "over_limit": 0,
             "errors": 0,
         }
@@ -621,7 +676,7 @@ async def process_inbox_stream(
 
         tasks = [asyncio.create_task(analyze_task(f)) for f in filenames]
 
-        counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0}
+        counts = {"processed": 0, "unmatched": 0, "duplicate": 0, "duplicate_pending": 0, "over_limit": 0, "errors": 0}
         results: list[dict] = []
         processed = 0
 
@@ -665,6 +720,7 @@ async def process_inbox_stream(
                         "original_filename": res.get("original_filename", fname),
                         "reason": res.get("reason"),
                         "invoice": res.get("invoice"),
+                        "duplicate_of": res.get("duplicate_of"),
                     }
                 )
                 processed += 1
@@ -724,22 +780,211 @@ async def clear_inbox_files(
                 except OSError as err:
                     logger.warning(f"Failed to remove inbox file {fpath}: {err}")
 
-    unmatched_result = await db.execute(select(Invoice).where(Invoice.profile_id == profile_id, Invoice.status == "unmatched"))
-    unmatched_invoices = list(unmatched_result.scalars().all())
-    for inv in unmatched_invoices:
+    # Wipe both ``unmatched`` placeholders (inbox files) and ``duplicate_pending``
+    # rows (quarantined new duplicates in _duplicate_temp). Matched invoices in
+    # company folders are left intact.
+    stale_result = await db.execute(
+        select(Invoice).where(
+            Invoice.profile_id == profile_id,
+            Invoice.status.in_(("unmatched", "duplicate_pending")),
+        )
+    )
+    stale_invoices = list(stale_result.scalars().all())
+    for inv in stale_invoices:
         if inv.destination_path and os.path.exists(inv.destination_path):
             try:
                 os.remove(inv.destination_path)
             except OSError as err:
-                logger.warning(f"Failed to remove unmatched invoice file {inv.destination_path}: {err}")
+                logger.warning(f"Failed to remove stale invoice file {inv.destination_path}: {err}")
         await db.delete(inv)
+
+    # Also sweep any orphaned files in _duplicate_temp (e.g. left over from a
+    # crashed previous run). The DB rows above cover the normal path.
+    temp_dir = os.path.join(get_profile_dir(profile_id), "_duplicate_temp")
+    if os.path.isdir(temp_dir):
+        for fname in os.listdir(temp_dir):
+            fpath = os.path.join(temp_dir, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                except OSError as err:
+                    logger.warning(f"Failed to remove stale duplicate temp file {fpath}: {err}")
 
     await db.flush()
     await ws_manager.notify_profile(
         profile_id,
         {"type": "refresh", "reason": "inbox_cleared"},
     )
-    return {"cleared_files": removed_files, "cleared_invoices": len(unmatched_invoices)}
+    return {"cleared_files": removed_files, "cleared_invoices": len(stale_invoices)}
+
+
+@router.post("/resolve-duplicate-choice")
+async def resolve_duplicate_choice(
+    profile_id: str,
+    req: ResolveDuplicateChoiceRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve a single ``duplicate_pending`` invoice per v1 semantics.
+
+    The processing pipeline quarantines duplicates in ``_duplicate_temp/``
+    and creates an Invoice row with ``status="duplicate_pending"`` pointing
+    back at the existing matched invoice via ``duplicate_of_id``. The
+    frontend opens the 3-button dialog (Запази текущата / Замени с новата /
+    Запази и двете) and calls this endpoint once per pending row.
+
+    Actions (strings, mirroring v1):
+
+    * ``keep_existing`` — delete the temp file + pending row; keep the
+      existing invoice untouched.
+    * ``replace`` — delete the existing invoice (file + row), promote the
+      pending row to ``processed`` and move its temp file into the proper
+      company folder. Net quota impact: 0.
+    * ``keep_both`` — promote the pending row to ``processed`` with a
+      uniquely-suffixed filename so it coexists with the existing invoice.
+      Consumes one unit of monthly quota (this is a genuine new invoice).
+    """
+    await _verify_profile_access(profile_id, user, db)
+
+    pending_row = await db.execute(
+        select(Invoice).where(
+            Invoice.id == req.duplicate_invoice_id,
+            Invoice.profile_id == profile_id,
+            Invoice.status == "duplicate_pending",
+        )
+    )
+    pending = pending_row.scalar_one_or_none()
+    if pending is None:
+        raise HTTPException(status_code=404, detail="Дублираната фактура не е намерена")
+
+    temp_path = pending.destination_path
+    action = (req.action or "").strip()
+
+    if action == "keep_existing":
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError as err:
+                logger.warning(f"Failed to remove duplicate temp file {temp_path}: {err}")
+        await db.delete(pending)
+        await db.flush()
+        await ws_manager.notify_profile(
+            profile_id,
+            {"type": "refresh", "reason": "duplicate_resolved"},
+        )
+        return {"action": "keep_existing", "message": "Запазена е текущата фактура"}
+
+    existing_row = None
+    if pending.duplicate_of_id:
+        existing_row = await db.execute(
+            select(Invoice).where(
+                Invoice.id == pending.duplicate_of_id,
+                Invoice.profile_id == profile_id,
+            )
+        )
+    existing = existing_row.scalar_one_or_none() if existing_row is not None else None
+
+    def _final_destination() -> tuple[str, str]:
+        """Compute (dest_dir, base_filename) for the promoted invoice.
+
+        Prefer the existing invoice's folder if it's still on disk; fall back
+        to rebuilding it from profile/company/type metadata on the pending row.
+        """
+        ext = os.path.splitext(temp_path)[1] if temp_path else ""
+        new_name = build_invoice_filename(
+            invoice_type=pending.invoice_type or ("purchase" if existing is None else existing.invoice_type),
+            date=pending.date or "без_дата",
+            invoice_number=pending.invoice_number,
+            issuer_name=pending.issuer_name,
+            recipient_name=pending.recipient_name,
+            is_credit_note=pending.is_credit_note,
+            ext=ext,
+        )
+        dest_dir = ""
+        if existing and existing.destination_path:
+            dest_dir = os.path.dirname(existing.destination_path)
+        if not dest_dir:
+            subdir = "Фактури покупки" if (pending.invoice_type or "") == "purchase" else "Фактури продажби"
+            dest_dir = os.path.join(
+                get_profile_dir(profile_id),
+                sanitize_path_component(pending.company_name or ""),
+                subdir,
+            )
+        return dest_dir, new_name
+
+    if action == "replace":
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Съществуващата фактура не е намерена")
+        if not temp_path or not os.path.exists(temp_path):
+            raise HTTPException(status_code=410, detail="Временният файл на дубликата липсва")
+
+        # Remove old file from disk; the row itself is deleted after the move.
+        if existing.destination_path and os.path.exists(existing.destination_path):
+            try:
+                os.remove(existing.destination_path)
+            except OSError as err:
+                logger.warning(f"Failed to remove existing invoice file {existing.destination_path}: {err}")
+
+        dest_dir, new_name = _final_destination()
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = unique_destination_path(dest_dir, new_name)
+        try:
+            os.rename(temp_path, dest_path)
+        except OSError as err:
+            logger.exception(f"Failed to promote duplicate {temp_path} -> {dest_path}: {err}")
+            raise HTTPException(status_code=500, detail="Неуспешно преместване на файла") from err
+
+        pending.destination_path = dest_path
+        pending.new_filename = os.path.basename(dest_path)
+        pending.status = "processed"
+        pending.error_message = None
+        pending.duplicate_of_id = None
+        await db.delete(existing)
+        await db.flush()
+        await ws_manager.notify_profile(
+            profile_id,
+            {"type": "refresh", "reason": "duplicate_resolved"},
+        )
+        return {
+            "action": "replace",
+            "message": "Фактурата е заменена",
+            "invoice": InvoiceOut.model_validate(pending),
+        }
+
+    if action == "keep_both":
+        if not temp_path or not os.path.exists(temp_path):
+            raise HTTPException(status_code=410, detail="Временният файл на дубликата липсва")
+
+        # keep_both introduces a brand-new invoice on top of the existing one,
+        # so it must consume quota just like a normal ``processed`` outcome.
+        await _check_and_increment_usage(user.id, db)
+
+        dest_dir, new_name = _final_destination()
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = unique_destination_path(dest_dir, new_name)
+        try:
+            os.rename(temp_path, dest_path)
+        except OSError as err:
+            logger.exception(f"Failed to promote duplicate {temp_path} -> {dest_path}: {err}")
+            raise HTTPException(status_code=500, detail="Неуспешно преместване на файла") from err
+
+        pending.destination_path = dest_path
+        pending.new_filename = os.path.basename(dest_path)
+        pending.status = "processed"
+        pending.error_message = None
+        pending.duplicate_of_id = None
+        await db.flush()
+        await ws_manager.notify_profile(
+            profile_id,
+            {"type": "refresh", "reason": "duplicate_resolved"},
+        )
+        return {
+            "action": "keep_both",
+            "message": "Запазени са и двете фактури",
+            "invoice": InvoiceOut.model_validate(pending),
+        }
+
+    raise HTTPException(status_code=400, detail="Невалидно действие")
 
 
 @router.get("/invoices")
@@ -757,7 +1002,13 @@ async def list_invoices(
     """
     allowed = await _accessible_company_ids(profile_id, user, db)
 
-    query = select(Invoice).where(Invoice.profile_id == profile_id)
+    query = select(Invoice).where(
+        Invoice.profile_id == profile_id,
+        # ``duplicate_pending`` rows are transient — they live in _duplicate_temp
+        # until the user resolves via the 3-choice dialog. They must not appear
+        # in the Файлове list, which shows finalized invoices.
+        Invoice.status != "duplicate_pending",
+    )
     if company_id:
         if allowed is not None and company_id not in allowed:
             raise HTTPException(status_code=403, detail="Нямате достъп до тази фирма")

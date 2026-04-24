@@ -7,6 +7,7 @@ from app.schemas.invoice import (
     ApproveInvoicesRequest,
     BatchDownloadRequest,
     InvoiceOut,
+    ResolveDuplicateChoiceRequest,
     ResolveDuplicatesRequest,
 )
 from app.schemas.invoicing import (
@@ -41,6 +42,7 @@ __all__ = [
     "CompanyUpdate",
     "CompanyOut",
     "BatchDownloadRequest",
+    "ResolveDuplicateChoiceRequest",
     "ResolveDuplicatesRequest",
     "ApproveInvoicesRequest",
     "InvoiceOut",

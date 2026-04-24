@@ -14,6 +14,11 @@ class ResolveDuplicatesRequest(BaseModel):
     remove_ids: list[str]
 
 
+class ResolveDuplicateChoiceRequest(BaseModel):
+    duplicate_invoice_id: str
+    action: str  # "keep_existing" | "replace" | "keep_both"
+
+
 class ApproveInvoicesRequest(BaseModel):
     invoice_ids: list[str]
 

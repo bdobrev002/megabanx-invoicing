@@ -2,9 +2,13 @@ import { useState, useCallback, useEffect, type ReactElement } from 'react'
 import {
   filesApi,
   processInboxStream,
+  type DuplicateResolveAction,
   type InboxFile,
   type ProcessInboxResponse,
 } from '@/api/files.api'
+import DuplicateResolver, {
+  type DuplicatePendingItem,
+} from './DuplicateResolver'
 import { billingApi, type BillingUsage } from '@/api/billing.api'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -23,7 +27,15 @@ import {
 import DropZone from './DropZone'
 import InboxFileList from './InboxFileList'
 
-type FileStatus = 'pending' | 'processing' | 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
+type FileStatus =
+  | 'pending'
+  | 'processing'
+  | 'processed'
+  | 'unmatched'
+  | 'duplicate'
+  | 'duplicate_pending'
+  | 'over_limit'
+  | 'error'
 
 type Stage = 'idle' | 'uploading' | 'processing' | 'results'
 
@@ -108,6 +120,12 @@ const fileStatusStyles: Record<
     label: 'bg-gray-100 text-gray-700',
     labelText: 'Дубликат',
     icon: <AlertTriangle size={14} className="text-gray-500" />,
+  },
+  duplicate_pending: {
+    box: 'bg-amber-50 border-amber-200',
+    label: 'bg-amber-100 text-amber-700',
+    labelText: 'Изчаква избор',
+    icon: <AlertTriangle size={14} className="text-amber-600" />,
   },
   over_limit: {
     box: 'bg-red-50 border-red-200',
@@ -277,6 +295,8 @@ export default function UploadPage() {
   const [summary, setSummary] = useState<ProcessInboxResponse | null>(null)
   const [inboxKey, setInboxKey] = useState(0)
   const [fileStatus, setFileStatus] = useState<Record<string, FileStatus>>({})
+  const [duplicateItems, setDuplicateItems] = useState<DuplicatePendingItem[]>([])
+  const [showDuplicates, setShowDuplicates] = useState(false)
 
   useEffect(() => {
     billingApi.getCurrent().then(setBilling).catch(() => setBilling(null))
@@ -348,6 +368,23 @@ export default function UploadPage() {
             setSummary(summaryPayload)
             setStage('results')
             setInboxKey((k) => k + 1)
+
+            const pending = event.results.filter(
+              (r) => r.status === 'duplicate_pending' && r.invoice,
+            )
+            if (pending.length > 0) {
+              setDuplicateItems(
+                pending.map((r) => ({
+                  pending: r.invoice as NonNullable<typeof r.invoice>,
+                  existing: r.duplicate_of ?? null,
+                  original_filename: r.original_filename,
+                })),
+              )
+              setShowDuplicates(true)
+            } else {
+              setDuplicateItems([])
+              setShowDuplicates(false)
+            }
             break
           }
           case 'error':
@@ -383,6 +420,49 @@ export default function UploadPage() {
     setTotal(0)
     setSummary(null)
   }
+
+  const handleResolveDuplicates = useCallback(
+    async (choices: Record<string, DuplicateResolveAction>) => {
+      if (!profileId) return
+      for (const [dupId, action] of Object.entries(choices)) {
+        try {
+          await filesApi.resolveDuplicateChoice(profileId, dupId, action)
+        } catch (e: unknown) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Грешка при обработката на дубликата',
+          )
+        }
+      }
+      setShowDuplicates(false)
+      setDuplicateItems([])
+      setInboxKey((k) => k + 1)
+      await refreshInbox()
+    },
+    [profileId, setError, refreshInbox],
+  )
+
+  const handleCloseDuplicates = useCallback(async () => {
+    if (!profileId) {
+      setShowDuplicates(false)
+      return
+    }
+    // Cancel = discard all pending duplicates (equivalent to ``keep_existing``
+    // per row). Keeps inbox state clean and matches v1 behaviour where the
+    // dialog cannot be "parked" indefinitely.
+    for (const item of duplicateItems) {
+      try {
+        await filesApi.resolveDuplicateChoice(profileId, item.pending.id, 'keep_existing')
+      } catch {
+        // Best-effort cleanup on cancel; ignore per-row errors.
+      }
+    }
+    setShowDuplicates(false)
+    setDuplicateItems([])
+    setInboxKey((k) => k + 1)
+    await refreshInbox()
+  }, [profileId, duplicateItems, refreshInbox])
 
   return (
     <div className="space-y-4">
@@ -432,7 +512,7 @@ export default function UploadPage() {
                 Без съвпадение: <strong>{summary.unmatched}</strong>
               </div>
               <div className="rounded bg-gray-50 px-3 py-2 text-gray-800">
-                Дубликати: <strong>{summary.duplicate}</strong>
+                Дубликати: <strong>{summary.duplicate + summary.duplicate_pending}</strong>
               </div>
               {summary.over_limit > 0 && (
                 <div className="rounded bg-red-50 px-3 py-2 text-red-800">
@@ -500,6 +580,14 @@ export default function UploadPage() {
       </div>
 
       <InboxFileList key={inboxKey} />
+
+      {showDuplicates && (
+        <DuplicateResolver
+          items={duplicateItems}
+          onApply={handleResolveDuplicates}
+          onClose={handleCloseDuplicates}
+        />
+      )}
     </div>
   )
 }

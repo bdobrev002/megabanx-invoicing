@@ -9,12 +9,14 @@ export type ProcessStreamEvent =
   | {
       type: 'progress'
       filename: string
-      status: 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
+      status: 'processed' | 'unmatched' | 'duplicate' | 'duplicate_pending' | 'over_limit' | 'error'
       current: number
       total: number
     }
   | { type: 'complete'; counts: ProcessInboxResponse; results: ProcessInboxResult[] }
   | { type: 'error'; message: string }
+
+export type DuplicateResolveAction = 'keep_existing' | 'replace' | 'keep_both'
 
 /**
  * Stream v1-style parallel Gemini processing via SSE. Yields parsed events
@@ -153,6 +155,20 @@ export const filesApi = {
       `/profiles/${profileId}/invoices/${invoiceId}/resync`,
       { method: 'POST' },
     ),
+
+  resolveDuplicateChoice: (
+    profileId: string,
+    duplicateInvoiceId: string,
+    action: DuplicateResolveAction,
+  ) =>
+    apiFetch<{
+      action: DuplicateResolveAction
+      message: string
+      invoice?: InvoiceRecord | null
+    }>(`/profiles/${profileId}/resolve-duplicate-choice`, {
+      method: 'POST',
+      body: JSON.stringify({ duplicate_invoice_id: duplicateInvoiceId, action }),
+    }),
 }
 
 export interface InboxFile {
@@ -162,16 +178,20 @@ export interface InboxFile {
 }
 
 export interface ProcessInboxResult {
-  status: 'processed' | 'unmatched' | 'duplicate' | 'over_limit' | 'error'
+  status: 'processed' | 'unmatched' | 'duplicate' | 'duplicate_pending' | 'over_limit' | 'error'
   original_filename: string
   reason?: string | null
   invoice?: InvoiceRecord | null
+  /** Set when ``status=duplicate_pending`` — the existing invoice the new
+   * file duplicates. Used by the 3-button resolution dialog. */
+  duplicate_of?: InvoiceRecord | null
 }
 
 export interface ProcessInboxResponse {
   processed: number
   unmatched: number
   duplicate: number
+  duplicate_pending: number
   over_limit: number
   errors: number
   results: ProcessInboxResult[]
