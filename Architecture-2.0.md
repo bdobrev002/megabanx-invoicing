@@ -933,4 +933,112 @@ scp -r dist/* server:/opt/bginvoices/frontend-v2/
 
 ---
 
-*Документ генериран на 18.04.2026 г., обновен на 22.04.2026 г. — добавени Stages 2-6B (cross-copy, AI upload, email, sharing, settings, invoice templates), PR-ове #15-#22 merged & deployed.*
+## 13.13 Companies polish (PR #24, #25, #31)
+
+v1-parity фиксове на `/dashboard/companies`:
+- Извличане от Търговски регистър (EIK) — адрес **запазва** `ул./бул./ж.к.`, отделна колона "Град"; МОЛ идва от списъка на управителите, имейл при наличие.
+- Работещи брояки (фирми/фактури); v1-подредба на карти (ЕИК вдясно горе, град вдясно).
+- Нова колона "Град" в списъка.
+
+## 13.14 UI polish (PR #26, #27, #28, #29)
+
+- **Качване**: quota banner над drop-zone-а (X от Y фактури, прогрес бар) — v1 parity.
+- **Фактури (Files)**: toolbar с броячи (Общо / Продажби / Покупки), sized date inputs (row не wrap-ва), shrunk filter widths.
+- **Абонамент redesign**: карти + status banner (на база `/auth/me::subscription`).
+- **Настройки бутон** в header-а.
+
+## 13.15 Stage 9 — Stripe billing (PR #32) ✅MERGED
+
+Пълна Stripe интеграция (LIVE mode в prod).
+
+### Backend
+- `app/services/stripe_service.py` — helpers за checkout session, customer creation, cancel/resume, webhook handlers.
+- `app/routers/billing.py` — нови endpoint-и:
+  - `POST /subscribe` → създава Checkout Session (с `trial_period_days=90` за starter/pro).
+  - `POST /cancel` → `cancel_at_period_end=True`.
+  - `POST /resume` → снема `cancel_at_period_end`.
+  - `GET /portal` → Stripe Customer Portal URL.
+  - `POST /webhook` → обработва `customer.subscription.created/updated/deleted`, `invoice.paid`, `invoice.payment_failed`. Рефлектира статусите в `Billing` row-а.
+  - `GET /payments` → история на плащанията (Stripe `PaymentIntent` list).
+- Alembic **0005** — `Billing`: `stripe_customer_id`, `stripe_subscription_id`, `subscription_status`, `current_period_end`, `cancel_at_period_end`.
+- VAT confirm flow (EU B2B) — `VatConfirmDialog` преди checkout.
+
+### Frontend
+- `PlanCards` + `VatConfirmDialog` + `PaymentHistory` + portal линк в `BillingPage`.
+
+---
+
+## 13.16 Stage 8 — Upload/Process split + SSE + subtotal (PR #33, #34, #35, #36, #37) ✅MERGED
+
+v1-parity upload flow:
+- **Split**: `POST /upload` само качва файлове в inbox (без Gemini, без quota). Нови бутони:
+  - **"Обработи с AI"** → `GET /process-stream` (SSE).
+  - **"Изчисти"** → `DELETE /inbox-files`.
+- **Паралелна обработка**: `asyncio.Semaphore(10)` per-profile → до 10 Gemini заявки едновременно.
+- **SSE events**: `init` → `start` → `file_processing` → `progress` → `complete`.
+- **V1 matching**: EIK → VAT → VAT-digits → fuzzy name; credit note detection; v1 именуване (`{date} {number} - {recipient}[ КИ]{ext}` за продажби; `{date} {issuer} - {number}[ КИ]{ext}` за покупки).
+- **Анимация 1:1 от v1**: gradient "brain" лого с `processingGlow` keyframe (3s breathing) + slow spin (4s ring) + per-file shimmer sweep (1.6s linear); state-цветни redове (pending/processing/done/unmatched/duplicate/error).
+- **Duplicate filter**: `unmatched` redове се изключват при duplicate lookup (не са реални дубликати); stari unmatched Invoice redove се трият преди всяка reprocess (без orphan redove).
+- **Unmatched**: файл остава в inbox, **без** quota consumption, с причина + AI error message.
+- Alembic **0006** — `Invoice.subtotal` (скрит в UI, за бъдещи feature-и).
+
+---
+
+## 13.17 Files page v1 parity (PR #38, #39, #40) ✅MERGED
+
+- **Multi-expand**: покупки + продажби едновременно (без accordion).
+- **Row-click селекция** (без checkboxes): индиго ring + tint; Ctrl/Cmd+click toggle, Shift+click range, Shift+↑/↓ extend, Ctrl/Cmd+A all, Esc clear.
+- **Toolbar** до заглавието "Структура на файловете": `N избрани · Свали (ZIP) · Изтрий · Отмени`.
+- **Per-row hover actions**: свали, изтрий, email (при cross-copy).
+- **Preview в нов таб**: `GET /invoices/{id}/preview` → inline streaming (Content-Disposition без `attachment`); RFC 5987 `filename*=UTF-8''...` за кирилица.
+- **Double-click** → preview.
+- **Batch ZIP**: `POST /invoices/batch-download` → on-the-fly ZIP.
+- **Batch delete**: `POST /invoices/batch-delete` → трие файлове + DB redove + update quota.
+
+### Deploy инцидент
+- Deploy-вах frontend-а на `/opt/megabanx-v2/frontend/` вместо `/opt/megabanx-v2/frontend-dist/` (където nginx реално сервира). Fix: винаги rsync на `/opt/megabanx-v2/frontend-dist/`.
+- Друг инцидент: rsync на backend source с `--delete` е трил `data/` папката (файловете на потребителите). Fix: винаги `--exclude=data --exclude=.env`.
+
+---
+
+## 13.18 Plan catalog v1 parity (PR #41) ✅MERGED
+
+Пълно замяна на legacy plan catalog-а с **6 v1 плана** (EUR):
+- Безплатен — 0 EUR, 1 фирма, 10 фактури (преди беше 30 → Alembic **0007** мигрира съществуващите redove)
+- Стартов — 29.99 EUR, 3 фирми, 50 фактури, `promo: "3 месеца БЕЗПЛАТНО"`, `trial_days: 90`
+- Професионален — 49.99 EUR, 3 фирми, 1500 фактури, `promo: "3 месеца БЕЗПЛАТНО"`, `trial_days: 90`
+- Бизнес — 99.99 EUR, 5 фирми, 3500 фактури, `popular: true`
+- Корпоративен — 249.99 EUR, 10 фирми, 15 000 фактури
+- Персонален — `contact_us: true`, unlimited
+
+`free` limit се чете **динамично** от catalog-а в auth registration, lazy billing init, model default, `GET /billing`.
+
+---
+
+## 13.19 Trial activation без Stripe (PR #42) ✅MERGED
+
+v1-parity промо trial flow (**без плащане при стартиране**):
+- Нов `POST /billing/trial` приема `plan_id` (`starter` или `pro`). Без Stripe checkout.
+- **trial_days от plan catalog** (90), не hardcoded.
+- **Preserve `trial_ends_at`** при смяна на план по време на активен trial (90-те дни се броят от първия старт, не от всяко превключване). Покрива и случая когато Stripe webhook е нулирал `plan="free"` но trial window-ът е още валиден.
+- **One-trial-per-user guard**: ако `billing.is_trial=True` но trial е изтекъл → 400 "Вече сте използвали пробния период" (блокира alternating starter↔pro за unlimited free usage).
+- `SubscriptionInfo.trial_used` (нов boolean) — authoritative signal за frontend, базиран на `billing.is_trial` (не на derived `status` string). Използва се от `PlanCards` за да скрие "Започни пробен период" CTA-та когато trial-ът е вече използван.
+- **Frontend**:
+  - `PlanCards`: starter/pro показват "Започни пробен период" (без VAT dialog, без Stripe) когато `!hasStripeSubscription && !trialUsed`; иначе fallback към "Абонирай се" (Stripe checkout с вграден `trial_period_days=90`).
+  - `PricingSection` (landing): starter/pro CTA → "Започни пробен период".
+  - `billingApi.activateTrial(planId)` → `POST /billing/trial` с `{ plan_id }`.
+
+---
+
+## 14. Build & Deploy (обновено)
+
+Ключови правила:
+- **Rsync backend source**: винаги `--exclude=data --exclude=.env --exclude=__pycache__` → `/opt/megabanx-v2/source/backend-v2/`.
+- **Rsync frontend**: винаги в `/opt/megabanx-v2/frontend-dist/` (nginx root).
+- **Alembic**: `/opt/megabanx-v2/venv/bin/alembic -c alembic.ini upgrade head` от source root.
+- **Restart**: `systemctl restart megabanx-v2-backend`.
+- **Health**: `curl http://localhost:8005/health` (връща HTML на SPA index; backend health-check е имплицитен през `/api/...`).
+
+---
+
+*Документ генериран на 18.04.2026 г., обновен на 21.04.2026 г. — добавени Stages 7-9, Files v1 parity, Plan catalog v1 parity и Trial-без-Stripe flow (PR-ове #24-#42 merged & deployed).*
