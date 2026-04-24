@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import time
 
 from fastapi import HTTPException
 from google import genai
@@ -21,6 +22,27 @@ logger = logging.getLogger("megabanx.gemini")
 # rather than silently marking 9/10 files as "unmatched".
 GEMINI_MAX_RETRIES = 10
 GEMINI_RETRY_STATUSES = ("429", "500", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL")
+
+# v1 parity — stagger successive Gemini calls so 10 parallel workers don't
+# send a burst of 10 requests within the same millisecond. Without this,
+# Gemini's edge rate-limiter quickly returns 503 UNAVAILABLE ("overloaded"),
+# which — combined with no retry logic — caused 9/10 files to be flagged
+# "Без съвпадение". v1 uses 0.1s, which spreads 10 calls across ~1s.
+GEMINI_MIN_CALL_INTERVAL = float(os.environ.get("GEMINI_MIN_CALL_INTERVAL", "0.1"))
+_gemini_call_lock = asyncio.Lock()
+_gemini_last_call_time: float = 0.0
+
+
+async def _throttle_gemini_call() -> None:
+    """Ensure at least GEMINI_MIN_CALL_INTERVAL between call starts (process-wide)."""
+    global _gemini_last_call_time
+    async with _gemini_call_lock:
+        now = time.monotonic()
+        elapsed = now - _gemini_last_call_time
+        if elapsed < GEMINI_MIN_CALL_INTERVAL:
+            await asyncio.sleep(GEMINI_MIN_CALL_INTERVAL - elapsed)
+        _gemini_last_call_time = time.monotonic()
+
 
 _client: genai.Client | None = None
 
@@ -105,6 +127,7 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
     last_error: Exception | None = None
     for attempt in range(GEMINI_MAX_RETRIES):
         try:
+            await _throttle_gemini_call()
             response_text = await asyncio.to_thread(_sync_generate)
 
             # Strip markdown code fences if present
