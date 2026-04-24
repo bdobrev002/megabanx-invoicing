@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 
 from fastapi import HTTPException
 from google import genai
@@ -13,6 +14,13 @@ from app.config import settings
 from app.services.encryption import read_decrypted_file
 
 logger = logging.getLogger("megabanx.gemini")
+
+# Retry configuration for transient Gemini API failures (429, 500, 503).
+# Matches v1 behaviour — Gemini is often overloaded ("high demand"),
+# and the processing pipeline must survive a burst of 503 responses
+# rather than silently marking 9/10 files as "unmatched".
+GEMINI_MAX_RETRIES = 10
+GEMINI_RETRY_STATUSES = ("429", "500", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "INTERNAL")
 
 _client: genai.Client | None = None
 
@@ -93,22 +101,39 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
         )
         return resp.text.strip() if resp.text else ""
 
-    try:
-        response_text = await asyncio.to_thread(_sync_generate)
+    response_text = ""
+    last_error: Exception | None = None
+    for attempt in range(GEMINI_MAX_RETRIES):
+        try:
+            response_text = await asyncio.to_thread(_sync_generate)
 
-        # Strip markdown code fences if present
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            response_text = "\n".join(lines)
+            # Strip markdown code fences if present
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
 
-        result = json.loads(response_text)
-        return result
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Gemini response: {response_text}")
-        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
-    except Exception as e:
-        logger.error(f"Gemini API error: {e}")
-        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+            return json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini response: {response_text}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
+        except Exception as e:
+            err = str(e)
+            last_error = e
+            is_transient = any(code in err for code in GEMINI_RETRY_STATUSES)
+            if is_transient and attempt < GEMINI_MAX_RETRIES - 1:
+                wait_time = min(5 * (attempt + 1) + random.uniform(0, 3), 60)
+                logger.warning(
+                    f"Gemini transient error (attempt {attempt + 1}/{GEMINI_MAX_RETRIES}), waiting {wait_time:.1f}s: {err[:200]}"
+                )
+                await asyncio.sleep(wait_time)
+                continue
+            logger.error(f"Gemini API error: {err}")
+            raise HTTPException(status_code=500, detail=f"AI analysis failed: {err}")
+
+    raise HTTPException(
+        status_code=500,
+        detail=f"AI analysis failed after {GEMINI_MAX_RETRIES} retries: {last_error}",
+    )
