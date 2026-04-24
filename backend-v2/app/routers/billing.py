@@ -275,8 +275,10 @@ async def activate_trial(
     if billing.is_trial and not trial_active:
         raise HTTPException(status_code=400, detail="Вече сте използвали пробния период")
 
-    if trial_active and billing.plan in ("starter", "pro"):
-        # Preserve original end date when switching between starter <-> pro.
+    if trial_active:
+        # Preserve original end date for any active trial — the plan may have
+        # been reset to "free" by a Stripe webhook (customer.subscription.deleted),
+        # but the promo trial window is still valid.
         pass
     else:
         # First activation: start the trial fresh from today.
