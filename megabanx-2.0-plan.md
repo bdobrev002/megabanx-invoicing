@@ -1713,4 +1713,55 @@ DATA_DIR=/opt/bginvoices/data
 
 ---
 
-*Обновен на 21.04.2026 г. — всички фази 1-5 завършени, production deploy на megabanx.duckdns.org*
+## 7. PRODUCTION PROGRESS (актуализация)
+
+### 7.1 Merged stages (PR-ове #10 → #42)
+
+| Stage | PR | Описание | Статус |
+|-------|-----|----------|--------|
+| 0 | #10 | Foundation: protections, Alembic baseline | ✅ |
+| 1.1 | #11 | Invoicing backend + PDF | ✅ |
+| 1.2 | #12 | Invoicing frontend form | ✅ |
+| 2 | #15 | Cross-copy write-path (auto-mirror по EIK) | ✅ |
+| 3 | #16 | AI upload: auto-classify, duplicate guard, reclassify | ✅ |
+| 3.5 | #18 | Conditional „Чакащи одобрение" subfolder | ✅ |
+| 4 | #19 | Email изпращане на фактури (Postfix + шаблони + tracking) | ✅ |
+| 5 | #20 | Sharing със счетоводител (scoped access + invitations) | ✅ |
+| 6A | #21 | Settings: user profile, company contact/logo/banks, sync mode | ✅ |
+| 6B | #22 | Invoice templates (4 designs) + email template preview | ✅ |
+| 7 | #24, #25, #31 | Companies polish (EIK extraction, v1 layout) | ✅ |
+| UI | #26, #27, #28, #29 | Qota banner, Files toolbar, Абонамент redesign | ✅ |
+| 8 | #33–#37 | Upload/Process split + SSE (10 parallel) + анимации + subtotal | ✅ |
+| 9 | #32 | Stripe billing (checkout / cancel / resume / portal / webhook) | ✅ |
+| Files | #38, #39, #40 | Multi-expand, row-click селекция, toolbar, preview, batch ZIP/delete | ✅ |
+| Billing catalog | #30, #41 | 6 v1 плана, EUR, promos, `free` limit 10 | ✅ |
+| Trial | #42 | `POST /billing/trial` без Stripe, `trial_used` guard | ✅ |
+
+### 7.2 Текущо състояние на deploy-а
+
+- **URL**: https://megabanx.duckdns.org/
+- **Backend**: `/opt/megabanx-v2/source/backend-v2/` + `systemctl megabanx-v2-backend` (порт 8005/8007)
+- **Frontend**: `/opt/megabanx-v2/frontend-dist/` (nginx root)
+- **DB**: `megabanx_v2` (PostgreSQL 16), последна миграция `0007_free_plan_invoices_limit_10`
+- **Deploy rules**:
+  - Backend rsync: `--exclude=data --exclude=.env --exclude=__pycache__`
+  - Frontend rsync: **точно** `/opt/megabanx-v2/frontend-dist/`
+  - Alembic преди restart: `/opt/megabanx-v2/venv/bin/alembic upgrade head`
+
+### 7.3 Ключови работещи потоци
+
+- **Upload**: drop-zone → inbox → "Обработи с AI" (SSE, 10 parallel, shimmer sweep per-file) → auto-classify (EIK/VAT/fuzzy) → v1 именуване → `Фактури покупки|продажби/`
+- **Files**: multi-expand, row-click селекция (keyboard: Ctrl/Shift/Ctrl+A/Esc), toolbar вдясно срещу "Структура на файловете", preview в нов таб, batch ZIP/delete
+- **Billing**: 6 плана (EUR) + промо trial (`starter`/`pro` → 90 дена без Stripe); Бизнес/Корпоративен → Stripe checkout с вграден `trial_period_days=90`; `trial_used` guard блокира infinite re-activation
+- **Sync mode**: Immediate / Delayed / Manual за cross-copy
+
+### 7.4 Открити / предстоящи
+
+- [ ] Duplicate-resolve dialog (replace / keep-old / keep-both) — обсъден, отложен (v1 няма такъв)
+- [ ] WebSocket delivery ticks за cross-copy (v1 има Viber-style indicator)
+- [ ] Admin panel (фаза 6 от оригиналния plan)
+- [ ] API за външни системи (фаза 4 от inv.bg gap analysis)
+
+---
+
+*Обновен на 21.04.2026 г. — всички фази 1-6B + Stages 7-9 + Files v1 parity + Billing catalog v1 parity + Trial-без-Stripe flow завършени и deployed на megabanx.duckdns.org*
