@@ -106,7 +106,13 @@ export default function BillingPage() {
         })}
       </div>
 
-      {tab === 'plans' && <PlanCards currentPlan={subscription?.plan} />}
+      {tab === 'plans' && (
+        <PlanCards
+          currentPlan={subscription?.plan}
+          hasStripeSubscription={!!subscription?.stripe_subscription_id}
+          trialUsed={!!subscription?.trial_used}
+        />
+      )}
       {tab === 'payments' && <PaymentHistory />}
     </div>
   )

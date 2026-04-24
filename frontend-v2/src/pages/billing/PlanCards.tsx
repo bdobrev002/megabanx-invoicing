@@ -8,6 +8,10 @@ import VatConfirmDialog from './VatConfirmDialog'
 
 interface Props {
   currentPlan?: string
+  /** Whether the current Stripe subscription is active (blocks trial activation). */
+  hasStripeSubscription?: boolean
+  /** Whether the user has already used their promo trial (starter/pro). */
+  trialUsed?: boolean
 }
 
 function planColors(plan: BillingPlan): string {
@@ -46,7 +50,7 @@ function ctaButtonClass(plan: BillingPlan): string {
   return 'bg-gray-900 text-white hover:bg-gray-800'
 }
 
-export default function PlanCards({ currentPlan }: Props) {
+export default function PlanCards({ currentPlan, hasStripeSubscription, trialUsed }: Props) {
   const plans = useBillingStore((s) => s.plans)
   const setError = useUiStore((s) => s.setError)
   const [selected, setSelected] = useState<{ id: string; interval: string } | null>(null)
@@ -59,6 +63,17 @@ export default function PlanCards({ currentPlan }: Props) {
       window.location.href = checkout_url
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Грешка при абониране')
+      setBusy(null)
+    }
+  }
+
+  const handleStartTrial = async (planId: string) => {
+    setBusy(planId)
+    try {
+      await billingApi.activateTrial(planId)
+      window.location.reload()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Грешка при активиране на пробен период')
       setBusy(null)
     }
   }
@@ -151,6 +166,16 @@ export default function PlanCards({ currentPlan }: Props) {
                 <div className="mt-auto w-full cursor-default rounded-xl bg-gray-200 py-2 text-center text-sm font-medium text-gray-700">
                   Безплатен
                 </div>
+              ) : (plan.id === 'starter' || plan.id === 'pro') && !hasStripeSubscription && !trialUsed ? (
+                <button
+                  type="button"
+                  onClick={() => handleStartTrial(plan.id)}
+                  disabled={busy !== null}
+                  className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium transition disabled:opacity-60 ${ctaButtonClass(plan)}`}
+                >
+                  {busy === plan.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Започни пробен период
+                </button>
               ) : (
                 <button
                   type="button"
@@ -159,7 +184,7 @@ export default function PlanCards({ currentPlan }: Props) {
                   className={`mt-auto inline-flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium transition disabled:opacity-60 ${ctaButtonClass(plan)}`}
                 >
                   {busy === plan.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Преминете
+                  Абонирай се
                 </button>
               )}
             </div>

@@ -19,6 +19,7 @@ export interface SubscriptionInfo {
   cancel_at_period_end?: boolean
   stripe_subscription_id?: string
   stripe_customer_id?: string
+  trial_used?: boolean
 }
 
 export type AuthScreen = 'login' | 'register' | 'verify' | 'landing'

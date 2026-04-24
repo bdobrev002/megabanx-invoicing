@@ -172,7 +172,9 @@ export default function PricingSection() {
                     to={ROUTES.REGISTER}
                     className={`w-full py-2 rounded-xl text-sm font-medium text-center block transition mt-auto ${buttonClass(plan)}`}
                   >
-                    Абонирай се
+                    {plan.id === 'starter' || plan.id === 'pro'
+                      ? 'Започни пробен период'
+                      : 'Абонирай се'}
                   </Link>
                 )}
               </div>

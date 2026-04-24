@@ -216,4 +216,7 @@ def build_subscription_info(
         "cancel_at_period_end": bool(getattr(billing, "cancel_at_period_end", False)) if billing else False,
         "stripe_customer_id": getattr(billing, "stripe_customer_id", None) if billing else None,
         "stripe_subscription_id": getattr(billing, "stripe_subscription_id", None) if billing else None,
+        # Authoritative signal: has this user ever activated the promo trial?
+        # Used by the frontend to hide the "Започни пробен период" CTA.
+        "trial_used": bool(getattr(billing, "is_trial", False)) if billing else False,
     }

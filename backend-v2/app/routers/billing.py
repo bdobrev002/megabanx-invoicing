@@ -233,30 +233,69 @@ async def payments(
 # ---------------------------------------------------------------------------
 
 
+class TrialIn(BaseModel):
+    plan_id: str = "pro"
+
+
 @router.post("/trial")
 async def activate_trial(
+    body: TrialIn | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Grant a 30-day `pro` trial without Stripe. Idempotent per user."""
-    billing = await _get_or_create_billing(user, db)
-    if billing.is_trial and billing.trial_ends_at and billing.trial_ends_at > datetime.utcnow():
-        return {"message": "Триалът ви вече е активен"}
-    # One trial per user — expired trials stay marked and can't be re-activated.
-    if billing.is_trial:
-        raise HTTPException(status_code=400, detail="Вече сте използвали пробния период")
-    if billing.stripe_subscription_id:
-        raise HTTPException(status_code=400, detail="Вече имате активен абонамент")
+    """Activate a promotional trial (no Stripe) for starter or pro.
 
-    billing.plan = "pro"
+    v1 parity:
+    - Only `starter` and `pro` plans are trial-eligible.
+    - Trial length comes from the plan catalog (`trial_days`, default 90).
+    - Switching plans during an active trial preserves the original
+      `trial_ends_at` — the 90 days count from the first activation, not
+      from each switch.
+    - Users on a paid Stripe subscription cannot downgrade to a trial.
+    """
+    plan_id = (body.plan_id if body else "pro").strip().lower()
+    if plan_id not in ("starter", "pro"):
+        raise HTTPException(
+            status_code=400,
+            detail="Пробният период е достъпен само за Стартов и Професионален",
+        )
+
+    billing = await _get_or_create_billing(user, db)
+    if billing.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="Вече имате активен платен абонамент")
+
+    plan = get_plan(plan_id)
+    trial_days = int(plan.get("trial_days", 90))
+
+    now = datetime.utcnow()
+    trial_active = bool(billing.is_trial and billing.trial_ends_at and billing.trial_ends_at > now)
+    # One promo trial per user — once it expires it stays marked and can't be
+    # re-activated (otherwise users could alternate starter<->pro indefinitely
+    # for free premium access).
+    if billing.is_trial and not trial_active:
+        raise HTTPException(status_code=400, detail="Вече сте използвали пробния период")
+
+    if trial_active:
+        # Preserve original end date for any active trial — the plan may have
+        # been reset to "free" by a Stripe webhook (customer.subscription.deleted),
+        # but the promo trial window is still valid.
+        pass
+    else:
+        # First activation: start the trial fresh from today.
+        billing.trial_ends_at = now + timedelta(days=trial_days)
+
+    billing.plan = plan_id
     billing.is_trial = True
     # Clear any stale Stripe status (e.g. "canceled" from a prior subscription)
     # so the frontend reliably shows the trial banner.
     billing.subscription_status = None
-    billing.trial_ends_at = datetime.utcnow() + timedelta(days=30)
-    billing.invoices_limit = int(get_plan("pro").get("max_invoices", 999_999))
+    billing.invoices_limit = int(plan.get("max_invoices", 999_999))
     await db.commit()
-    return {"message": "Триалът е активиран за 30 дни"}
+    return {
+        "message": f"Пробният период е активиран ({plan.get('name', plan_id)})",
+        "plan": plan_id,
+        "trial_ends_at": billing.trial_ends_at.isoformat() if billing.trial_ends_at else None,
+    }
 
 
 # ---------------------------------------------------------------------------
