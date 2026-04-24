@@ -16,6 +16,13 @@ from app.services.encryption import read_decrypted_file
 
 logger = logging.getLogger("megabanx.gemini")
 
+# Gemini model. `gemini-2.5-flash` was overloaded at Google infra level —
+# 3-5/10 parallel calls returned 503 UNAVAILABLE even with Tier 1 Postpay
+# quota available. `gemini-2.5-flash-lite` returns 10/10 on the same
+# parallel burst (tested with VPS key). Same multi-modal input (PDF+image)
+# and structured JSON output, ~3x cheaper, optimised for throughput.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
 # Retry configuration for transient Gemini API failures (429, 500, 503).
 # Matches v1 behaviour — Gemini is often overloaded ("high demand"),
 # and the processing pipeline must survive a burst of 503 responses
@@ -118,7 +125,7 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
     def _sync_generate() -> str:
         """Run the synchronous Gemini SDK call in a thread."""
         resp = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=GEMINI_MODEL,
             contents=parts,
         )
         return resp.text.strip() if resp.text else ""
@@ -147,7 +154,12 @@ async def analyze_invoice_with_gemini(file_path: str, extracted_text: str = "") 
             last_error = e
             is_transient = any(code in err for code in GEMINI_RETRY_STATUSES)
             if is_transient and attempt < GEMINI_MAX_RETRIES - 1:
-                wait_time = min(5 * (attempt + 1) + random.uniform(0, 3), 60)
+                # Exponential backoff that starts fast: 1s, 2s, 4s, 8s, 16s, 30s...
+                # Google's gemini-2.5-flash currently returns 503 UNAVAILABLE
+                # transiently even for sequential calls, so a short first retry
+                # recovers most files in <3s. Cap at 30s to avoid runaway waits
+                # when the entire service is genuinely down.
+                wait_time = min(2**attempt + random.uniform(0, 1), 30)
                 logger.warning(
                     f"Gemini transient error (attempt {attempt + 1}/{GEMINI_MAX_RETRIES}), waiting {wait_time:.1f}s: {err[:200]}"
                 )

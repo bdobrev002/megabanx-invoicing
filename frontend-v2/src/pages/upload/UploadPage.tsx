@@ -56,29 +56,22 @@ const quotaStyles: Record<QuotaTone, { box: string; head: string; line: string }
   },
 }
 
-// v1-style processing animation. The brain logo pulses softly via a
-// box-shadow glow (no scale() so it isn't jarring), and each processing
-// file gets a *subtle* static gradient overlay (opacity 0.4, no sweep)
-// to hint progress. v1 deliberately avoids a fast shimmer sweep — the
-// spinning Loader2 icon + "Обработва се..." label carry the motion.
+// v1 in-app processing UI — simple indigo banner + per-file list with a
+// subtle light-blue/indigo tint on rows being analysed. No brain logo,
+// no spinning ring, no fast shimmer sweep. Matches /opt/bginvoices/source/
+// frontend/App.tsx:2930-2985 exactly.
 const PROCESSING_ANIMATION_CSS = `
-@keyframes megabanxProcessingGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 60px rgba(99,102,241,0.1); }
-  50%      { box-shadow: 0 0 30px rgba(168,85,247,0.5), 0 0 80px rgba(168,85,247,0.2); }
+@keyframes megabanxFileProgressBar {
+  0%   { background-position: 0% 0; }
+  100% { background-position: -200% 0; }
 }
-@keyframes megabanxSpinSlow {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-.megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; border-radius: 1rem; }
-.megabanx-spin-slow       { animation: megabanxSpinSlow 4s linear infinite; }
-.megabanx-file-shimmer    {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
-}
-.megabanx-file-shimmer::before {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(191,219,254,0.4), rgba(165,180,252,0.4), rgba(191,219,254,0.4));
+.megabanx-file-progress {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgb(191,219,254), rgb(165,180,252), rgb(191,219,254));
+  background-size: 200% 100%;
   opacity: 0.4;
+  animation: megabanxFileProgressBar 8s ease-in-out infinite;
+  pointer-events: none;
 }
 `
 
@@ -144,43 +137,35 @@ function ProcessingStream({
   statuses: Record<string, FileStatus>
 }) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0
+  const currentFile = files.find(
+    (f) => statuses[f.inbox_filename] === 'processing',
+  )?.original_filename
   return (
     <Card>
       <style>{PROCESSING_ANIMATION_CSS}</style>
-      <div className="flex flex-col gap-4 py-4">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="relative">
-            <div
-              className="megabanx-processing-glow flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg"
-              aria-hidden
-            >
-              <Sparkles size={28} />
-            </div>
-            <Loader2
-              size={72}
-              className="megabanx-spin-slow absolute -left-1 -top-1 text-indigo-300/60"
-              strokeWidth={1}
-            />
+      <div className="flex flex-col gap-3 py-2">
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-indigo-800">
+              Обработка: {current} / {total} ({pct}%)
+            </span>
+            {parallel > 0 && (
+              <span className="text-xs text-indigo-600">
+                Паралелни: {parallel}
+              </span>
+            )}
           </div>
-          <div>
-            <p className="text-lg font-semibold text-gray-900">
-              Обработка с AI...
-            </p>
-            <p className="text-sm text-gray-600">
-              {current}/{total} файла
-              {parallel > 0 && (
-                <span className="ml-2 text-gray-500">
-                  (до {parallel} едновременно)
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="h-2 w-full max-w-md overflow-hidden rounded-full bg-gray-200">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-indigo-200">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all"
+              className="h-full rounded-full bg-indigo-600 transition-all duration-300"
               style={{ width: `${pct}%` }}
             />
           </div>
+          {currentFile && (
+            <p className="mt-1 truncate text-xs text-indigo-600">
+              Текущ файл: {currentFile}
+            </p>
+          )}
         </div>
 
         <ul className="space-y-1 text-sm">
@@ -193,7 +178,7 @@ function ProcessingStream({
                 className={`relative overflow-hidden rounded border ${s.box}`}
               >
                 {status === 'processing' && (
-                  <div className="megabanx-file-shimmer" aria-hidden />
+                  <div className="megabanx-file-progress" aria-hidden />
                 )}
                 {status === 'processed' && (
                   <div className="pointer-events-none absolute inset-0 bg-green-200 opacity-20" />
