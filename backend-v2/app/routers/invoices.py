@@ -327,7 +327,12 @@ async def _process_single_inbox_file(
                 Invoice.profile_id == profile_id,
                 Invoice.issuer_eik == issuer_eik,
                 Invoice.invoice_number == inv_number,
-                Invoice.status != "unmatched",
+                # Only finalized invoices are "real" duplicates. ``unmatched``
+                # rows are inbox placeholders; ``duplicate_pending`` rows are
+                # transient quarantined files awaiting the 3-choice dialog —
+                # chaining to one would create a broken ``duplicate_of_id``
+                # reference when the user picks ``keep_existing``.
+                Invoice.status.not_in(("unmatched", "duplicate_pending")),
             )
         )
         duplicate_of = dup_result.scalars().first()
@@ -547,7 +552,15 @@ async def process_inbox(
 
     inbox_dir = get_inbox_dir(profile_id)
     if not os.path.isdir(inbox_dir):
-        return {"processed": 0, "unmatched": 0, "duplicate": 0, "over_limit": 0, "errors": 0, "results": []}
+        return {
+            "processed": 0,
+            "unmatched": 0,
+            "duplicate": 0,
+            "duplicate_pending": 0,
+            "over_limit": 0,
+            "errors": 0,
+            "results": [],
+        }
 
     companies_result = await db.execute(select(Company).where(Company.profile_id == profile_id))
     companies = list(companies_result.scalars().all())
