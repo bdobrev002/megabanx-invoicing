@@ -1627,6 +1627,12 @@ async def get_folder_structure(
             item_path = os.path.join(profile_dir, item)
             if not os.path.isdir(item_path):
                 continue
+            # Skip internal implementation directories (e.g. ``_duplicate_temp``
+            # used for quarantined dialog-pending files). Underscore-prefixed
+            # names are reserved for backend housekeeping and must never leak
+            # into the folder tree the UI renders.
+            if item.startswith("_"):
+                continue
             subfolders = []
             for sub in sorted(os.listdir(item_path)):
                 sub_path = os.path.join(item_path, sub)
