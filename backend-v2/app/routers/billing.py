@@ -268,14 +268,18 @@ async def activate_trial(
     trial_days = int(plan.get("trial_days", 90))
 
     now = datetime.utcnow()
-    already_on_promo_trial = bool(
-        billing.is_trial and billing.trial_ends_at and billing.trial_ends_at > now and billing.plan in ("starter", "pro")
-    )
-    if already_on_promo_trial:
+    trial_active = bool(billing.is_trial and billing.trial_ends_at and billing.trial_ends_at > now)
+    # One promo trial per user — once it expires it stays marked and can't be
+    # re-activated (otherwise users could alternate starter<->pro indefinitely
+    # for free premium access).
+    if billing.is_trial and not trial_active:
+        raise HTTPException(status_code=400, detail="Вече сте използвали пробния период")
+
+    if trial_active and billing.plan in ("starter", "pro"):
         # Preserve original end date when switching between starter <-> pro.
         pass
     else:
-        # Start (or restart an expired) trial fresh from today.
+        # First activation: start the trial fresh from today.
         billing.trial_ends_at = now + timedelta(days=trial_days)
 
     billing.plan = plan_id

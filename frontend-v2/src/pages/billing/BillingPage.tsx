@@ -110,6 +110,9 @@ export default function BillingPage() {
         <PlanCards
           currentPlan={subscription?.plan}
           hasStripeSubscription={!!subscription?.stripe_subscription_id}
+          trialUsed={
+            subscription?.status === 'expired' && !subscription?.stripe_subscription_id
+          }
         />
       )}
       {tab === 'payments' && <PaymentHistory />}

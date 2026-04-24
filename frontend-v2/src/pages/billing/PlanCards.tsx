@@ -10,6 +10,8 @@ interface Props {
   currentPlan?: string
   /** Whether the current Stripe subscription is active (blocks trial activation). */
   hasStripeSubscription?: boolean
+  /** Whether the user has already used their promo trial (starter/pro). */
+  trialUsed?: boolean
 }
 
 function planColors(plan: BillingPlan): string {
@@ -48,7 +50,7 @@ function ctaButtonClass(plan: BillingPlan): string {
   return 'bg-gray-900 text-white hover:bg-gray-800'
 }
 
-export default function PlanCards({ currentPlan, hasStripeSubscription }: Props) {
+export default function PlanCards({ currentPlan, hasStripeSubscription, trialUsed }: Props) {
   const plans = useBillingStore((s) => s.plans)
   const setError = useUiStore((s) => s.setError)
   const [selected, setSelected] = useState<{ id: string; interval: string } | null>(null)
@@ -164,7 +166,7 @@ export default function PlanCards({ currentPlan, hasStripeSubscription }: Props)
                 <div className="mt-auto w-full cursor-default rounded-xl bg-gray-200 py-2 text-center text-sm font-medium text-gray-700">
                   Безплатен
                 </div>
-              ) : (plan.id === 'starter' || plan.id === 'pro') && !hasStripeSubscription ? (
+              ) : (plan.id === 'starter' || plan.id === 'pro') && !hasStripeSubscription && !trialUsed ? (
                 <button
                   type="button"
                   onClick={() => handleStartTrial(plan.id)}
