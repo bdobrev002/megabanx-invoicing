@@ -56,33 +56,29 @@ const quotaStyles: Record<QuotaTone, { box: string; head: string; line: string }
   },
 }
 
-// v1-style processing animation: gradient "brain" logo that breathes
-// (processingGlow keyframe, 3s ease-in-out) with a slow-spinning ring and a
-// per-file status list. Keyframes are injected once via a <style> tag so we
-// don't need a global stylesheet edit.
+// v1-style processing animation. The brain logo pulses softly via a
+// box-shadow glow (no scale() so it isn't jarring), and each processing
+// file gets a *subtle* static gradient overlay (opacity 0.4, no sweep)
+// to hint progress. v1 deliberately avoids a fast shimmer sweep — the
+// spinning Loader2 icon + "Обработва се..." label carry the motion.
 const PROCESSING_ANIMATION_CSS = `
 @keyframes megabanxProcessingGlow {
-  0%, 100% { filter: drop-shadow(0 0 0.5rem rgba(99,102,241,0.35)); transform: scale(1); }
-  50%      { filter: drop-shadow(0 0 1.25rem rgba(99,102,241,0.7));  transform: scale(1.05); }
+  0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 60px rgba(99,102,241,0.1); }
+  50%      { box-shadow: 0 0 30px rgba(168,85,247,0.5), 0 0 80px rgba(168,85,247,0.2); }
 }
 @keyframes megabanxSpinSlow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-@keyframes megabanxFileShimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-.megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; }
+.megabanx-processing-glow { animation: megabanxProcessingGlow 3s ease-in-out infinite; border-radius: 1rem; }
 .megabanx-spin-slow       { animation: megabanxSpinSlow 4s linear infinite; }
 .megabanx-file-shimmer    {
   position: absolute; inset: 0; overflow: hidden; pointer-events: none;
 }
 .megabanx-file-shimmer::before {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 60%;
-  background: linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.55) 40%, rgba(99,102,241,0.75) 50%, rgba(129,140,248,0.55) 60%, transparent 100%);
-  animation: megabanxFileShimmer 1.6s linear infinite;
-  will-change: transform;
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(191,219,254,0.4), rgba(165,180,252,0.4), rgba(191,219,254,0.4));
+  opacity: 0.4;
 }
 `
 
